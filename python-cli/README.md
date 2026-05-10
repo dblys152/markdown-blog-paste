@@ -20,3 +20,4 @@ Python 3 환경이 필요합니다.
 
 ```bash
 python3 --version
+python3 -m pip install -r requirements.txt
