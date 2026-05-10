@@ -38,6 +38,24 @@ export function applyBlogInlineStyles(htmlText: string): string {
     );
   });
 
+  template.content.querySelectorAll("table").forEach((table) => {
+    mergeInlineStyle(
+      table as HTMLElement,
+      "border-collapse: collapse; width: 100%; margin: 24px 0; font-size: 15px;",
+    );
+  });
+
+  template.content.querySelectorAll("th, td").forEach((cell) => {
+    mergeInlineStyle(
+      cell as HTMLElement,
+      "border: 1px solid #ddd; padding: 10px 12px; line-height: 1.7;",
+    );
+  });
+
+  template.content.querySelectorAll("th").forEach((headerCell) => {
+    mergeInlineStyle(headerCell as HTMLElement, "background: #f5f5f5; font-weight: 700;");
+  });
+
   return template.innerHTML;
 }
 
