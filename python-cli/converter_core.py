@@ -65,7 +65,7 @@ h2 {
 }
 
 h3 {
-  font-size: 20px;
+  font-size: 19px;
   margin-top: 36px;
   margin-bottom: 16px;
   line-height: 1.5;

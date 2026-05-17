@@ -38,6 +38,13 @@ export function applyBlogInlineStyles(htmlText: string): string {
     );
   });
 
+  template.content.querySelectorAll("h3").forEach((heading) => {
+    mergeInlineStyle(
+      heading as HTMLElement,
+      "font-size: 19px; margin-top: 36px; margin-bottom: 16px; line-height: 1.5;",
+    );
+  });
+
   template.content.querySelectorAll("table").forEach((table) => {
     mergeInlineStyle(
       table as HTMLElement,
