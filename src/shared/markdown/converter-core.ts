@@ -6,7 +6,7 @@ import {
   convertCodeBlocksForNaver,
   type PostProcessor,
 } from "./processors";
-import { BASE_CSS } from "./styles";
+import { BASE_CSS } from "../styles/styles";
 
 const HTML_LANG = "ko";
 const HTML_CHARSET = "UTF-8";
