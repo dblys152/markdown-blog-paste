@@ -9,6 +9,7 @@
     "preview": "vite preview --host 127.0.0.1"
   },
   "dependencies": {
+    "html2pdf.js": "^0.14.0",
     "marked": "^12.0.2"
   },
   "devDependencies": {

@@ -1,5 +1,5 @@
 import { convertMarkdown } from "./converter-core";
-import { APP_CSS } from "./styles";
+import { APP_CSS, createScopedContentCss } from "./styles";
 import type { ConversionMode, ModeOption, PreviewStyle, UploadedMarkdownFile } from "./types";
 
 const SAMPLE_MARKDOWN = `# Markdown Blog Post 예시
@@ -69,6 +69,59 @@ const PREVIEW_STYLE_LABELS: Record<PreviewStyle, string> = {
   compact: "좁게",
   editor: "에디터",
 };
+
+const PDF_PAGEBREAK_AVOID_SELECTORS = [
+  ".pdf-document h1",
+  ".pdf-document h2",
+  ".pdf-document h3",
+  ".pdf-document p",
+  ".pdf-document ul",
+  ".pdf-document ol",
+  ".pdf-document li",
+  ".pdf-document blockquote",
+  ".pdf-document pre",
+  ".pdf-document table",
+  ".pdf-document tr",
+  ".pdf-document img",
+];
+
+const PDF_EXPORT_CSS = `
+${createScopedContentCss(".pdf-document")}
+
+.pdf-document {
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.pdf-document * {
+  box-sizing: border-box;
+}
+
+.pdf-document h1 {
+  margin-top: 0;
+}
+
+.pdf-document h1,
+.pdf-document h2,
+.pdf-document h3,
+.pdf-document p,
+.pdf-document ul,
+.pdf-document ol,
+.pdf-document li,
+.pdf-document blockquote,
+.pdf-document pre,
+.pdf-document table,
+.pdf-document tr,
+.pdf-document img {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.pdf-document pre,
+.pdf-document pre code {
+  white-space: pre-wrap;
+}
+`.trim();
 
 let markdownText = SAMPLE_MARKDOWN;
 let currentFile: UploadedMarkdownFile = {
@@ -148,6 +201,10 @@ function render(): void {
               <button class="secondary-button" type="button" data-action="download">
                 <span aria-hidden="true">⇩</span>
                 <span>HTML 파일 다운로드</span>
+              </button>
+              <button class="secondary-button" type="button" data-action="download-pdf">
+                <span aria-hidden="true">⇩</span>
+                <span>PDF 다운로드</span>
               </button>
             </div>
           </section>
@@ -253,8 +310,12 @@ function bindEvents(bodyHtml: string, fullHtml: string): void {
     downloadHtml(fullHtml);
   });
 
+  app.querySelector<HTMLButtonElement>("[data-action='download-pdf']")?.addEventListener("click", () => {
+    void downloadPdf(bodyHtml);
+  });
+
   app.querySelector<HTMLButtonElement>("[data-action='guide']")?.addEventListener("click", () => {
-    showToast("Markdown 파일을 올리고 변환 모드를 고른 뒤 복사하거나 HTML로 저장하세요.");
+    showToast("Markdown 파일을 올리고 변환 모드를 고른 뒤 복사하거나 HTML/PDF로 저장하세요.");
   });
 }
 
@@ -321,6 +382,55 @@ function downloadHtml(fullHtml: string): void {
   link.remove();
   URL.revokeObjectURL(url);
   showToast("HTML 파일 다운로드를 시작했습니다.");
+}
+
+async function downloadPdf(bodyHtml: string): Promise<void> {
+  const source = createPdfSource(bodyHtml);
+
+  try {
+    showToast("PDF 파일을 생성하고 있습니다.");
+    const { default: html2pdf } = await import("html2pdf.js");
+    const pdfOptions = {
+      margin: [10, 16, 16, 16] as [number, number, number, number],
+      filename: `${getOutputTitle()}.pdf`,
+      image: { type: "jpeg" as const, quality: 0.98 },
+      html2canvas: {
+        backgroundColor: "#ffffff",
+        scale: 2,
+        useCORS: true,
+      },
+      jsPDF: {
+        unit: "mm",
+        format: "a4",
+        orientation: "portrait" as const,
+      },
+      pagebreak: {
+        mode: ["css", "legacy"],
+        avoid: PDF_PAGEBREAK_AVOID_SELECTORS,
+      },
+    };
+
+    await html2pdf()
+      .set(pdfOptions)
+      .from(source)
+      .save();
+    showToast("PDF 파일 다운로드를 시작했습니다.");
+  } catch {
+    showToast("PDF 파일을 만들 수 없습니다.");
+  }
+}
+
+function createPdfSource(bodyHtml: string): HTMLElement {
+  const source = document.createElement("div");
+  const style = document.createElement("style");
+  const content = document.createElement("article");
+
+  style.textContent = PDF_EXPORT_CSS;
+  content.className = "pdf-document";
+  content.innerHTML = bodyHtml;
+
+  source.append(style, content);
+  return source;
 }
 
 function renderModeOption(option: ModeOption): string {

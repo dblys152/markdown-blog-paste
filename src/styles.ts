@@ -1,52 +1,88 @@
 export const BASE_CSS = `
-body {
+${createContentRootCss("body", {
+  maxWidth: "760px",
+  margin: "40px auto",
+  padding: "0 20px",
+})}
+
+${createContentCss()}
+`.trim();
+
+export function createScopedContentCss(scope: string): string {
+  return `
+${createContentRootCss(scope)}
+
+${createContentCss(scope)}
+`.trim();
+}
+
+function createContentRootCss(
+  selector: string,
+  layout: { maxWidth?: string; margin?: string; padding?: string } = {},
+): string {
+  const layoutRules = [
+    layout.maxWidth ? `  max-width: ${layout.maxWidth};` : "",
+    layout.margin ? `  margin: ${layout.margin};` : "",
+    layout.padding ? `  padding: ${layout.padding};` : "",
+  ].filter(Boolean);
+
+  return `
+${selector} {
   font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
   line-height: 1.9;
   font-size: 16px;
   color: #222;
-  max-width: 760px;
-  margin: 40px auto;
-  padding: 0 20px;
+  background: #fff;
+${layoutRules.join("\n")}
+}
+`.trim();
 }
 
-h1 {
+function createContentCss(scope = ""): string {
+  const selector = (value: string) =>
+    value
+      .split(",")
+      .map((part) => `${scope ? `${scope} ` : ""}${part.trim()}`)
+      .join(",\n");
+
+  return `
+${selector("h1")} {
   font-size: 28px;
   margin-top: 44px;
   margin-bottom: 24px;
   line-height: 1.4;
 }
 
-h2 {
+${selector("h2")} {
   font-size: 24px;
   margin-top: 44px;
   margin-bottom: 20px;
   line-height: 1.4;
 }
 
-h3 {
+${selector("h3")} {
   font-size: 19px;
   margin-top: 36px;
   margin-bottom: 16px;
   line-height: 1.5;
 }
 
-p {
+${selector("p")} {
   margin: 16px 0;
   line-height: 1.9;
 }
 
-ul,
-ol {
+${selector("ul, ol")} {
   margin: 16px 0;
   padding-left: 28px;
 }
 
-li {
+${selector("li")} {
   margin: 8px 0;
   line-height: 1.8;
 }
 
-blockquote {
+${selector("blockquote")} {
   margin: 24px 0;
   padding: 14px 18px;
   border-left: 4px solid #d1d5db;
@@ -54,7 +90,7 @@ blockquote {
   color: #555;
 }
 
-pre {
+${selector("pre")} {
   display: block;
   background: #f8f9fa;
   color: #111827;
@@ -68,7 +104,7 @@ pre {
   margin: 24px 0;
 }
 
-pre code {
+${selector("pre code")} {
   display: block;
   background: transparent;
   color: #111827;
@@ -78,12 +114,11 @@ pre code {
   white-space: pre;
 }
 
-code {
+${selector("code")} {
   font-family: Consolas, Monaco, "Courier New", monospace;
 }
 
-p code,
-li code {
+${selector("p code, li code")} {
   background: #f3f4f6;
   color: #d6336c;
   padding: 2px 5px;
@@ -91,41 +126,41 @@ li code {
   font-size: 0.9em;
 }
 
-table {
+${selector("table")} {
   border-collapse: collapse;
   width: 100%;
   margin: 24px 0;
   font-size: 15px;
 }
 
-th,
-td {
+${selector("th, td")} {
   border: 1px solid #ddd;
   padding: 10px 12px;
   line-height: 1.7;
 }
 
-th {
+${selector("th")} {
   background: #f5f5f5;
   font-weight: 700;
 }
 
-hr {
+${selector("hr")} {
   border: 0;
   border-top: 1px solid #e5e7eb;
   margin: 36px 0;
 }
 
-.editor-spacer {
+${selector(".editor-spacer")} {
   font-size: 16px;
   line-height: 1.4;
   margin: 0;
 }
 
-img {
+${selector("img")} {
   max-width: 100%;
 }
 `.trim();
+}
 
 export const APP_CSS = `
 :root {
