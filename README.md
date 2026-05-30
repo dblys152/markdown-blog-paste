@@ -2,7 +2,7 @@
 
 Markdown으로 작성한 글을 블로그 에디터에 붙여넣기 좋은 HTML로 변환하고, HTML/PDF 파일로 저장할 수 있는 웹 도구입니다.
 
-서비스 바로가기: https://markdown-blog-paste.pages.dev
+서비스 바로가기: https://md2blog.pages.dev
 
 ## 주요 기능
 
