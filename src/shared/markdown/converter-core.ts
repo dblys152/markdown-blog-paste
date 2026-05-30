@@ -38,7 +38,7 @@ export function renderMarkdown(
 export function convertMarkdown(
   markdownText: string,
   mode: ConversionMode,
-  title = "markdown-blog-paste",
+  title = "MD2Blog",
 ): ConversionResult {
   const processors = getPostProcessors(mode);
   const bodyHtml = renderMarkdown(markdownText, processors);

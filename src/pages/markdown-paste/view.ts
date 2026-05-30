@@ -50,7 +50,7 @@ export function renderMarkdownPasteView({
         <div class="brand">
           <img class="brand-mark" src="/favicon.svg" alt="" aria-hidden="true" />
           <div>
-            <h1>markdown-blog-paste</h1>
+            <h1>MD2Blog</h1>
             <p>Markdown 문서를 블로그 에디터에 붙여넣기 좋은 HTML로 변환합니다.</p>
           </div>
         </div>

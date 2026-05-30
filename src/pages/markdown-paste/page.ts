@@ -168,7 +168,7 @@ function isMarkdownFile(file: File): boolean {
 }
 
 function getOutputTitle(): string {
-  return currentFile.name.replace(/\.(md|markdown)$/i, "") || "markdown-blog-paste";
+  return currentFile.name.replace(/\.(md|markdown)$/i, "") || "MD2Blog";
 }
 
 function injectStyles(): void {
