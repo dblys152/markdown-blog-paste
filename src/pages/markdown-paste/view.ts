@@ -133,7 +133,7 @@ export function renderMarkdownPasteView({
             </div>
           </div>
           <div class="preview-wrap">
-            <iframe class="preview-frame" title="변환 결과" sandbox srcdoc="${escapeSrcdoc(
+            <iframe class="preview-frame" title="변환 결과" sandbox="allow-scripts" srcdoc="${escapeSrcdoc(
               applyPreviewStyle(result.fullHtml, previewStyle),
             )}"></iframe>
           </div>
@@ -174,16 +174,20 @@ function renderFileChip(currentFile: UploadedMarkdownFile): string {
 
 function applyPreviewStyle(fullHtml: string, previewStyle: PreviewStyle): string {
   if (previewStyle === "compact") {
-    return fullHtml.replace("max-width: 760px;", "max-width: 620px;");
+    return fullHtml.replaceAll("max-width: 800px;", "max-width: 660px;");
   }
 
   if (previewStyle === "editor") {
     return fullHtml.replace(
       "</style>",
       `
-body {
+.document-layout {
   margin-top: 20px;
   margin-bottom: 20px;
+}
+
+.document-content {
+  padding: 20px;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   background: #fff;

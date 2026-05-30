@@ -1,11 +1,145 @@
 export const BASE_CSS = `
-${createContentRootCss("body", {
-  maxWidth: "760px",
-  margin: "40px auto",
-  padding: "0 20px",
-})}
+:root {
+  --section-scroll-offset: 24px;
+}
 
-${createContentCss()}
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background: #fff;
+  color: #222;
+  font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+}
+
+.document-layout {
+  max-width: 800px;
+  margin: 40px auto;
+  padding: 0 20px;
+}
+
+.document-content {
+  min-width: 0;
+}
+
+${createContentRootCss(".document-content")}
+
+${createContentCss(".document-content")}
+
+.document-content h1,
+.document-content h2,
+.document-content h3 {
+  scroll-margin-top: var(--section-scroll-offset);
+}
+
+.floating-section-nav {
+  position: fixed;
+  top: 50%;
+  right: 24px;
+  z-index: 20;
+  display: grid;
+  justify-items: end;
+  transform: translateY(-50%);
+}
+
+.floating-section-nav-bars {
+  display: grid;
+  gap: 8px;
+  justify-items: end;
+  padding: 8px 0;
+}
+
+.floating-section-nav-bar {
+  display: block;
+  width: 20px;
+  height: 3px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: #c7cdd5;
+  opacity: 0.75;
+  cursor: pointer;
+  transition: width 140ms ease, background 140ms ease, opacity 140ms ease;
+}
+
+.floating-section-nav-bar.toc-level-3 {
+  width: 13px;
+}
+
+.floating-section-nav-bar:hover,
+.floating-section-nav-bar.is-active {
+  width: 28px;
+  background: #111827;
+  opacity: 1;
+}
+
+.floating-section-nav-panel {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  width: min(260px, calc(100vw - 96px));
+  max-height: min(420px, calc(100vh - 48px));
+  overflow: auto;
+  padding: 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.16);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-50%) translateX(8px);
+  transition: opacity 140ms ease, transform 140ms ease;
+}
+
+.floating-section-nav:hover .floating-section-nav-panel,
+.floating-section-nav:focus-within .floating-section-nav-panel {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(-50%) translateX(0);
+}
+
+.floating-section-nav-title {
+  margin-bottom: 10px;
+  color: #111827;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+.floating-section-nav-list {
+  display: grid;
+  gap: 5px;
+}
+
+.floating-section-nav-link {
+  display: block;
+  padding: 5px 6px;
+  border-radius: 6px;
+  color: #5d6673;
+  font-size: 13px;
+  line-height: 1.35;
+  text-decoration: none;
+  transition: background 140ms ease, color 140ms ease;
+}
+
+.floating-section-nav-link:hover,
+.floating-section-nav-link.is-active {
+  background: #f3f4f6;
+  color: #111827;
+}
+
+.floating-section-nav-link.toc-level-3 {
+  padding-left: 18px;
+  font-size: 12px;
+}
+
+@media (max-width: 640px) {
+  .floating-section-nav {
+    display: none;
+  }
+}
 `.trim();
 
 export function createScopedContentCss(scope: string): string {

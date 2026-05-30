@@ -6,6 +6,8 @@ import {
   convertCodeBlocksForNaver,
   type PostProcessor,
 } from "./processors";
+import { addHeadingAnchors } from "./toc";
+import { renderFloatingSectionNav } from "./floating-section-nav";
 import { BASE_CSS } from "../styles/styles";
 
 const HTML_LANG = "ko";
@@ -49,6 +51,7 @@ export function convertMarkdown(
 
 export function wrapHtml(bodyHtml: string, title: string): string {
   const safeTitle = escapeAttribute(title);
+  const anchoredContent = addHeadingAnchors(bodyHtml);
 
   return `<!DOCTYPE html>
 <html lang="${HTML_LANG}">
@@ -60,7 +63,12 @@ ${BASE_CSS}
   </style>
 </head>
 <body>
-${bodyHtml}
+  <div class="document-layout">
+    <main class="document-content">
+${anchoredContent.bodyHtml}
+    </main>
+  </div>
+  ${renderFloatingSectionNav(anchoredContent.entries)}
 </body>
 </html>
 `;

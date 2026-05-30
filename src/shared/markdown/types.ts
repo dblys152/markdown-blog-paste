@@ -19,3 +19,9 @@ export interface ModeOption {
   title: string;
   description: string;
 }
+
+export interface TocEntry {
+  id: string;
+  level: 1 | 2 | 3;
+  text: string;
+}
