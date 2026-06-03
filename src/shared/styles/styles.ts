@@ -333,7 +333,11 @@ button {
 }
 
 .app-shell {
-  min-height: 100vh;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
   padding: 22px 24px 24px;
   background:
     radial-gradient(circle at 15% 0%, rgba(255, 255, 255, 0.9), transparent 28%),
@@ -464,6 +468,8 @@ button:disabled {
   grid-template-columns: minmax(300px, 368px) minmax(0, 1fr);
   gap: 28px;
   align-items: stretch;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .panel {
@@ -474,6 +480,10 @@ button:disabled {
 }
 
 .settings-panel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+  overflow: hidden;
   padding: 24px;
 }
 
@@ -481,6 +491,13 @@ button:disabled {
   margin: 0 0 24px;
   font-size: 21px;
   line-height: 1.2;
+}
+
+.settings-scroll {
+  min-height: 0;
+  padding-right: 4px;
+  margin-right: -4px;
+  overflow-y: auto;
 }
 
 .section {
@@ -634,7 +651,8 @@ button:disabled {
 .preview-panel {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
-  min-height: calc(100vh - 144px);
+  min-height: 0;
+  overflow: hidden;
 }
 
 .preview-header {
@@ -686,7 +704,7 @@ button:disabled {
 .preview-frame {
   width: 100%;
   height: 100%;
-  min-height: calc(100vh - 230px);
+  min-height: 0;
   border: 0;
   background: #fff;
 }
@@ -724,28 +742,17 @@ button:disabled {
 
   .layout {
     grid-template-columns: 1fr;
-  }
-
-  .preview-panel {
-    min-height: 640px;
-  }
-
-  .preview-frame {
-    min-height: 520px;
+    grid-template-rows: minmax(0, 0.72fr) minmax(0, 1.28fr);
   }
 }
 
 @media (max-width: 620px) {
-  .preview-header {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
   .topbar {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: start;
     gap: 12px;
+    margin-bottom: 16px;
   }
 
   .brand {
@@ -761,9 +768,45 @@ button:disabled {
     justify-content: flex-end;
   }
 
+  .layout {
+    gap: 16px;
+  }
+
   .settings-panel,
   .preview-header {
     padding: 18px;
+  }
+
+  .preview-header {
+    gap: 10px;
+  }
+
+  .preview-title {
+    font-size: 17px;
+  }
+
+  .preview-controls {
+    flex-shrink: 0;
+    gap: 6px;
+    font-size: 12px;
+  }
+
+  .preview-controls label {
+    gap: 5px;
+  }
+
+  .preview-controls label span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+  }
+
+  .preview-controls select {
+    min-width: 78px;
+    height: 32px;
+    padding: 0 26px 0 8px;
   }
 
   .preview-wrap {

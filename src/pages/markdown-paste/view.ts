@@ -75,48 +75,50 @@ export function renderMarkdownPasteView({
         <aside class="panel settings-panel" aria-label="변환 설정">
           <h2>변환 설정</h2>
 
-          <section class="section">
-            <h3 class="section-title">1. Markdown 파일 업로드</h3>
-            <label class="dropzone" data-dropzone>
-              <input class="file-input" data-file-input type="file" accept=".md,.markdown,text/markdown,text/plain" />
-              <div aria-hidden="true">${fileIcon()}</div>
-              <p>.md 파일을 선택하거나 드래그하세요</p>
-              <span class="primary-button button-small">파일 선택</span>
-            </label>
-            ${renderFileChip(currentFile)}
-          </section>
+          <div class="settings-scroll">
+            <section class="section">
+              <h3 class="section-title">1. Markdown 파일 업로드</h3>
+              <label class="dropzone" data-dropzone>
+                <input class="file-input" data-file-input type="file" accept=".md,.markdown,text/markdown,text/plain" />
+                <div aria-hidden="true">${fileIcon()}</div>
+                <p>.md 파일을 선택하거나 드래그하세요</p>
+                <span class="primary-button button-small">파일 선택</span>
+              </label>
+              ${renderFileChip(currentFile)}
+            </section>
 
-          <section class="section">
-            <h3 class="section-title">2. 변환 모드 선택</h3>
-            <div class="mode-list">
-              ${MODE_OPTIONS.map((option) => renderModeOption(option, mode)).join("")}
-            </div>
-          </section>
+            <section class="section">
+              <h3 class="section-title">2. 변환 모드 선택</h3>
+              <div class="mode-list">
+                ${MODE_OPTIONS.map((option) => renderModeOption(option, mode)).join("")}
+              </div>
+            </section>
 
-          <section class="section">
-            <h3 class="section-title">3. 작업</h3>
-            <div class="action-stack">
-              <button class="secondary-button" type="button" data-action="copy">
-                <span aria-hidden="true">⧉</span>
-                <span>미리보기 내용 복사</span>
-              </button>
-              <button class="secondary-button" type="button" data-action="download">
-                <span aria-hidden="true">⇩</span>
-                <span>HTML 파일 다운로드</span>
-              </button>
-              <button class="secondary-button" type="button" data-action="download-pdf">
-                <span aria-hidden="true">⇩</span>
-                <span>PDF 다운로드</span>
-              </button>
-            </div>
-          </section>
+            <section class="section">
+              <h3 class="section-title">3. 작업</h3>
+              <div class="action-stack">
+                <button class="secondary-button" type="button" data-action="copy">
+                  <span aria-hidden="true">⧉</span>
+                  <span>미리보기 내용 복사</span>
+                </button>
+                <button class="secondary-button" type="button" data-action="download">
+                  <span aria-hidden="true">⇩</span>
+                  <span>HTML 파일 다운로드</span>
+                </button>
+                <button class="secondary-button" type="button" data-action="download-pdf">
+                  <span aria-hidden="true">⇩</span>
+                  <span>PDF 다운로드</span>
+                </button>
+              </div>
+            </section>
 
-          <div class="tip">
-            <div class="tip-title">
-              ${lightbulbIcon()}
-              <strong>Tip</strong>
+            <div class="tip">
+              <div class="tip-title">
+                ${lightbulbIcon()}
+                <strong>Tip</strong>
+              </div>
+              <p>미리보기 내용을 복사해서 티스토리, 네이버 블로그 에디터에 붙여넣기(Ctrl+V) 하세요.</p>
             </div>
-            <p>미리보기 내용을 복사해서 티스토리, 네이버 블로그 에디터에 붙여넣기(Ctrl+V) 하세요.</p>
           </div>
         </aside>
 
