@@ -355,6 +355,17 @@ button {
   min-width: 0;
 }
 
+.brand-mark-button {
+  display: inline-flex;
+  width: 46px;
+  height: 46px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+}
+
 .brand-mark {
   display: block;
   width: 46px;
@@ -368,6 +379,15 @@ button {
   font-size: 28px;
   line-height: 1.1;
   letter-spacing: 0;
+}
+
+.brand-title-button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
 }
 
 .brand p {
@@ -716,10 +736,20 @@ button:disabled {
 }
 
 @media (max-width: 620px) {
-  .topbar,
   .preview-header {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .topbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 12px;
+  }
+
+  .brand {
+    align-items: flex-start;
   }
 
   .brand h1 {
@@ -727,6 +757,7 @@ button:disabled {
   }
 
   .top-actions {
+    gap: 8px;
     justify-content: flex-end;
   }
 

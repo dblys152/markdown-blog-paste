@@ -116,6 +116,12 @@ function bindEvents(bodyHtml: string, fullHtml: string): void {
   app.querySelector<HTMLButtonElement>("[data-action='guide']")?.addEventListener("click", () => {
     showToast("Markdown 파일을 올리고 변환 모드를 고른 뒤 복사하거나 HTML/PDF로 저장하세요.");
   });
+
+  app.querySelectorAll<HTMLButtonElement>("[data-action='refresh']").forEach((button) => {
+    button.addEventListener("click", () => {
+      window.location.reload();
+    });
+  });
 }
 
 async function loadMarkdownFile(file: File): Promise<void> {

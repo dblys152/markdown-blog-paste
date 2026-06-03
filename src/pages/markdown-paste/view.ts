@@ -48,9 +48,15 @@ export function renderMarkdownPasteView({
     <main class="app-shell">
       <header class="topbar">
         <div class="brand">
-          <img class="brand-mark" src="/favicon.svg" alt="" aria-hidden="true" />
+          <button class="brand-mark-button" type="button" data-action="refresh" title="새로고침" aria-label="새로고침">
+            <img class="brand-mark" src="/favicon.svg" alt="" aria-hidden="true" />
+          </button>
           <div>
-            <h1>MD2Blog</h1>
+            <h1>
+              <button class="brand-title-button" type="button" data-action="refresh" title="새로고침">
+                MD2Blog
+              </button>
+            </h1>
             <p>Markdown 문서를 블로그 에디터에 붙여넣기 좋은 HTML로 변환합니다.</p>
           </div>
         </div>
