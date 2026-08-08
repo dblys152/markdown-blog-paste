@@ -1,5 +1,5 @@
 export async function copyPreviewHtml(bodyHtml: string): Promise<"html" | "text"> {
-  const clipboardHtml = replaceMermaidWithPlaceholders(bodyHtml);
+  const clipboardHtml = preparePreviewHtmlForClipboard(bodyHtml);
 
   try {
     if ("ClipboardItem" in window && navigator.clipboard?.write) {
@@ -39,7 +39,7 @@ export async function copyMermaidPng(svgText: string): Promise<void> {
   ]);
 }
 
-function replaceMermaidWithPlaceholders(value: string): string {
+export function preparePreviewHtmlForClipboard(value: string): string {
   const template = document.createElement("template");
   template.innerHTML = value;
   const diagrams = Array.from(template.content.querySelectorAll<HTMLElement>(".mermaid-diagram"));
