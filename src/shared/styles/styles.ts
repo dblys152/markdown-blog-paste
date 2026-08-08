@@ -248,6 +248,23 @@ ${selector("pre code")} {
   white-space: pre;
 }
 
+${selector(".mermaid-diagram")} {
+  display: flex;
+  justify-content: center;
+  margin: 24px 0;
+  overflow-x: auto;
+}
+
+${selector(".mermaid-diagram svg")} {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+${selector("pre.mermaid-error")} {
+  border-color: #ef4444;
+}
+
 ${selector("code")} {
   font-family: Consolas, Monaco, "Courier New", monospace;
 }

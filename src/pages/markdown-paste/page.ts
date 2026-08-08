@@ -1,4 +1,4 @@
-import { copyPreviewHtml } from "../../shared/export/clipboard";
+import { copyMermaidPng, copyPreviewHtml } from "../../shared/export/clipboard";
 import { downloadHtml } from "../../shared/export/html-export";
 import { downloadPdf } from "../../shared/export/pdf-export";
 import { convertMarkdown } from "../../shared/markdown/converter-core";
@@ -18,6 +18,7 @@ let currentFile: UploadedMarkdownFile = {
 let mode: ConversionMode = "basic";
 let previewStyle: PreviewStyle = "default";
 let showToast: (message: string) => void;
+let renderSequence = 0;
 
 export function mountMarkdownPastePage(selector: string): void {
   const appRoot = document.querySelector<HTMLDivElement>(selector);
@@ -30,13 +31,36 @@ export function mountMarkdownPastePage(selector: string): void {
   showToast = createToast(app);
 
   injectStyles();
-  render();
+  window.addEventListener("message", handlePreviewMessage);
+  void render();
+}
+
+function handlePreviewMessage(event: MessageEvent): void {
+  const previewFrame = app.querySelector<HTMLIFrameElement>("iframe.preview-frame");
+  if (!previewFrame || event.source !== previewFrame.contentWindow) return;
+
+  const data = event.data as { type?: unknown; svg?: unknown } | null;
+  if (data?.type !== "copy-mermaid-png" || typeof data.svg !== "string") return;
+
+  void handleMermaidPngCopy(data.svg);
+}
+
+async function handleMermaidPngCopy(svgText: string): Promise<void> {
+  try {
+    await copyMermaidPng(svgText);
+    showToast("Mermaid 다이어그램을 PNG 이미지로 복사했습니다.");
+  } catch {
+    showToast("PNG 이미지를 복사할 수 없습니다. 브라우저 권한을 확인해 주세요.");
+  }
 }
 
 let app: HTMLDivElement;
 
-function render(): void {
-  const result = convertMarkdown(markdownText, mode, getOutputTitle());
+async function render(): Promise<void> {
+  const sequence = ++renderSequence;
+  const result = await convertMarkdown(markdownText, mode, getOutputTitle());
+
+  if (sequence !== renderSequence) return;
 
   app.innerHTML = renderMarkdownPasteView({
     currentFile,
@@ -79,7 +103,7 @@ function bindEvents(bodyHtml: string, fullHtml: string): void {
   app.querySelectorAll<HTMLInputElement>("[name='conversion-mode']").forEach((input) => {
     input.addEventListener("change", () => {
       mode = input.value as ConversionMode;
-      render();
+      void render();
     });
   });
 
@@ -91,14 +115,14 @@ function bindEvents(bodyHtml: string, fullHtml: string): void {
       isSample: true,
     };
     markdownText = SAMPLE_MARKDOWN;
-    render();
+    void render();
     showToast("샘플 Markdown 미리보기로 되돌렸습니다.");
   });
 
   app.querySelector<HTMLSelectElement>("[data-preview-style]")?.addEventListener("change", (event) => {
     const select = event.currentTarget as HTMLSelectElement;
     previewStyle = select.value as PreviewStyle;
-    render();
+    void render();
   });
 
   app.querySelector<HTMLButtonElement>("[data-action='copy']")?.addEventListener("click", () => {
@@ -138,7 +162,7 @@ async function loadMarkdownFile(file: File): Promise<void> {
     isSample: false,
   };
   markdownText = text;
-  render();
+  await render();
   showToast(`${file.name} 파일을 불러왔습니다.`);
 }
 

@@ -30,6 +30,14 @@ function hello(name: string) {
 }
 \`\`\`
 
+### Mermaid 다이어그램
+
+\`\`\`mermaid
+flowchart LR
+  A[Markdown 입력] --> B[Mermaid 렌더링]
+  B --> C[블로그에 복사]
+\`\`\`
+
 ## 4. 인용문
 
 > 인용문은 이렇게 표시됩니다.

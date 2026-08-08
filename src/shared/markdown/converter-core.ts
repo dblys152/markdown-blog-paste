@@ -9,6 +9,7 @@ import {
 import { addHeadingAnchors } from "./toc";
 import { renderFloatingSectionNav } from "./floating-section-nav";
 import { BASE_CSS } from "../styles/styles";
+import { renderMermaidDiagrams } from "./mermaid-renderer";
 
 const HTML_LANG = "ko";
 const HTML_CHARSET = "UTF-8";
@@ -22,11 +23,12 @@ export function renderBaseMarkdown(markdownText: string): string {
   return marked.parse(markdownText, { async: false }) as string;
 }
 
-export function renderMarkdown(
+export async function renderMarkdown(
   markdownText: string,
   postProcessors: PostProcessor[] = [],
-): string {
-  let bodyHtml = applyBlogInlineStyles(renderBaseMarkdown(markdownText));
+): Promise<string> {
+  let bodyHtml = await renderMermaidDiagrams(renderBaseMarkdown(markdownText));
+  bodyHtml = applyBlogInlineStyles(bodyHtml);
 
   for (const processor of postProcessors) {
     bodyHtml = processor(bodyHtml);
@@ -35,13 +37,13 @@ export function renderMarkdown(
   return bodyHtml;
 }
 
-export function convertMarkdown(
+export async function convertMarkdown(
   markdownText: string,
   mode: ConversionMode,
   title = "MD2Blog",
-): ConversionResult {
+): Promise<ConversionResult> {
   const processors = getPostProcessors(mode);
-  const bodyHtml = renderMarkdown(markdownText, processors);
+  const bodyHtml = await renderMarkdown(markdownText, processors);
 
   return {
     bodyHtml,
