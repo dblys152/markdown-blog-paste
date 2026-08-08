@@ -45,3 +45,8 @@ npm run build
 `python-cli/`는 웹 앱 이전에 만든 CLI 버전입니다.
 
 현재 주요 기능은 웹 앱을 기준으로 개발하고 있으며, CLI는 로컬에서 단일 Markdown 파일을 HTML로 변환할 때 사용할 수 있습니다.
+
+## 확장 계획
+
+사용자별 Markdown 기록장 기능의 제품 방향과 기술 설계는
+[제품 및 아키텍처 문서](docs/product-architecture.md)에서 관리합니다.
