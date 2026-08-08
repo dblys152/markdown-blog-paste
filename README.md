@@ -27,10 +27,22 @@ Markdown으로 작성한 글을 블로그 에디터에 붙여넣기 좋은 HTML�
 
 ```bash
 npm install
+cp .env.example .env.local
 npm run dev
 ```
 
-개발 서버가 실행되면 브라우저에서 `http://127.0.0.1:5173/`을 열어 사용합니다.
+개발 서버가 실행되면 브라우저에서 `http://localhost:5173/`을 열어 사용합니다.
+
+`VITE_API_BASE_URL`에는 FastAPI 기본 주소를 설정합니다. `VITE_` 접두사가 붙은
+값은 브라우저 번들에 포함되므로 비밀번호나 API 비밀 값은 저장하지 않습니다.
+
+## 테스트
+
+```bash
+npm test
+```
+
+개발 중 테스트를 감시 모드로 실행하려면 `npm run test:watch`를 사용합니다.
 
 ## 빌드
 

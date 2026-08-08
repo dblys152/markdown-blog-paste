@@ -4,9 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite --host 127.0.0.1",
+    "dev": "vite --host localhost",
     "build": "tsc && vite build",
-    "preview": "vite preview --host 127.0.0.1"
+    "preview": "vite preview --host localhost",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "html2pdf.js": "^0.14.0",
@@ -14,7 +16,9 @@
     "mermaid": "^11.16.1"
   },
   "devDependencies": {
+    "jsdom": "^30.0.1",
     "typescript": "^5.4.5",
-    "vite": "^5.2.11"
+    "vite": "^5.2.11",
+    "vitest": "^4.1.10"
   }
 }
