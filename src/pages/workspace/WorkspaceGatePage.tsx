@@ -59,6 +59,7 @@ export function WorkspaceGatePage() {
   const [editorRatio, setEditorRatio] = useState(loadEditorRatio);
   const [editorWidth, setEditorWidth] = useState<number | null>(null);
   const [isResizing, setIsResizing] = useState(false);
+  const [mobilePane, setMobilePane] = useState<"pages" | "editor" | "preview">("pages");
   const workspaceRef = useRef<HTMLElement>(null);
   const resizingRef = useRef(false);
   const hydrated = useRef(false);
@@ -199,7 +200,12 @@ export function WorkspaceGatePage() {
   } as CSSProperties;
 
   return (
-    <main ref={workspaceRef} className={`workspace-shell ${isResizing ? "is-resizing" : ""}`} style={workspaceStyle}>
+    <main ref={workspaceRef} className={`workspace-shell mobile-pane-${mobilePane} ${isResizing ? "is-resizing" : ""}`} style={workspaceStyle}>
+      <div className="workspace-mobile-tabs" role="tablist" aria-label="기록장 화면">
+        <button type="button" role="tab" aria-selected={mobilePane === "pages"} onClick={() => setMobilePane("pages")}>페이지</button>
+        <button type="button" role="tab" aria-selected={mobilePane === "editor"} onClick={() => setMobilePane("editor")}>Markdown</button>
+        <button type="button" role="tab" aria-selected={mobilePane === "preview"} onClick={() => setMobilePane("preview")}>미리보기</button>
+      </div>
       <aside className="workspace-sidebar" aria-label="기록장 페이지">
         <div className="workspace-sidebar-title">
           <strong>내 기록장</strong>
@@ -214,7 +220,7 @@ export function WorkspaceGatePage() {
           >+</Link>
         </div>
 
-        <button className="workspace-page-item is-active" type="button">
+        <button className="workspace-page-item is-active" type="button" onClick={() => setMobilePane("editor")}>
           <span aria-hidden="true">▤</span>
           <span>{title}</span>
         </button>

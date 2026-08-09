@@ -134,6 +134,8 @@ export const APP_LAYOUT_CSS = `
   background: #fff;
 }
 
+.workspace-mobile-tabs { display: none; }
+
 .workspace-sidebar {
   display: flex;
   min-height: 0;
@@ -267,14 +269,61 @@ export const APP_LAYOUT_CSS = `
 .save-dialog-actions button:disabled { cursor: not-allowed; opacity: .55; }
 
 @media (max-width: 1180px) {
-  .workspace-shell { --workspace-sidebar-width: 230px; grid-template-columns: var(--workspace-sidebar-width) minmax(330px, var(--workspace-editor-size)) 10px minmax(390px, 1fr); }
+  .workspace-shell { --workspace-sidebar-width: 200px; grid-template-columns: var(--workspace-sidebar-width) minmax(300px, var(--workspace-editor-size)) 10px minmax(390px, 1fr); }
 }
 
-@media (max-width: 880px) {
+@media (max-width: 920px) {
   .app-header { gap: 14px; padding: 0 16px; }
   .app-brand strong { font-size: 20px; }
-  .workspace-shell { grid-template-columns: 210px minmax(0,1fr); }
-  .workspace-preview, .workspace-divider { display: none; }
+  .workspace-shell {
+    display: grid;
+    grid-template-columns: 1fr;
+    grid-template-rows: 48px minmax(0, 1fr);
+    overflow: hidden;
+  }
+  .workspace-mobile-tabs {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 3px;
+    padding: 5px 10px;
+    border-bottom: 1px solid #dfe3eb;
+    background: #f7f8fa;
+  }
+  .workspace-mobile-tabs button {
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: #667085;
+    font-size: 12px;
+    font-weight: 800;
+  }
+  .workspace-mobile-tabs button[aria-selected="true"] {
+    background: #fff;
+    color: #2949df;
+    box-shadow: 0 1px 4px rgba(15,23,42,.1);
+  }
+  .workspace-sidebar,
+  .workspace-editor,
+  .workspace-preview,
+  .workspace-divider { display: none; }
+  .workspace-shell.mobile-pane-pages .workspace-sidebar,
+  .workspace-shell.mobile-pane-editor .workspace-editor,
+  .workspace-shell.mobile-pane-preview .workspace-preview { display: grid; }
+  .workspace-shell.mobile-pane-pages .workspace-sidebar { display: flex; }
+  .workspace-sidebar { min-height: 0; border-right: 0; border-bottom: 0; overflow: auto; }
+  .workspace-sidebar-footer { display: none; }
+  .workspace-guest-card { margin-bottom: 14px; }
+  .workspace-editor,
+  .workspace-preview { height: auto; min-height: 0; }
+  .workspace-editor-heading,
+  .workspace-preview-heading { padding-inline: 12px; }
+  .workspace-document-state { gap: 4px; }
+  .workspace-document-title { max-width: 96px; overflow: hidden; text-overflow: ellipsis; }
+  .workspace-preview-heading .document-actions { gap: 4px; }
+  .workspace-preview-heading .document-actions > button,
+  .workspace-preview-heading .document-export > button { width: 34px; min-height: 34px; padding: 0; justify-content: center; }
+  .workspace-preview-heading .document-actions > button > span:last-child,
+  .workspace-preview-heading .document-export > button > span:last-child { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
 }
 
 @media (max-width: 680px) {
@@ -286,10 +335,5 @@ export const APP_LAYOUT_CSS = `
   .app-login-link { height: 34px; padding: 0 10px; font-size: 11px; }
   .route-page { padding: 20px; }
   .auth-card, .not-found-card { padding: 26px 22px; }
-  .workspace-shell { display: block; overflow: auto; }
-  .workspace-sidebar { min-height: 210px; border-right: 0; border-bottom: 1px solid #dfe3eb; }
-  .workspace-sidebar-footer { display: none; }
-  .workspace-guest-card { margin-bottom: 14px; }
-  .workspace-editor { height: calc(100dvh - 270px); min-height: 480px; }
 }
 `;

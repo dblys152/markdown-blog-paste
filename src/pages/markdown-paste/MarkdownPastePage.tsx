@@ -51,6 +51,7 @@ export function MarkdownPastePage() {
   const [isConverting, setIsConverting] = useState(true);
   const [toast, setToast] = useState("");
   const [activeTab, setActiveTab] = useState<"preview" | "source">("preview");
+  const [mobileSection, setMobileSection] = useState<"settings" | "result">("settings");
   const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
   const [saveMode, setSaveMode] = useState<"replace" | "append">("replace");
   const [existingGuestDraft, setExistingGuestDraft] = useState<GuestDraft | null>(null);
@@ -123,6 +124,7 @@ export function MarkdownPastePage() {
     const text = await file.text();
     setCurrentFile({ name: file.name, size: file.size, text, isSample: false });
     setMarkdownText(text);
+    setMobileSection("result");
     showToast(`${file.name} 파일을 불러왔습니다.`);
   };
 
@@ -189,7 +191,11 @@ export function MarkdownPastePage() {
   return (
     <>
       <main className="converter-page">
-        <div className="layout">
+        <div className="converter-mobile-tabs" role="tablist" aria-label="빠른 변환 화면">
+          <button type="button" role="tab" aria-selected={mobileSection === "settings"} onClick={() => setMobileSection("settings")}>변환 설정</button>
+          <button type="button" role="tab" aria-selected={mobileSection === "result"} onClick={() => setMobileSection("result")}>미리보기</button>
+        </div>
+        <div className={`layout mobile-section-${mobileSection}`}>
           <aside className="panel settings-panel" aria-label="변환 설정">
             <h2>변환 설정</h2>
             <div className="settings-scroll">

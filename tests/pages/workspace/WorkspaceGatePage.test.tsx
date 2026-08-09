@@ -52,6 +52,16 @@ describe("WorkspaceGatePage", () => {
     vi.clearAllMocks();
   });
 
+  it("페이지 탭에서 임시 페이지를 선택하면 Markdown 탭으로 이동한다", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    expect(screen.getByRole("tab", { name: "페이지" }).getAttribute("aria-selected")).toBe("true");
+    await user.click(screen.getByRole("button", { name: "임시 페이지" }));
+
+    expect(screen.getByRole("tab", { name: "Markdown" }).getAttribute("aria-selected")).toBe("true");
+  });
+
   it("저장된 본문을 복원하되 비회원 페이지명은 임시 페이지로 유지한다", async () => {
     loadGuestDraft.mockResolvedValue({
       title: "잘못 저장된 파일명",

@@ -729,13 +729,17 @@ button:disabled {
   border: 0;
 }
 
+.converter-mobile-tabs {
+  display: none;
+}
+
 .preview-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 18px;
   min-height: 54px;
-  padding: 0 18px;
+  padding: 0 24px;
   border-bottom: 1px solid #dfe4ea;
 }
 
@@ -754,6 +758,14 @@ button:disabled {
   font-size: 14px;
   font-weight: 750;
   cursor: pointer;
+}
+
+.preview-tabs button:first-child {
+  padding-left: 0;
+}
+
+.preview-tabs button:first-child[aria-selected="true"]::after {
+  left: 0;
 }
 
 .preview-tabs button[aria-selected="true"] {
@@ -853,17 +865,60 @@ button:disabled {
     align-items: flex-start;
   }
 
-  .layout {
-    grid-template-columns: 1fr;
-    grid-template-rows: minmax(0, 0.72fr) minmax(0, 1.28fr);
+  .converter-mobile-tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    margin-bottom: 10px;
+    padding: 3px;
+    border: 1px solid #dfe3eb;
+    border-radius: 9px;
+    background: #f1f3f6;
   }
 
-  .converter-main {
-    min-height: 620px;
+  .converter-mobile-tabs button {
+    min-height: 38px;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    color: #667085;
+    font-size: 13px;
+    font-weight: 800;
+  }
+
+  .converter-mobile-tabs button[aria-selected="true"] {
+    background: #fff;
+    color: #2949df;
+    box-shadow: 0 1px 4px rgba(15, 23, 42, .1);
+  }
+
+  .layout.mobile-section-settings .converter-main,
+  .layout.mobile-section-result .settings-panel {
+    display: none;
+  }
+
+  .layout {
+    display: block;
+    height: calc(100% - 56px);
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .converter-main,
+  .settings-panel {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .settings-panel {
+    padding: 0;
   }
 }
 
 @media (max-width: 620px) {
+  .converter-page {
+    padding: 12px;
+  }
+
   .topbar {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
@@ -889,13 +944,51 @@ button:disabled {
     gap: 16px;
   }
 
-  .settings-panel,
+  .panel h2,
   .preview-header {
+    min-height: 54px;
+    padding-inline: 24px;
+  }
+
+  .settings-scroll {
     padding: 18px;
   }
 
   .preview-header {
-    gap: 10px;
+    gap: 6px;
+  }
+
+  .preview-tabs {
+    min-width: 0;
+    gap: 0;
+  }
+
+  .preview-tabs button {
+    padding: 0 7px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  .preview-header .document-actions {
+    gap: 4px;
+  }
+
+  .preview-header .document-actions > button,
+  .preview-header .document-export > button {
+    width: 34px;
+    min-height: 34px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .preview-header .document-actions > button > span:last-child,
+  .preview-header .document-export > button > span:last-child,
+  .preview-header .document-save-button > span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
   }
 
   .preview-controls {
