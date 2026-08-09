@@ -1,39 +1,34 @@
 import { type ChangeEvent, type DragEvent, useCallback, useEffect, useRef, useState } from "react";
-import { copyMermaidPng, copyPreviewHtml } from "../../shared/export/clipboard";
-import { downloadHtml } from "../../shared/export/html-export";
-import { downloadPdf } from "../../shared/export/pdf-export";
+import { useNavigate } from "react-router-dom";
+import { copyMermaidPng } from "../../shared/export/clipboard";
 import { convertMarkdown } from "../../shared/markdown/converter-core";
 import type {
   ConversionMode,
   ConversionResult,
   ModeOption,
-  PreviewStyle,
   UploadedMarkdownFile,
 } from "../../shared/markdown/types";
-import { APP_CSS } from "../../shared/styles/styles";
-import { deviceIcon, fileIcon, githubIcon, lightbulbIcon, questionIcon } from "../../shared/ui/icons";
+import { DocumentActions } from "../../shared/ui/DocumentActions";
+import { fileIcon } from "../../shared/ui/icons";
+import { loadGuestDraft, saveGuestDraft, type GuestDraft } from "../workspace/guest-draft-store";
 import { SAMPLE_MARKDOWN } from "./sample";
 import { buildPreviewHtml } from "./preview";
 
 const MODE_OPTIONS: ModeOption[] = [
-  { id: "basic", title: "기본 변환", description: "Markdown을 기본 HTML로 변환합니다." },
+  { id: "basic", title: "표준 변환", description: "일반적인 문서에 적합한 기본 스타일로 변환" },
   {
     id: "blank-lines",
     title: "빈 줄 추가",
-    description: "문단, 제목, 코드블록 뒤에 에디터용 빈 줄을 추가합니다.",
+    description: "문단, 제목, 코드블록 뒤에 에디터용 빈 줄 추가",
   },
   {
     id: "naver",
-    title: "네이버 블로그용",
-    description: "네이버 에디터에 최적화된 코드블록 스타일과 빈 줄을 적용합니다.",
+    title: "네이버 블로그",
+    description: "네이버 에디터에 최적화된 코드블록 스타일 적용",
   },
 ];
 
-const PREVIEW_STYLE_LABELS: Record<PreviewStyle, string> = {
-  default: "기본",
-  compact: "좁게",
-  editor: "에디터",
-};
+const MAX_MARKDOWN_FILE_SIZE = 10 * 1024 * 1024;
 
 function createSampleFile(): UploadedMarkdownFile {
   return {
@@ -45,12 +40,20 @@ function createSampleFile(): UploadedMarkdownFile {
 }
 
 export function MarkdownPastePage() {
+  const navigate = useNavigate();
   const [markdownText, setMarkdownText] = useState(SAMPLE_MARKDOWN);
   const [currentFile, setCurrentFile] = useState<UploadedMarkdownFile>(createSampleFile);
   const [mode, setMode] = useState<ConversionMode>("basic");
-  const [previewStyle, setPreviewStyle] = useState<PreviewStyle>("default");
+  const [excludeFirstH1, setExcludeFirstH1] = useState(false);
+  const [generateH2Toc, setGenerateH2Toc] = useState(false);
+  const [addH2Dividers, setAddH2Dividers] = useState(false);
   const [result, setResult] = useState<ConversionResult | null>(null);
   const [toast, setToast] = useState("");
+  const [activeTab, setActiveTab] = useState<"preview" | "source">("preview");
+  const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
+  const [saveMode, setSaveMode] = useState<"replace" | "append">("replace");
+  const [existingGuestDraft, setExistingGuestDraft] = useState<GuestDraft | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
   const previewFrameRef = useRef<HTMLIFrameElement>(null);
   const toastTimerRef = useRef<number | undefined>(undefined);
 
@@ -69,14 +72,14 @@ export function MarkdownPastePage() {
   useEffect(() => {
     let active = true;
 
-    void convertMarkdown(markdownText, mode, outputTitle).then((nextResult) => {
+    void convertMarkdown(markdownText, mode, outputTitle, { excludeFirstH1, generateH2Toc, addH2Dividers }).then((nextResult) => {
       if (active) setResult(nextResult);
     });
 
     return () => {
       active = false;
     };
-  }, [markdownText, mode, outputTitle]);
+  }, [markdownText, mode, outputTitle, excludeFirstH1, generateH2Toc, addH2Dividers]);
 
   useEffect(() => {
     const handlePreviewMessage = (event: MessageEvent) => {
@@ -100,6 +103,11 @@ export function MarkdownPastePage() {
       return;
     }
 
+    if (file.size > MAX_MARKDOWN_FILE_SIZE) {
+      showToast("10MB 이하의 Markdown 파일만 업로드할 수 있습니다.");
+      return;
+    }
+
     const text = await file.text();
     setCurrentFile({ name: file.name, size: file.size, text, isSample: false });
     setMarkdownText(text);
@@ -118,27 +126,6 @@ export function MarkdownPastePage() {
     if (file) void loadMarkdownFile(file);
   };
 
-  const handlePreviewCopy = async () => {
-    if (!result) return;
-    const copiedType = await copyPreviewHtml(result.bodyHtml);
-    showToast(
-      copiedType === "html"
-        ? "미리보기 HTML을 클립보드에 복사했습니다."
-        : "미리보기 HTML을 텍스트로 복사했습니다.",
-    );
-  };
-
-  const handlePdfDownload = async () => {
-    if (!result) return;
-    try {
-      showToast("PDF 파일을 생성하고 있습니다.");
-      await downloadPdf(result.bodyHtml, outputTitle);
-      showToast("PDF 파일 다운로드를 시작했습니다.");
-    } catch {
-      showToast("PDF 파일을 만들 수 없습니다.");
-    }
-  };
-
   const resetSample = () => {
     const sampleFile = createSampleFile();
     setCurrentFile(sampleFile);
@@ -146,65 +133,56 @@ export function MarkdownPastePage() {
     showToast("샘플 Markdown 미리보기로 되돌렸습니다.");
   };
 
+  useEffect(() => {
+    if (!isSaveDialogOpen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !isSaving) setIsSaveDialogOpen(false);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isSaveDialogOpen, isSaving]);
+
+  const openSaveDialog = async () => {
+    try {
+      setExistingGuestDraft(await loadGuestDraft());
+      setSaveMode("replace");
+      setIsSaveDialogOpen(true);
+    } catch {
+      showToast("임시 페이지 정보를 불러올 수 없습니다.");
+    }
+  };
+
+  const confirmSaveToWorkspace = async () => {
+    setIsSaving(true);
+    try {
+      const shouldAppend = saveMode === "append";
+      const existingMarkdown = existingGuestDraft?.markdown.trimEnd() ?? "";
+      const nextMarkdown = shouldAppend && existingMarkdown
+        ? `${existingMarkdown}\n\n${markdownText}`
+        : markdownText;
+      await saveGuestDraft({
+        title: "임시 페이지",
+        markdown: nextMarkdown,
+        updatedAt: Date.now(),
+      });
+      setIsSaveDialogOpen(false);
+      navigate("/workspace");
+    } catch {
+      showToast("임시 페이지에 저장할 수 없습니다.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
     <>
-      <style>{APP_CSS}</style>
-      <main className="app-shell">
-        <header className="topbar">
-          <div className="brand">
-            <button
-              className="brand-mark-button"
-              type="button"
-              title="새로고침"
-              aria-label="새로고침"
-              onClick={() => window.location.reload()}
-            >
-              <img className="brand-mark" src="/favicon.svg" alt="" aria-hidden="true" />
-            </button>
-            <div>
-              <h1>
-                <button
-                  className="brand-title-button"
-                  type="button"
-                  title="새로고침"
-                  onClick={() => window.location.reload()}
-                >
-                  MD2Blog
-                </button>
-              </h1>
-              <p>Markdown 문서를 블로그 에디터에 붙여넣기 좋은 HTML로 변환합니다.</p>
-            </div>
-          </div>
-          <div className="top-actions">
-            <button
-              className="secondary-button button-small"
-              type="button"
-              title="사용 가이드"
-              onClick={() =>
-                showToast("Markdown 파일을 올리고 변환 모드를 고른 뒤 복사하거나 HTML/PDF로 저장하세요.")
-              }
-            >
-              <Icon html={questionIcon()} />
-              <span>사용 가이드</span>
-            </button>
-            <a
-              className="icon-button"
-              href="https://github.com/dblys152/markdown-blog-paste"
-              target="_blank"
-              rel="noreferrer"
-              title="GitHub"
-            >
-              <Icon html={githubIcon()} />
-            </a>
-          </div>
-        </header>
-
+      <main className="converter-page">
         <div className="layout">
           <aside className="panel settings-panel" aria-label="변환 설정">
             <h2>변환 설정</h2>
             <div className="settings-scroll">
               <section className="section">
-                <h3 className="section-title">1. Markdown 파일 업로드</h3>
+                <h3 className="section-title">Markdown 파일 업로드</h3>
                 <label
                   className="dropzone"
                   onDragOver={(event) => {
@@ -222,8 +200,8 @@ export function MarkdownPastePage() {
                     onChange={handleFileChange}
                   />
                   <Icon html={fileIcon()} />
-                  <p>.md 파일을 선택하거나 드래그하세요</p>
-                  <span className="primary-button button-small">파일 선택</span>
+                  <p>파일을 드래그하거나 클릭하여 업로드</p>
+                  <small>.md 파일만 지원 (최대 10MB)</small>
                 </label>
                 <div className="file-chip">
                   <span className="file-name">
@@ -245,7 +223,7 @@ export function MarkdownPastePage() {
               </section>
 
               <section className="section">
-                <h3 className="section-title">2. 변환 모드 선택</h3>
+                <h3 className="section-title">변환 모드</h3>
                 <div className="mode-list">
                   {MODE_OPTIONS.map((option) => (
                     <label className="mode-option" key={option.id}>
@@ -265,85 +243,77 @@ export function MarkdownPastePage() {
                 </div>
               </section>
 
-              <section className="section">
-                <h3 className="section-title">3. 작업</h3>
-                <div className="action-stack">
-                  <button className="secondary-button" type="button" disabled={!result} onClick={handlePreviewCopy}>
-                    <span aria-hidden="true">⧉</span>
-                    <span>미리보기 내용 복사</span>
-                  </button>
-                  <button
-                    className="secondary-button"
-                    type="button"
-                    disabled={!result}
-                    onClick={() => {
-                      if (!result) return;
-                      downloadHtml(result.fullHtml, outputTitle);
-                      showToast("HTML 파일 다운로드를 시작했습니다.");
-                    }}
-                  >
-                    <span aria-hidden="true">⇩</span>
-                    <span>HTML 파일 다운로드</span>
-                  </button>
-                  <button
-                    className="secondary-button"
-                    type="button"
-                    disabled={!result}
-                    onClick={() => void handlePdfDownload()}
-                  >
-                    <span aria-hidden="true">⇩</span>
-                    <span>PDF 다운로드</span>
-                  </button>
-                </div>
+              <section className="section conversion-options">
+                <h3 className="section-title">추가 옵션</h3>
+                <label>
+                  <input type="checkbox" checked={excludeFirstH1} onChange={(event) => setExcludeFirstH1(event.target.checked)} />
+                  <span><strong>첫 번째 제목(H1) 제외</strong></span>
+                </label>
+                <label>
+                  <input type="checkbox" checked={generateH2Toc} onChange={(event) => setGenerateH2Toc(event.target.checked)} />
+                  <span><strong>H2 목차 자동 생성</strong></span>
+                </label>
+                <label>
+                  <input type="checkbox" checked={addH2Dividers} onChange={(event) => setAddH2Dividers(event.target.checked)} />
+                  <span><strong>H2 구분선 추가</strong></span>
+                </label>
               </section>
 
-              <div className="tip">
-                <div className="tip-title">
-                  <Icon html={lightbulbIcon()} />
-                  <strong>Tip</strong>
-                </div>
-                <p>미리보기 내용을 복사해서 티스토리, 네이버 블로그 에디터에 붙여넣기(Ctrl+V) 하세요.</p>
-              </div>
             </div>
           </aside>
 
-          <section className="panel preview-panel" aria-label="변환 결과 미리보기">
-            <div className="preview-header">
-              <h2 className="preview-title">변환 결과 미리보기</h2>
-              <div className="preview-controls">
-                <label>
-                  <Icon html={deviceIcon()} />
-                  <span>미리보기 스타일</span>
-                  <select
-                    aria-label="미리보기 스타일"
-                    value={previewStyle}
-                    onChange={(event) => setPreviewStyle(event.target.value as PreviewStyle)}
-                  >
-                    {Object.entries(PREVIEW_STYLE_LABELS).map(([value, label]) => (
-                      <option value={value} key={value}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+          <div className="converter-main">
+            <section className="panel preview-panel" aria-label="변환 결과">
+              <div className="preview-header">
+                <div className="preview-tabs" role="tablist" aria-label="변환 결과 보기">
+                  <button type="button" role="tab" aria-selected={activeTab === "preview"} onClick={() => setActiveTab("preview")}>미리보기</button>
+                  <button type="button" role="tab" aria-selected={activeTab === "source"} onClick={() => setActiveTab("source")}>원본 Markdown</button>
+                </div>
+                <DocumentActions result={result} title={outputTitle} onMessage={showToast} onSave={openSaveDialog} />
               </div>
-            </div>
-            <div className="preview-wrap">
-              {result ? (
-                <iframe
-                  ref={previewFrameRef}
-                  className="preview-frame"
-                  title="변환 결과"
-                  sandbox="allow-scripts"
-                  srcDoc={buildPreviewHtml(result.fullHtml, previewStyle)}
-                />
-              ) : (
-                <div aria-live="polite">미리보기를 생성하고 있습니다.</div>
+              <div className="preview-wrap">
+                {activeTab === "source" ? (
+                  <pre className="markdown-source"><code>{markdownText}</code></pre>
+                ) : result ? (
+                  <iframe ref={previewFrameRef} className="preview-frame" title="변환 결과" sandbox="allow-scripts" srcDoc={buildPreviewHtml(result.fullHtml, "default")} />
+                ) : <div aria-live="polite">미리보기를 생성하고 있습니다.</div>}
+              </div>
+            </section>
+          </div>
+        </div>
+      </main>
+      {isSaveDialogOpen && (
+        <div
+          className="save-dialog-backdrop"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !isSaving) setIsSaveDialogOpen(false);
+          }}
+        >
+          <section className="save-dialog" role="dialog" aria-modal="true" aria-labelledby="save-dialog-title">
+            <h2 id="save-dialog-title">기록장에 저장</h2>
+            <p>비회원은 임시 페이지 한 개만 사용할 수 있습니다.</p>
+            <fieldset>
+              <label>
+                <input type="radio" name="guest-save-mode" checked={saveMode === "replace"} onChange={() => setSaveMode("replace")} />
+                <span>임시 페이지를 현재 내용으로 교체</span>
+              </label>
+              {saveMode === "replace" && existingGuestDraft?.markdown.trim() && (
+                <small>기존 임시 페이지 내용이 현재 내용으로 교체됩니다.</small>
               )}
+              <label>
+                <input type="radio" name="guest-save-mode" checked={saveMode === "append"} onChange={() => setSaveMode("append")} />
+                <span>임시 페이지에 내용 추가</span>
+              </label>
+            </fieldset>
+            <div className="save-dialog-actions">
+              <button type="button" onClick={() => setIsSaveDialogOpen(false)} disabled={isSaving}>취소</button>
+              <button type="button" className="is-primary" onClick={() => void confirmSaveToWorkspace()} disabled={isSaving}>
+                {isSaving ? "저장 중…" : "임시 페이지에 저장"}
+              </button>
             </div>
           </section>
         </div>
-      </main>
+      )}
       {toast && <div className="toast">{toast}</div>}
     </>
   );
