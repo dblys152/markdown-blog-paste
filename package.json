@@ -13,9 +13,16 @@
   "dependencies": {
     "html2pdf.js": "^0.14.0",
     "marked": "^12.0.2",
-    "mermaid": "^11.16.1"
+    "mermaid": "^11.16.1",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
   },
   "devDependencies": {
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.3",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@vitejs/plugin-react": "^4.7.0",
     "jsdom": "^30.0.1",
     "typescript": "^5.4.5",
     "vite": "^5.2.11",
