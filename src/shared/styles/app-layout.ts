@@ -86,8 +86,6 @@ export const APP_LAYOUT_CSS = `
 .app-login-link { padding: 0 16px; font-size: 13px; font-weight: 800; transition: background-color .15s, border-color .15s, color .15s, box-shadow .15s; }
 .app-login-link:hover { border-color: #2949df; background: #2949df; }
 .app-login-link:focus-visible { outline: 0; box-shadow: 0 0 0 3px rgba(63, 91, 234, .2); }
-.app-login-link.is-secondary { border-color: transparent; background: transparent; color: #344054; }
-.app-login-link.is-secondary:hover { border-color: transparent; background: #f0f2f6; color: #172033; }
 
 .app-route-content { min-width: 0; min-height: 0; overflow: hidden; }
 
@@ -285,7 +283,6 @@ export const APP_LAYOUT_CSS = `
   .app-brand strong { font-size: 18px; }
   .app-top-nav { gap: 2px; }
   .app-top-nav a { padding-inline: 7px; font-size: 12px; }
-  .app-login-link.is-secondary { display: none; }
   .app-login-link { height: 34px; padding: 0 10px; font-size: 11px; }
   .route-page { padding: 20px; }
   .auth-card, .not-found-card { padding: 26px 22px; }

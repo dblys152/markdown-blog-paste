@@ -21,8 +21,7 @@ export function AppLayout() {
         </nav>
 
         <div className="app-header-actions">
-          <Link className="app-login-link is-secondary" to="/login">로그인</Link>
-          <Link className="app-login-link" to="/signup">회원가입</Link>
+          <Link className="app-login-link" to="/login">로그인</Link>
         </div>
       </header>
 
