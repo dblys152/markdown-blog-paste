@@ -1,0 +1,290 @@
+import { type CSSProperties, type KeyboardEvent, type PointerEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
+import { convertMarkdown } from "../../shared/markdown/converter-core";
+import type { ConversionResult } from "../../shared/markdown/types";
+import { DocumentActions } from "../../shared/ui/DocumentActions";
+import { loadGuestDraft, saveGuestDraft } from "./guest-draft-store";
+
+const SAMPLE_MARKDOWN = `# 임시 Markdown 페이지
+
+로그인 없이 자유롭게 작성해보세요. 이 내용은 현재 브라우저에 자동으로 저장됩니다.
+
+## 시작하기
+
+- Markdown 문법으로 내용을 작성할 수 있습니다.
+- 오른쪽에서 변환 결과를 바로 확인할 수 있습니다.
+- 로그인하면 이 페이지를 내 기록장으로 옮길 수 있습니다.
+
+## Mermaid 미리보기
+
+\`\`\`mermaid
+flowchart LR
+    A[Markdown 작성] --> B[실시간 미리보기]
+    B --> C[로그인]
+    C --> D[내 기록장으로 이전]
+\`\`\`
+`;
+
+const DEFAULT_EDITOR_RATIO = 0.48;
+const MIN_EDITOR_WIDTH = 360;
+const MIN_PREVIEW_WIDTH = 460;
+const DIVIDER_WIDTH = 10;
+const EDITOR_RATIO_STORAGE_KEY = "md2blog-workspace-editor-ratio";
+
+function loadEditorRatio(): number {
+  try {
+    const storedRatio = Number(window.localStorage.getItem(EDITOR_RATIO_STORAGE_KEY));
+    return Number.isFinite(storedRatio) && storedRatio > 0 && storedRatio < 1 ? storedRatio : DEFAULT_EDITOR_RATIO;
+  } catch {
+    return DEFAULT_EDITOR_RATIO;
+  }
+}
+
+function saveEditorRatio(ratio: number): void {
+  try {
+    window.localStorage.setItem(EDITOR_RATIO_STORAGE_KEY, String(ratio));
+  } catch {
+    // 저장소 접근이 제한되어도 현재 세션의 리사이즈 기능은 유지합니다.
+  }
+}
+
+export function WorkspaceGatePage() {
+  const title = "임시 페이지";
+  const [markdown, setMarkdown] = useState(SAMPLE_MARKDOWN);
+  const [result, setResult] = useState<ConversionResult | null>(null);
+  const [toast, setToast] = useState("");
+  const [saveState, setSaveState] = useState<"loading" | "saving" | "saved" | "error">("loading");
+  const [isGuestInfoOpen, setIsGuestInfoOpen] = useState(true);
+  const [editorRatio, setEditorRatio] = useState(loadEditorRatio);
+  const [editorWidth, setEditorWidth] = useState<number | null>(null);
+  const [isResizing, setIsResizing] = useState(false);
+  const workspaceRef = useRef<HTMLElement>(null);
+  const resizingRef = useRef(false);
+  const hydrated = useRef(false);
+  const toastTimer = useRef<number | undefined>(undefined);
+
+  const showToast = useCallback((message: string) => {
+    window.clearTimeout(toastTimer.current);
+    setToast(message);
+    toastTimer.current = window.setTimeout(() => setToast(""), 2600);
+  }, []);
+
+  useEffect(() => () => window.clearTimeout(toastTimer.current), []);
+
+  useEffect(() => {
+    loadGuestDraft()
+      .then(async (draft) => {
+        if (draft?.markdown) setMarkdown(draft.markdown);
+        if (draft && draft.title !== title) {
+          await saveGuestDraft({ ...draft, title, updatedAt: Date.now() });
+        }
+      })
+      .catch(() => setSaveState("error"))
+      .finally(() => {
+        hydrated.current = true;
+        setSaveState((current) => (current === "error" ? current : "saved"));
+      });
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    convertMarkdown(markdown, "basic", title).then((result) => {
+      if (!cancelled) setResult(result);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [markdown, title]);
+
+  useEffect(() => {
+    if (!hydrated.current) return;
+    setSaveState("saving");
+    const timer = window.setTimeout(() => {
+      saveGuestDraft({ title, markdown, updatedAt: Date.now() })
+        .then(() => setSaveState("saved"))
+        .catch(() => setSaveState("error"));
+    }, 450);
+    return () => window.clearTimeout(timer);
+  }, [markdown, title]);
+
+  const lineCount = useMemo(() => markdown.split("\n").length, [markdown]);
+
+  const updateEditorRatio = useCallback((clientX: number) => {
+    const workspace = workspaceRef.current;
+    const editor = workspace?.querySelector<HTMLElement>(".workspace-editor");
+    if (!workspace || !editor) return;
+
+    const workspaceRect = workspace.getBoundingClientRect();
+    const editorLeft = editor.getBoundingClientRect().left;
+    const availableWidth = workspaceRect.right - editorLeft - DIVIDER_WIDTH;
+    if (availableWidth <= MIN_EDITOR_WIDTH + MIN_PREVIEW_WIDTH) return;
+
+    const editorWidth = Math.min(
+      Math.max(clientX - editorLeft, MIN_EDITOR_WIDTH),
+      availableWidth - MIN_PREVIEW_WIDTH,
+    );
+    setEditorWidth(editorWidth);
+    setEditorRatio(editorWidth / availableWidth);
+  }, []);
+
+  const applyEditorRatio = useCallback((ratio: number) => {
+    const workspace = workspaceRef.current;
+    const editor = workspace?.querySelector<HTMLElement>(".workspace-editor");
+    if (!workspace || !editor) return;
+
+    const workspaceRect = workspace.getBoundingClientRect();
+    const editorLeft = editor.getBoundingClientRect().left;
+    const availableWidth = workspaceRect.right - editorLeft - DIVIDER_WIDTH;
+    if (availableWidth <= MIN_EDITOR_WIDTH + MIN_PREVIEW_WIDTH) return;
+
+    const nextWidth = Math.min(
+      Math.max(availableWidth * ratio, MIN_EDITOR_WIDTH),
+      availableWidth - MIN_PREVIEW_WIDTH,
+    );
+    setEditorWidth(nextWidth);
+    setEditorRatio(nextWidth / availableWidth);
+  }, []);
+
+  useEffect(() => {
+    saveEditorRatio(editorRatio);
+  }, [editorRatio]);
+
+  const stopDividerResize = useCallback(() => {
+    resizingRef.current = false;
+    setIsResizing(false);
+    window.removeEventListener("pointerup", stopDividerResize);
+    window.removeEventListener("pointercancel", stopDividerResize);
+    window.removeEventListener("blur", stopDividerResize);
+  }, []);
+
+  const handleDividerPointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.currentTarget.focus({ preventScroll: true });
+    event.currentTarget.setPointerCapture(event.pointerId);
+    resizingRef.current = true;
+    setIsResizing(true);
+    window.addEventListener("pointerup", stopDividerResize, { once: true });
+    window.addEventListener("pointercancel", stopDividerResize, { once: true });
+    window.addEventListener("blur", stopDividerResize, { once: true });
+    updateEditorRatio(event.clientX);
+  };
+
+  const handleDividerPointerMove = (event: PointerEvent<HTMLDivElement>) => {
+    if (!resizingRef.current) return;
+    updateEditorRatio(event.clientX);
+  };
+
+  const finishDividerResize = (event: PointerEvent<HTMLDivElement>) => {
+    stopDividerResize();
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  };
+
+  const handleDividerKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    event.preventDefault();
+    const direction = event.key === "ArrowLeft" ? -1 : 1;
+    applyEditorRatio(Math.min(.72, Math.max(.28, editorRatio + direction * .02)));
+  };
+
+  const workspaceStyle = {
+    "--workspace-editor-size": editorWidth === null ? `${editorRatio}fr` : `${editorWidth}px`,
+  } as CSSProperties;
+
+  return (
+    <main ref={workspaceRef} className={`workspace-shell ${isResizing ? "is-resizing" : ""}`} style={workspaceStyle}>
+      <aside className="workspace-sidebar" aria-label="기록장 페이지">
+        <div className="workspace-sidebar-title">
+          <strong>내 기록장</strong>
+        </div>
+
+        <div className="workspace-pages-heading">
+          <span>페이지</span>
+          <Link
+            to="/login"
+            aria-label="새 페이지 추가"
+            title="로그인 후 새 페이지를 만들 수 있어요"
+          >+</Link>
+        </div>
+
+        <button className="workspace-page-item is-active" type="button">
+          <span aria-hidden="true">▤</span>
+          <span>{title}</span>
+        </button>
+
+        {isGuestInfoOpen && (
+          <section className="workspace-guest-card" aria-label="임시 페이지 안내">
+            <button type="button" aria-label="안내 닫기" onClick={() => setIsGuestInfoOpen(false)}>×</button>
+            <strong>현재 브라우저에 저장 중</strong>
+            <p>지금은 임시 페이지에 저장됩니다. 로그인하고 내 페이지에서 관리해 보세요.</p>
+            <Link to="/login">내 기록장으로 옮기기</Link>
+          </section>
+        )}
+
+        <div className="workspace-sidebar-footer">
+          <span aria-hidden="true">ⓘ</span>
+          브라우저 데이터를 삭제하면 임시 페이지도 사라집니다.
+        </div>
+      </aside>
+
+      <section className="workspace-editor" aria-label="Markdown 편집기">
+        <div className="workspace-editor-heading">
+          <div><span aria-hidden="true">✎</span><strong>Markdown</strong></div>
+          <div className="workspace-document-state">
+            <span className="workspace-document-title">{title}</span>
+            <span aria-hidden="true">·</span>
+            <span className={`workspace-save-label save-${saveState}`}>
+              {saveState === "loading" && "불러오는 중"}
+              {saveState === "saving" && "저장 중…"}
+              {saveState === "saved" && "✓ 브라우저에 저장됨"}
+              {saveState === "error" && "저장 실패"}
+            </span>
+          </div>
+        </div>
+        <div className="workspace-code-area">
+          <div className="workspace-line-numbers" aria-hidden="true">
+            {Array.from({ length: Math.max(lineCount, 32) }, (_, index) => <span key={index}>{index + 1}</span>)}
+          </div>
+          <textarea
+            aria-label="Markdown 내용"
+            spellCheck={false}
+            value={markdown}
+            onChange={(event) => setMarkdown(event.target.value)}
+          />
+        </div>
+        <footer className="workspace-statusbar">
+          <span>줄 1, 열 1</span><span>Markdown</span><span>{markdown.length.toLocaleString("ko-KR")}자</span>
+        </footer>
+      </section>
+
+      <div
+        className="workspace-divider"
+        role="separator"
+        aria-label="에디터와 미리보기 너비 조절"
+        aria-orientation="vertical"
+        aria-valuemin={28}
+        aria-valuemax={72}
+        aria-valuenow={Math.round(editorRatio * 100)}
+        tabIndex={0}
+        onPointerDown={handleDividerPointerDown}
+        onPointerMove={handleDividerPointerMove}
+        onPointerUp={finishDividerResize}
+        onPointerCancel={finishDividerResize}
+        onLostPointerCapture={stopDividerResize}
+        onKeyDown={handleDividerKeyDown}
+        onDoubleClick={() => applyEditorRatio(DEFAULT_EDITOR_RATIO)}
+      ><span aria-hidden="true">⠿</span></div>
+
+      <section className="workspace-preview" aria-labelledby="workspace-preview-title">
+        <div className="workspace-preview-heading">
+          <strong id="workspace-preview-title">미리보기</strong>
+          <DocumentActions result={result} title={title} onMessage={showToast} />
+        </div>
+        <iframe title={`${title} 미리보기`} srcDoc={result?.fullHtml ?? ""} />
+        <footer className="workspace-statusbar is-preview"><span>{markdown.length.toLocaleString("ko-KR")}자</span><span>미리보기</span></footer>
+      </section>
+      {toast && <div className="toast">{toast}</div>}
+    </main>
+  );
+}
