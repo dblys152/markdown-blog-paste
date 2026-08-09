@@ -13,6 +13,7 @@ import { fileIcon } from "../../shared/ui/icons";
 import { loadGuestDraft, saveGuestDraft, type GuestDraft } from "../workspace/guest-draft-store";
 import { SAMPLE_MARKDOWN } from "./sample";
 import { buildPreviewHtml } from "./preview";
+import { loadQuickConversionDraft, saveQuickConversionDraft } from "./quick-conversion-draft-store";
 
 const MODE_OPTIONS: ModeOption[] = [
   { id: "basic", title: "표준 변환", description: "일반적인 문서에 적합한 기본 스타일로 변환" },
@@ -41,13 +42,15 @@ function createSampleFile(): UploadedMarkdownFile {
 
 export function MarkdownPastePage() {
   const navigate = useNavigate();
-  const [markdownText, setMarkdownText] = useState(SAMPLE_MARKDOWN);
-  const [currentFile, setCurrentFile] = useState<UploadedMarkdownFile>(createSampleFile);
-  const [mode, setMode] = useState<ConversionMode>("basic");
-  const [excludeFirstH1, setExcludeFirstH1] = useState(false);
-  const [generateH2Toc, setGenerateH2Toc] = useState(false);
-  const [addH2Dividers, setAddH2Dividers] = useState(false);
+  const [initialDraft] = useState(loadQuickConversionDraft);
+  const [markdownText, setMarkdownText] = useState(initialDraft?.markdownText ?? SAMPLE_MARKDOWN);
+  const [currentFile, setCurrentFile] = useState<UploadedMarkdownFile>(initialDraft?.currentFile ?? createSampleFile);
+  const [mode, setMode] = useState<ConversionMode>(initialDraft?.mode ?? "basic");
+  const [excludeFirstH1, setExcludeFirstH1] = useState(initialDraft?.excludeFirstH1 ?? false);
+  const [generateH2Toc, setGenerateH2Toc] = useState(initialDraft?.generateH2Toc ?? false);
+  const [addH2Dividers, setAddH2Dividers] = useState(initialDraft?.addH2Dividers ?? false);
   const [result, setResult] = useState<ConversionResult | null>(null);
+  const [previewRevision, setPreviewRevision] = useState(0);
   const [isConverting, setIsConverting] = useState(true);
   const [toast, setToast] = useState("");
   const [activeTab, setActiveTab] = useState<"preview" | "source">("preview");
@@ -72,6 +75,17 @@ export function MarkdownPastePage() {
   }, []);
 
   useEffect(() => {
+    saveQuickConversionDraft({
+      markdownText,
+      currentFile,
+      mode,
+      excludeFirstH1,
+      generateH2Toc,
+      addH2Dividers,
+    });
+  }, [markdownText, currentFile, mode, excludeFirstH1, generateH2Toc, addH2Dividers]);
+
+  useEffect(() => {
     let active = true;
     setIsConverting(true);
 
@@ -81,18 +95,28 @@ export function MarkdownPastePage() {
       outputTitle,
       { excludeFirstH1, generateH2Toc, addH2Dividers },
       (partialResult) => {
-        if (active) setResult(partialResult);
+        if (active) {
+          setResult(partialResult);
+          setPreviewRevision((revision) => revision + 1);
+        }
       },
-    ).then((nextResult) => {
-      if (!active) return;
-      setResult(nextResult);
-      setIsConverting(false);
-    });
+    )
+      .then((nextResult) => {
+        if (!active) return;
+        setResult(nextResult);
+        setPreviewRevision((revision) => revision + 1);
+        setIsConverting(false);
+      })
+      .catch(() => {
+        if (!active) return;
+        setIsConverting(false);
+        showToast("Markdown을 변환할 수 없습니다. 문서 내용을 확인해 주세요.");
+      });
 
     return () => {
       active = false;
     };
-  }, [markdownText, mode, outputTitle, excludeFirstH1, generateH2Toc, addH2Dividers]);
+  }, [markdownText, mode, outputTitle, excludeFirstH1, generateH2Toc, addH2Dividers, showToast]);
 
   useEffect(() => {
     const handlePreviewMessage = (event: MessageEvent) => {
@@ -147,6 +171,18 @@ export function MarkdownPastePage() {
     showToast("샘플 Markdown 미리보기로 되돌렸습니다.");
   };
 
+  const resetAll = () => {
+    const sampleFile = createSampleFile();
+    setCurrentFile(sampleFile);
+    setMarkdownText(sampleFile.text);
+    setMode("basic");
+    setExcludeFirstH1(false);
+    setGenerateH2Toc(false);
+    setAddH2Dividers(false);
+    setActiveTab("preview");
+    showToast("빠른 변환 작업을 초기화했습니다.");
+  };
+
   useEffect(() => {
     if (!isSaveDialogOpen) return;
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -197,7 +233,10 @@ export function MarkdownPastePage() {
         </div>
         <div className={`layout mobile-section-${mobileSection}`}>
           <aside className="panel settings-panel" aria-label="변환 설정">
-            <h2>변환 설정</h2>
+            <h2>
+              <span>변환 설정</span>
+              <button className="settings-reset-button" type="button" onClick={resetAll}>전체 초기화</button>
+            </h2>
             <div className="settings-scroll">
               <section className="section">
                 <h3 className="section-title">Markdown 파일 업로드</h3>
@@ -293,7 +332,7 @@ export function MarkdownPastePage() {
                 {activeTab === "source" ? (
                   <pre className="markdown-source"><code>{markdownText}</code></pre>
                 ) : result ? (
-                  <iframe ref={previewFrameRef} className="preview-frame" title="변환 결과" sandbox="allow-scripts" srcDoc={buildPreviewHtml(result.fullHtml, "default")} />
+                  <iframe key={previewRevision} ref={previewFrameRef} className="preview-frame" title="변환 결과" sandbox="allow-scripts" srcDoc={buildPreviewHtml(result.fullHtml, "default")} />
                 ) : null}
               </div>
             </section>

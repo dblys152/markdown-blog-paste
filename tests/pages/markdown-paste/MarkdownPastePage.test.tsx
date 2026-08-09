@@ -22,6 +22,7 @@ vi.mock("../../../src/shared/export/pdf-export", () => ({ downloadPdf }));
 vi.mock("../../../src/pages/workspace/guest-draft-store", () => ({ loadGuestDraft, saveGuestDraft }));
 
 import { MarkdownPastePage } from "../../../src/pages/markdown-paste/MarkdownPastePage";
+import { clearQuickConversionDraft } from "../../../src/pages/markdown-paste/quick-conversion-draft-store";
 
 function renderPage() {
   return render(
@@ -39,6 +40,7 @@ const conversionResult = {
 
 describe("MarkdownPastePage", () => {
   beforeEach(() => {
+    clearQuickConversionDraft();
     convertMarkdown.mockResolvedValue(conversionResult);
     copyPreviewHtml.mockResolvedValue("html");
     downloadPdf.mockResolvedValue(undefined);
@@ -56,6 +58,7 @@ describe("MarkdownPastePage", () => {
 
     const preview = await screen.findByTitle<HTMLIFrameElement>("변환 결과");
 
+    expect(screen.getByRole("tab", { name: "변환 설정" }).getAttribute("aria-selected")).toBe("true");
     expect(convertMarkdown).toHaveBeenCalledWith(expect.stringContaining("# "), "basic", "sample-post", {
       excludeFirstH1: false,
       generateH2Toc: false,
@@ -130,6 +133,79 @@ describe("MarkdownPastePage", () => {
 
     expect(screen.getByText((content) => content.includes("Markdown Blog Post 예시"))).not.toBeNull();
     expect(screen.queryByTitle("변환 결과")).toBeNull();
+  });
+
+  it("다른 화면을 다녀와도 업로드한 Markdown 작업을 복원한다", async () => {
+    const user = userEvent.setup();
+    const firstRender = renderPage();
+    const file = new File(["# 유지되는 문서"], "kept.md", { type: "text/markdown" });
+    Object.defineProperty(file, "text", { value: vi.fn().mockResolvedValue("# 유지되는 문서") });
+
+    await user.upload(screen.getByLabelText("Markdown 파일 선택"), file);
+    await screen.findByText("kept.md");
+    await waitFor(() => {
+      expect(screen.getByRole("tablist", { name: "빠른 변환 화면" }).querySelector('[aria-selected="true"]')?.textContent).toBe("미리보기");
+    });
+    firstRender.unmount();
+
+    renderPage();
+
+    expect(await screen.findByText("kept.md")).not.toBeNull();
+    expect(screen.getByRole("tab", { name: "원본 Markdown" })).not.toBeNull();
+    expect(convertMarkdown).toHaveBeenLastCalledWith(
+      "# 유지되는 문서",
+      "basic",
+      "kept",
+      { excludeFirstH1: false, generateH2Toc: false, addH2Dividers: false },
+      expect.any(Function),
+    );
+  });
+
+  it("파일을 연속으로 불러오면 두 번째 문서 변환 후 미리보기를 표시한다", async () => {
+    const user = userEvent.setup();
+    convertMarkdown.mockImplementation(async (markdown: string) => ({
+      bodyHtml: `<p>${markdown}</p>`,
+      fullHtml: `<!doctype html><html><body><p>${markdown}</p></body></html>`,
+    }));
+    renderPage();
+    const firstFile = new File(["# 첫 번째"], "first.md", { type: "text/markdown" });
+    const secondFile = new File(["# 두 번째"], "second.md", { type: "text/markdown" });
+    Object.defineProperty(firstFile, "text", { value: vi.fn().mockResolvedValue("# 첫 번째") });
+    Object.defineProperty(secondFile, "text", { value: vi.fn().mockResolvedValue("# 두 번째") });
+
+    await user.upload(screen.getByLabelText("Markdown 파일 선택"), firstFile);
+    await screen.findByText("first.md");
+    await user.click(screen.getByRole("tab", { name: "변환 설정" }));
+    await user.upload(screen.getByLabelText("Markdown 파일 선택"), secondFile);
+
+    await waitFor(() => {
+      expect(convertMarkdown).toHaveBeenLastCalledWith(
+        "# 두 번째",
+        "basic",
+        "second",
+        { excludeFirstH1: false, generateH2Toc: false, addH2Dividers: false },
+        expect.any(Function),
+      );
+      expect(screen.getByRole("tablist", { name: "빠른 변환 화면" }).querySelector('[aria-selected="true"]')?.textContent).toBe("미리보기");
+      expect(screen.getByTitle<HTMLIFrameElement>("변환 결과").srcdoc).toContain("# 두 번째");
+    });
+  });
+
+  it("전체 초기화는 파일과 변환 옵션을 기본값으로 되돌린다", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    const file = new File(["# 초기화 대상"], "reset-target.md", { type: "text/markdown" });
+    Object.defineProperty(file, "text", { value: vi.fn().mockResolvedValue("# 초기화 대상") });
+
+    await user.upload(screen.getByLabelText("Markdown 파일 선택"), file);
+    await user.click(screen.getByRole("radio", { name: /네이버 블로그/ }));
+    await user.click(screen.getByRole("checkbox", { name: "H2 목차 자동 생성" }));
+    await user.click(screen.getByRole("button", { name: "전체 초기화" }));
+
+    expect(screen.getByText("sample-post.md")).not.toBeNull();
+    expect((screen.getByRole("radio", { name: /표준 변환/ }) as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByRole("checkbox", { name: "H2 목차 자동 생성" }) as HTMLInputElement).checked).toBe(false);
+    expect(screen.getByText("빠른 변환 작업을 초기화했습니다.")).not.toBeNull();
   });
 
   it("기록장에 저장 버튼은 즉시 저장하지 않고 교체가 기본인 선택 창을 연다", async () => {

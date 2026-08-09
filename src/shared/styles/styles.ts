@@ -531,6 +531,25 @@ button:disabled {
   line-height: 1.2;
 }
 
+.settings-reset-button {
+  margin-left: auto;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #667085;
+  font-size: 12px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.settings-reset-button:hover {
+  border-color: transparent;
+  background: #f0f2f6;
+  color: #344054;
+  box-shadow: none;
+}
+
 .settings-scroll {
   min-height: 0;
   padding: 22px 24px;
