@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   copyPreviewHtml,
+  preparePlainTextForClipboard,
   preparePreviewHtmlForClipboard,
 } from "../../../src/shared/export/clipboard";
 
@@ -76,6 +77,23 @@ describe("copyPreviewHtml", () => {
     expect(Object.keys(items[0]?.data ?? {})).toEqual(["text/html", "text/plain"]);
     expect(items[0]?.data["text/html"]?.type).toBe("text/html");
     expect(items[0]?.data["text/plain"]?.type).toBe("text/plain");
+  });
+
+  it("목차 H2와 순서 목록을 HTML 및 일반 텍스트 클립보드에 유지한다", async () => {
+    await copyPreviewHtml(
+      '<h2 class="h2-toc-title">목차</h2><ol class="h2-toc-list"><li>제목 스타일</li><li>목록</li></ol><h2>1. 제목 스타일</h2>',
+    );
+
+    const items = clipboardWrite.mock.calls[0]?.[0] as ClipboardItemMock[];
+    const html = preparePreviewHtmlForClipboard(
+      '<h2 class="h2-toc-title">목차</h2><ol class="h2-toc-list"><li>제목 스타일</li><li>목록</li></ol><h2>1. 제목 스타일</h2>',
+    );
+    const plainText = preparePlainTextForClipboard(html);
+
+    expect(html).toContain('<h2 class="h2-toc-title">목차</h2>');
+    expect(html).toContain('<ol class="h2-toc-list"><li>제목 스타일</li><li>목록</li></ol>');
+    expect(plainText).toContain("목차\n\n1. 제목 스타일\n2. 목록");
+    expect(plainText).toContain("1. 제목 스타일");
   });
 
   it("Clipboard API가 없으면 execCommand fallback을 사용한다", async () => {

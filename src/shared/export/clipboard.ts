@@ -4,7 +4,7 @@ export async function copyPreviewHtml(bodyHtml: string): Promise<"html" | "text"
   try {
     if ("ClipboardItem" in window && navigator.clipboard?.write) {
       const htmlBlob = new Blob([clipboardHtml], { type: "text/html" });
-      const textBlob = new Blob([stripHtml(clipboardHtml)], { type: "text/plain" });
+      const textBlob = new Blob([preparePlainTextForClipboard(clipboardHtml)], { type: "text/plain" });
       await navigator.clipboard.write([
         new ClipboardItem({
           "text/html": htmlBlob,
@@ -151,8 +151,26 @@ function fallbackCopyHtml(value: string): boolean {
   return copied;
 }
 
-function stripHtml(value: string): string {
+export function preparePlainTextForClipboard(value: string): string {
   const template = document.createElement("template");
   template.innerHTML = value;
-  return template.content.textContent?.trim() ?? "";
+
+  template.content.querySelectorAll("br").forEach((lineBreak) => lineBreak.replaceWith("\n"));
+
+  template.content.querySelectorAll("li").forEach((item) => {
+    const parent = item.parentElement;
+    const siblings = parent ? Array.from(parent.children).filter((child) => child.tagName === "LI") : [];
+    const prefix = parent?.tagName === "OL" ? `${siblings.indexOf(item) + 1}. ` : "- ";
+    item.prepend(prefix);
+    item.append("\n");
+  });
+
+  template.content
+    .querySelectorAll("h1, h2, h3, h4, h5, h6, p, blockquote, pre, table, tr, hr, nav, section")
+    .forEach((block) => block.append("\n\n"));
+
+  return (template.content.textContent ?? "")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
