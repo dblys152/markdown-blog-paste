@@ -1,5 +1,5 @@
 import { marked } from "marked";
-import type { ConversionMode, ConversionResult } from "./types";
+import type { ConversionMode, ConversionOptions, ConversionResult, TocEntry } from "./types";
 import {
   addEditorBlankLines,
   applyBlogInlineStyles,
@@ -41,14 +41,73 @@ export async function convertMarkdown(
   markdownText: string,
   mode: ConversionMode,
   title = "MD2Blog",
+  options: ConversionOptions = { excludeFirstH1: false, generateH2Toc: false, addH2Dividers: false },
 ): Promise<ConversionResult> {
   const processors = getPostProcessors(mode);
-  const bodyHtml = await renderMarkdown(markdownText, processors);
+  const renderedHtml = await renderMarkdown(markdownText);
+  let bodyHtml = applyConversionOptions(renderedHtml, options);
+
+  for (const processor of processors) {
+    bodyHtml = processor(bodyHtml);
+  }
 
   return {
     bodyHtml,
     fullHtml: wrapHtml(bodyHtml, title),
   };
+}
+
+function applyConversionOptions(bodyHtml: string, options: ConversionOptions): string {
+  if (!options.excludeFirstH1 && !options.generateH2Toc && !options.addH2Dividers) return bodyHtml;
+
+  const anchoredContent = addHeadingAnchors(bodyHtml);
+  const template = document.createElement("template");
+  template.innerHTML = anchoredContent.bodyHtml;
+
+  if (options.excludeFirstH1) {
+    template.content.querySelector("h1")?.remove();
+  }
+
+  const headings = Array.from(template.content.querySelectorAll("h2"));
+
+  if (options.addH2Dividers) {
+    headings.slice(1).forEach((heading) => {
+      const divider = document.createElement("hr");
+      divider.className = "h2-section-divider";
+      divider.setAttribute("style", "border:0;border-top:1px solid #e5e7eb;margin:36px 0;");
+      heading.before(divider);
+    });
+  }
+
+  if (options.generateH2Toc && headings.length > 0) {
+    const h2Entries = anchoredContent.entries.filter((entry): entry is TocEntry => entry.level === 2);
+    const tocTitle = document.createElement("h2");
+    tocTitle.className = "h2-toc-title";
+    tocTitle.textContent = "목차";
+    tocTitle.setAttribute("style", "margin:44px 0 20px;font-size:24px;line-height:1.4;font-weight:800;color:#222;");
+    const list = document.createElement("ol");
+    list.className = "h2-toc-list";
+    list.setAttribute("style", "margin:0 0 36px;padding-left:28px;");
+
+    h2Entries.forEach((entry) => {
+      const item = document.createElement("li");
+      item.className = "h2-toc-item";
+      item.textContent = entry.text.replace(/^\d+[.)]\s*/, "");
+      item.setAttribute("style", "margin:0 0 10px;padding-left:4px;color:#2d2f33;font-size:18px;line-height:1.65;");
+      list.append(item);
+    });
+
+    headings[0]?.before(tocTitle, list);
+
+    if (options.addH2Dividers) {
+      const tocDivider = document.createElement("hr");
+      tocDivider.className = "h2-toc-divider";
+      tocDivider.setAttribute("style", "border:0;border-top:1px solid #e5e7eb;margin:36px 0;");
+      list.after(tocDivider);
+    }
+  }
+
+  return template.innerHTML;
 }
 
 export function wrapHtml(bodyHtml: string, title: string): string {

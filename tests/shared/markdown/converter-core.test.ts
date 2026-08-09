@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { renderBaseMarkdown, wrapHtml } from "../../../src/shared/markdown/converter-core";
+import { convertMarkdown, renderBaseMarkdown, wrapHtml } from "../../../src/shared/markdown/converter-core";
 
 describe("renderBaseMarkdown", () => {
   it("GFM 표를 HTML 표로 변환한다", () => {
@@ -38,5 +38,82 @@ describe("wrapHtml", () => {
     const document = new DOMParser().parseFromString(html, "text/html");
 
     expect(document.querySelector("aside.floating-section-nav")).toBeNull();
+  });
+});
+
+describe("convertMarkdown options", () => {
+  it("H2만 목차에 포함한다", async () => {
+    const result = await convertMarkdown("# 제목\n\n## 섹션 A\n\n### 하위 섹션\n\n## 섹션 B", "basic", "문서", {
+      excludeFirstH1: false,
+      generateH2Toc: true,
+      addH2Dividers: false,
+    });
+    const document = new DOMParser().parseFromString(result.bodyHtml, "text/html");
+    const links = Array.from(document.querySelectorAll(".h2-toc-item")).map((item) => item.textContent);
+
+    expect(links).toEqual(["섹션 A", "섹션 B"]);
+    expect(document.querySelector(".h2-toc-title")?.parentElement?.tagName).toBe("BODY");
+    expect(document.querySelector("h2.h2-toc-title")?.textContent).toBe("목차");
+    expect(document.querySelector("ol.h2-toc-list")).not.toBeNull();
+    expect(document.querySelectorAll("li.h2-toc-item")).toHaveLength(2);
+  });
+
+  it("목차 자동 번호와 중복되지 않도록 H2의 기존 번호를 제거한다", async () => {
+    const result = await convertMarkdown("## 1. 개요\n\n## 2) 설치", "basic", "문서", {
+      excludeFirstH1: false,
+      generateH2Toc: true,
+      addH2Dividers: false,
+    });
+    const document = new DOMParser().parseFromString(result.bodyHtml, "text/html");
+
+    expect(Array.from(document.querySelectorAll(".h2-toc-item")).map((item) => item.textContent)).toEqual(["개요", "설치"]);
+    expect(document.querySelector(".h2-toc-list a")).toBeNull();
+  });
+
+  it("두 번째 H2부터 구분선을 추가한다", async () => {
+    const result = await convertMarkdown("## 첫 번째\n\n내용\n\n## 두 번째\n\n내용\n\n## 세 번째", "basic", "문서", {
+      excludeFirstH1: false,
+      generateH2Toc: false,
+      addH2Dividers: true,
+    });
+    const document = new DOMParser().parseFromString(result.bodyHtml, "text/html");
+
+    expect(document.querySelectorAll("hr.h2-section-divider")).toHaveLength(2);
+    expect(document.querySelector("h2:first-child")?.textContent).toBe("첫 번째");
+  });
+
+  it("목차와 구분선 옵션을 함께 사용하면 목차 아래에도 구분선을 추가한다", async () => {
+    const result = await convertMarkdown("## 첫 번째\n\n내용\n\n## 두 번째", "basic", "문서", {
+      excludeFirstH1: false,
+      generateH2Toc: true,
+      addH2Dividers: true,
+    });
+    const document = new DOMParser().parseFromString(result.bodyHtml, "text/html");
+
+    expect(document.querySelector(".h2-toc-list + hr.h2-toc-divider + h2")?.textContent).toBe("첫 번째");
+  });
+
+  it.each(["blank-lines", "naver"] as const)("%s 모드에서 생성된 목차에도 빈 줄을 적용한다", async (mode) => {
+    const result = await convertMarkdown("## 첫 번째\n\n본문\n\n## 두 번째", mode, "문서", {
+      excludeFirstH1: false,
+      generateH2Toc: true,
+      addH2Dividers: false,
+    });
+    const document = new DOMParser().parseFromString(result.bodyHtml, "text/html");
+
+    expect(document.querySelector("h2.h2-toc-title + p.editor-spacer")).not.toBeNull();
+    expect(document.querySelector("ol.h2-toc-list + p.editor-spacer")).not.toBeNull();
+  });
+
+  it("첫 번째 H1만 결과에서 제외한다", async () => {
+    const result = await convertMarkdown("# 문서 제목\n\n본문\n\n# 다른 H1", "basic", "문서", {
+      excludeFirstH1: true,
+      generateH2Toc: false,
+      addH2Dividers: false,
+    });
+    const document = new DOMParser().parseFromString(result.bodyHtml, "text/html");
+
+    expect(Array.from(document.querySelectorAll("h1")).map((heading) => heading.textContent)).toEqual(["다른 H1"]);
+    expect(document.body.textContent).toContain("본문");
   });
 });
