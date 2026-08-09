@@ -38,6 +38,27 @@ describe("renderMermaidDiagrams", () => {
     );
   });
 
+  it("Mermaid 로딩 전 자리 표시자를 전달하고 완료 결과를 갱신한다", async () => {
+    let finishRender: ((value: { svg: string }) => void) | undefined;
+    renderMermaid.mockImplementation(() => new Promise((resolve) => {
+      finishRender = resolve;
+    }));
+    const progressUpdates: string[] = [];
+
+    const rendering = renderMermaidDiagrams(
+      '<pre><code class="language-mermaid">graph TD\nA --&gt; B\n</code></pre>',
+      (html) => progressUpdates.push(html),
+    );
+    await vi.waitFor(() => expect(progressUpdates[0]).toContain("mermaid-diagram is-loading"));
+
+    finishRender?.({ svg: '<svg viewBox="0 0 100 50"></svg>' });
+    const result = await rendering;
+
+    expect(result).toContain("<svg");
+    expect(progressUpdates.at(-1)).toContain("<svg");
+    expect(progressUpdates.at(-1)).not.toContain("is-loading");
+  });
+
   it("일반 코드블록은 변경하지 않는다", async () => {
     const source = '<pre><code class="language-ts">const value = 1;</code></pre>';
 

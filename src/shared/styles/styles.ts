@@ -261,6 +261,19 @@ ${selector(".mermaid-diagram svg")} {
   height: auto;
 }
 
+${selector(".mermaid-diagram.is-loading")} {
+  min-height: 180px;
+  border-radius: 10px;
+  background: linear-gradient(100deg, #f4f5f7 30%, #fafafa 50%, #f4f5f7 70%);
+  background-size: 220% 100%;
+  animation: mermaid-placeholder 1.4s ease-in-out infinite;
+}
+
+@keyframes mermaid-placeholder {
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
+}
+
 ${selector("pre.mermaid-error")} {
   border-color: #ef4444;
 }

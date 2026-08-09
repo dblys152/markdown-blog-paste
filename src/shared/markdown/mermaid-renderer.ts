@@ -1,17 +1,36 @@
-import mermaid from "mermaid";
+type MermaidApi = typeof import("mermaid")["default"];
 
 let diagramSequence = 0;
+let mermaidPromise: Promise<MermaidApi> | null = null;
 
-mermaid.initialize({
-  startOnLoad: false,
-  securityLevel: "strict",
-  theme: "default",
-  flowchart: {
-    htmlLabels: false,
-  },
-});
+function loadMermaid(): Promise<MermaidApi> {
+  if (!mermaidPromise) {
+    mermaidPromise = import("mermaid").then(({ default: mermaid }) => {
+      mermaid.initialize({
+        startOnLoad: false,
+        securityLevel: "strict",
+        theme: "default",
+        flowchart: {
+          htmlLabels: false,
+        },
+      });
+      return mermaid;
+    });
+  }
 
-export async function renderMermaidDiagrams(htmlText: string): Promise<string> {
+  return mermaidPromise;
+}
+
+interface PendingDiagram {
+  placeholder: HTMLElement;
+  originalCodeBlock: HTMLPreElement;
+  source: string;
+}
+
+export async function renderMermaidDiagrams(
+  htmlText: string,
+  onProgress?: (html: string) => void,
+): Promise<string> {
   const template = document.createElement("template");
   template.innerHTML = htmlText;
 
@@ -19,25 +38,43 @@ export async function renderMermaidDiagrams(htmlText: string): Promise<string> {
     template.content.querySelectorAll<HTMLElement>("pre > code.language-mermaid"),
   );
 
+  if (codeBlocks.length === 0) return htmlText;
+
+  const pendingDiagrams = codeBlocks.flatMap<PendingDiagram>((codeBlock) => {
+    const pre = codeBlock.parentElement;
+    if (!(pre instanceof HTMLPreElement)) return [];
+
+    const placeholder = document.createElement("figure");
+    placeholder.className = "mermaid-diagram is-loading";
+    placeholder.setAttribute("aria-label", "Mermaid 다이어그램 준비 중");
+    pre.replaceWith(placeholder);
+
+    return [{
+      placeholder,
+      originalCodeBlock: pre,
+      source: codeBlock.textContent?.replace(/\n$/, "") ?? "",
+    }];
+  });
+
+  onProgress?.(template.innerHTML);
+  const mermaid = await loadMermaid();
+
   await Promise.all(
-    codeBlocks.map(async (codeBlock) => {
-      const pre = codeBlock.parentElement;
-      if (!pre) return;
-
-      const source = codeBlock.textContent?.replace(/\n$/, "") ?? "";
-      const container = document.createElement("figure");
-      container.className = "mermaid-diagram";
-
+    pendingDiagrams.map(async ({ placeholder, originalCodeBlock, source }) => {
       try {
         const id = `md2blog-mermaid-${Date.now()}-${diagramSequence++}`;
         const { svg } = await mermaid.render(id, source);
-        container.innerHTML = svg;
-        container.querySelector("svg")?.setAttribute("role", "img");
-        pre.replaceWith(container);
+        placeholder.classList.remove("is-loading");
+        placeholder.removeAttribute("aria-label");
+        placeholder.innerHTML = svg;
+        placeholder.querySelector("svg")?.setAttribute("role", "img");
       } catch {
-        pre.classList.add("mermaid-error");
-        pre.setAttribute("title", "Mermaid 다이어그램을 렌더링할 수 없습니다.");
+        originalCodeBlock.classList.add("mermaid-error");
+        originalCodeBlock.setAttribute("title", "Mermaid 다이어그램을 렌더링할 수 없습니다.");
+        placeholder.replaceWith(originalCodeBlock);
       }
+
+      onProgress?.(template.innerHTML);
     }),
   );
 

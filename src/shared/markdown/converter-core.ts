@@ -26,15 +26,24 @@ export function renderBaseMarkdown(markdownText: string): string {
 export async function renderMarkdown(
   markdownText: string,
   postProcessors: PostProcessor[] = [],
+  onProgress?: (bodyHtml: string) => void,
 ): Promise<string> {
-  let bodyHtml = await renderMermaidDiagrams(renderBaseMarkdown(markdownText));
-  bodyHtml = applyBlogInlineStyles(bodyHtml);
+  const processHtml = (html: string) => {
+    let bodyHtml = applyBlogInlineStyles(html);
 
-  for (const processor of postProcessors) {
-    bodyHtml = processor(bodyHtml);
-  }
+    for (const processor of postProcessors) {
+      bodyHtml = processor(bodyHtml);
+    }
 
-  return bodyHtml;
+    return bodyHtml;
+  };
+
+  const bodyHtml = await renderMermaidDiagrams(
+    renderBaseMarkdown(markdownText),
+    (partialHtml) => onProgress?.(processHtml(partialHtml)),
+  );
+
+  return processHtml(bodyHtml);
 }
 
 export async function convertMarkdown(
@@ -42,19 +51,29 @@ export async function convertMarkdown(
   mode: ConversionMode,
   title = "MD2Blog",
   options: ConversionOptions = { excludeFirstH1: false, generateH2Toc: false, addH2Dividers: false },
+  onProgress?: (result: ConversionResult) => void,
 ): Promise<ConversionResult> {
   const processors = getPostProcessors(mode);
-  const renderedHtml = await renderMarkdown(markdownText);
-  let bodyHtml = applyConversionOptions(renderedHtml, options);
+  const createResult = (renderedHtml: string): ConversionResult => {
+    let bodyHtml = applyConversionOptions(renderedHtml, options);
 
-  for (const processor of processors) {
-    bodyHtml = processor(bodyHtml);
-  }
+    for (const processor of processors) {
+      bodyHtml = processor(bodyHtml);
+    }
 
-  return {
-    bodyHtml,
-    fullHtml: wrapHtml(bodyHtml, title),
+    return {
+      bodyHtml,
+      fullHtml: wrapHtml(bodyHtml, title),
+    };
   };
+
+  const renderedHtml = await renderMarkdown(
+    markdownText,
+    [],
+    (partialHtml) => onProgress?.(createResult(partialHtml)),
+  );
+
+  return createResult(renderedHtml);
 }
 
 function applyConversionOptions(bodyHtml: string, options: ConversionOptions): string {

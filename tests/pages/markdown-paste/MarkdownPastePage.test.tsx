@@ -60,7 +60,7 @@ describe("MarkdownPastePage", () => {
       excludeFirstH1: false,
       generateH2Toc: false,
       addH2Dividers: false,
-    });
+    }, expect.any(Function));
     expect(preview.srcdoc).toContain("변환된 본문");
     expect(screen.getByText("sample-post.md")).not.toBeNull();
   });
@@ -78,6 +78,7 @@ describe("MarkdownPastePage", () => {
         "naver",
         "sample-post",
         { excludeFirstH1: false, generateH2Toc: false, addH2Dividers: false },
+        expect.any(Function),
       );
     });
   });
@@ -94,7 +95,7 @@ describe("MarkdownPastePage", () => {
         excludeFirstH1: false,
         generateH2Toc: true,
         addH2Dividers: false,
-      });
+      }, expect.any(Function));
     });
   });
 

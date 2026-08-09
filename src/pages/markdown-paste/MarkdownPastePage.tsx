@@ -48,6 +48,7 @@ export function MarkdownPastePage() {
   const [generateH2Toc, setGenerateH2Toc] = useState(false);
   const [addH2Dividers, setAddH2Dividers] = useState(false);
   const [result, setResult] = useState<ConversionResult | null>(null);
+  const [isConverting, setIsConverting] = useState(true);
   const [toast, setToast] = useState("");
   const [activeTab, setActiveTab] = useState<"preview" | "source">("preview");
   const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
@@ -71,9 +72,20 @@ export function MarkdownPastePage() {
 
   useEffect(() => {
     let active = true;
+    setIsConverting(true);
 
-    void convertMarkdown(markdownText, mode, outputTitle, { excludeFirstH1, generateH2Toc, addH2Dividers }).then((nextResult) => {
-      if (active) setResult(nextResult);
+    void convertMarkdown(
+      markdownText,
+      mode,
+      outputTitle,
+      { excludeFirstH1, generateH2Toc, addH2Dividers },
+      (partialResult) => {
+        if (active) setResult(partialResult);
+      },
+    ).then((nextResult) => {
+      if (!active) return;
+      setResult(nextResult);
+      setIsConverting(false);
     });
 
     return () => {
@@ -269,14 +281,14 @@ export function MarkdownPastePage() {
                   <button type="button" role="tab" aria-selected={activeTab === "preview"} onClick={() => setActiveTab("preview")}>미리보기</button>
                   <button type="button" role="tab" aria-selected={activeTab === "source"} onClick={() => setActiveTab("source")}>원본 Markdown</button>
                 </div>
-                <DocumentActions result={result} title={outputTitle} onMessage={showToast} onSave={openSaveDialog} />
+                <DocumentActions result={isConverting ? null : result} title={outputTitle} onMessage={showToast} onSave={openSaveDialog} />
               </div>
               <div className="preview-wrap">
                 {activeTab === "source" ? (
                   <pre className="markdown-source"><code>{markdownText}</code></pre>
                 ) : result ? (
                   <iframe ref={previewFrameRef} className="preview-frame" title="변환 결과" sandbox="allow-scripts" srcDoc={buildPreviewHtml(result.fullHtml, "default")} />
-                ) : <div aria-live="polite">미리보기를 생성하고 있습니다.</div>}
+                ) : null}
               </div>
             </section>
           </div>

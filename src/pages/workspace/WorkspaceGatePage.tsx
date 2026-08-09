@@ -52,6 +52,7 @@ export function WorkspaceGatePage() {
   const title = "임시 페이지";
   const [markdown, setMarkdown] = useState(SAMPLE_MARKDOWN);
   const [result, setResult] = useState<ConversionResult | null>(null);
+  const [isConverting, setIsConverting] = useState(true);
   const [toast, setToast] = useState("");
   const [saveState, setSaveState] = useState<"loading" | "saving" | "saved" | "error">("loading");
   const [isGuestInfoOpen, setIsGuestInfoOpen] = useState(true);
@@ -88,8 +89,13 @@ export function WorkspaceGatePage() {
 
   useEffect(() => {
     let cancelled = false;
-    convertMarkdown(markdown, "basic", title).then((result) => {
-      if (!cancelled) setResult(result);
+    setIsConverting(true);
+    convertMarkdown(markdown, "basic", title, undefined, (partialResult) => {
+      if (!cancelled) setResult(partialResult);
+    }).then((result) => {
+      if (cancelled) return;
+      setResult(result);
+      setIsConverting(false);
     });
     return () => {
       cancelled = true;
@@ -279,7 +285,7 @@ export function WorkspaceGatePage() {
       <section className="workspace-preview" aria-labelledby="workspace-preview-title">
         <div className="workspace-preview-heading">
           <strong id="workspace-preview-title">미리보기</strong>
-          <DocumentActions result={result} title={title} onMessage={showToast} />
+          <DocumentActions result={isConverting ? null : result} title={title} onMessage={showToast} />
         </div>
         <iframe title={`${title} 미리보기`} srcDoc={result?.fullHtml ?? ""} />
         <footer className="workspace-statusbar is-preview"><span>{markdown.length.toLocaleString("ko-KR")}자</span><span>미리보기</span></footer>
