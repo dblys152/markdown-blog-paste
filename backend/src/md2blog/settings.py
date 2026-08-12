@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     migration_database_url: str = "postgresql://md2blog:md2blog@localhost:5432/md2blog"
     jwt_secret_key: SecretStr = SecretStr("local-development-secret-change-me")
     access_token_ttl_minutes: int = 15
+    refresh_token_ttl_days: int = 14
+    refresh_token_cookie_secure: bool = False
+    refresh_token_cookie_samesite: str = "lax"
 
     @property
     def async_database_url(self) -> URL:

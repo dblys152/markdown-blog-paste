@@ -2,8 +2,9 @@ from sqlalchemy import exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from md2blog.modules.identity.domain.user import User
-from md2blog.modules.identity.domain.value_objects import Email
+from md2blog.modules.identity.domain.value_objects import DisplayName, Email, PasswordHash
 from md2blog.modules.identity.infrastructure.models import UserModel
+from md2blog.shared.domain.tsid import TSID
 
 
 class SqlAlchemyUserRepository:
@@ -26,3 +27,16 @@ class SqlAlchemyUserRepository:
             )
         )
         await self._session.commit()
+
+    async def find_by_id(self, user_id: int) -> User | None:
+        model = await self._session.get(UserModel, user_id)
+        if model is None:
+            return None
+        return User(
+            id=TSID(model.id),
+            email=Email(model.email),
+            password_hash=PasswordHash(model.password_hash),
+            display_name=DisplayName(model.display_name),
+            email_verified_at=model.email_verified_at,
+            status=model.status,
+        )
