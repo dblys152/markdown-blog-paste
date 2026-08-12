@@ -1,0 +1,19 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: md2blog
+      POSTGRES_USER: md2blog
+      POSTGRES_PASSWORD: md2blog
+    ports:
+      - "5432:5432"
+    volumes:
+      - md2blog-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U md2blog -d md2blog"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  md2blog-postgres:

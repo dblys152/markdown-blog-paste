@@ -150,7 +150,7 @@ FastAPI는 인증, 사용자, 기록장, 페이지, 저장 등의 서버 기능�
 
 ```text
 backend/
-├── app/
+├── src/md2blog/
 │   ├── modules/
 │   │   ├── identity/
 │   │   │   ├── domain/
@@ -163,6 +163,7 @@ backend/
 │   │       ├── infrastructure/
 │   │       └── presentation/
 │   ├── shared/
+│   ├── presentation/
 │   └── main.py
 ├── migrations/
 ├── tests/
