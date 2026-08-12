@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy import URL, make_url
 
@@ -11,6 +12,8 @@ class Settings(BaseSettings):
     environment: str = "local"
     database_url: str = "postgresql://md2blog:md2blog@localhost:5432/md2blog"
     migration_database_url: str = "postgresql://md2blog:md2blog@localhost:5432/md2blog"
+    jwt_secret_key: SecretStr = SecretStr("local-development-secret-change-me")
+    access_token_ttl_minutes: int = 15
 
     @property
     def async_database_url(self) -> URL:
