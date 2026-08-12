@@ -494,6 +494,7 @@ dependencies = [
     { name = "psycopg", extra = ["binary"] },
     { name = "pydantic-settings" },
     { name = "sqlalchemy", extra = ["asyncio"] },
+    { name = "tsidpy" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
@@ -514,6 +515,7 @@ requires-dist = [
     { name = "psycopg", extras = ["binary"], specifier = ">=3.3.4" },
     { name = "pydantic-settings", specifier = ">=2.15.0" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.52" },
+    { name = "tsidpy", specifier = ">=1.1.5" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.52.1" },
 ]
 
@@ -881,6 +883,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/b5/b4/205b0d5241d934e8add0c38aa924c4f9fb7330834ff11e5444db964ec3f9/starlette-1.6.0.tar.gz", hash = "sha256:d4e3ac5e546444960c710297a3c9fc3f7ebae1b7e963f3d36173b49da535be9b", size = 2716969, upload-time = "2026-08-08T18:27:57.512Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c8/cb/6a6a47d5b464bd08695d254f3da6e7986cc70c9fa5d778eda57538edfe56/starlette-1.6.0-py3-none-any.whl", hash = "sha256:a86dd39d14bb45f85a3d18525215a9ef0cfd1f192ac793220e72598c90335f0c", size = 75969, upload-time = "2026-08-08T18:27:56.196Z" },
+]
+
+[[package]]
+name = "tsidpy"
+version = "1.1.5"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/09/83/b16246bef8ce1e490a6bd7af5335bfc60c8d32513aa2d66e5b9a92976846/tsidpy-1.1.5.tar.gz", hash = "sha256:1a97201fe5697e54ed48ec5e5474358edc6fa3379f26ac29d1ce22c0fc4c375b", size = 12459, upload-time = "2023-11-28T22:22:56.144Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/16/c3/0e30c9e55340db0a986eddbdf11d7ca33537fb33c34d82170f780680be56/tsidpy-1.1.5-py3-none-any.whl", hash = "sha256:e7b951a03cbb57c238c7511bbad2c2f855ae943df46916efea26f85a9f93b3b4", size = 10520, upload-time = "2023-11-28T22:22:54.861Z" },
 ]
 
 [[package]]
