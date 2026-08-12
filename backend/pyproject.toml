@@ -31,6 +31,9 @@ target-version = "py313"
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
 
+[tool.ruff.lint.per-file-ignores]
+"src/**/presentation/*.py" = ["B008"]
+
 [tool.mypy]
 python_version = "3.13"
 strict = true

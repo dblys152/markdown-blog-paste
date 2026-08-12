@@ -1,15 +1,30 @@
 from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from sqlalchemy import URL, make_url
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(env_file=".env.local", env_file_encoding="utf-8")
 
     app_name: str = "MD2Blog API"
     environment: str = "local"
-    database_url: str = "postgresql+asyncpg://md2blog:md2blog@localhost:5432/md2blog"
-    migration_database_url: str = "postgresql+psycopg://md2blog:md2blog@localhost:5432/md2blog"
+    database_url: str = "postgresql://md2blog:md2blog@localhost:5432/md2blog"
+    migration_database_url: str = "postgresql://md2blog:md2blog@localhost:5432/md2blog"
+
+    @property
+    def async_database_url(self) -> URL:
+        url = make_url(self.database_url)
+        query = dict(url.query)
+        ssl_mode = query.pop("sslmode", None)
+        query.pop("channel_binding", None)
+        if ssl_mode is not None:
+            query["ssl"] = ssl_mode
+        return url.set(drivername="postgresql+asyncpg", query=query)
+
+    @property
+    def sync_migration_database_url(self) -> URL:
+        return make_url(self.migration_database_url).set(drivername="postgresql+psycopg")
 
 
 @lru_cache

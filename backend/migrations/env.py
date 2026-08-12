@@ -14,7 +14,7 @@ target_metadata = None
 
 def run_migrations_offline() -> None:
     context.configure(
-        url=get_settings().migration_database_url,
+        url=get_settings().sync_migration_database_url,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
@@ -25,7 +25,7 @@ def run_migrations_offline() -> None:
 
 def run_migrations_online() -> None:
     connectable = create_engine(
-        get_settings().migration_database_url,
+        get_settings().sync_migration_database_url,
         poolclass=pool.NullPool,
     )
     with connectable.connect() as connection:
