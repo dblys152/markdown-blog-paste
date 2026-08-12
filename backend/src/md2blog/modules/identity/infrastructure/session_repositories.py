@@ -12,7 +12,7 @@ class SqlAlchemyAuthSessionRepository:
 
     async def add(self, session: AuthSession) -> None:
         self._session.add(self._to_model(session))
-        await self._session.commit()
+        await self._session.flush()
 
     async def find_by_token_hash(self, token_hash: str) -> AuthSession | None:
         statement = select(AuthSessionModel).where(
@@ -28,7 +28,7 @@ class SqlAlchemyAuthSessionRepository:
         model.revoked_at = previous.revoked_at
         model.replaced_by_token_hash = previous.replaced_by_token_hash
         self._session.add(self._to_model(replacement))
-        await self._session.commit()
+        await self._session.flush()
 
     @staticmethod
     def _to_model(session: AuthSession) -> AuthSessionModel:

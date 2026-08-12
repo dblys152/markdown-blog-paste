@@ -26,7 +26,7 @@ class SqlAlchemyUserRepository:
                 status=user.status,
             )
         )
-        await self._session.commit()
+        await self._session.flush()
 
     async def find_by_id(self, user_id: int) -> User | None:
         model = await self._session.get(UserModel, user_id)
