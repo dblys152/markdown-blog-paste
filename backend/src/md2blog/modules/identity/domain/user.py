@@ -28,6 +28,14 @@ class User:
         if not password_matches or self.status != "active":
             raise AuthenticationFailedError
 
+    def ensure_access_allowed(self) -> None:
+        if self.status != "active":
+            raise AccessNotAllowedError
+
 
 class AuthenticationFailedError(Exception):
+    pass
+
+
+class AccessNotAllowedError(Exception):
     pass

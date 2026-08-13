@@ -4,6 +4,7 @@ from typing import Protocol
 
 from md2blog.modules.identity.domain.user import User
 from md2blog.modules.identity.domain.value_objects import PasswordHash, RawPassword
+from md2blog.shared.domain.tsid import TSID
 
 
 class PasswordHasher(Protocol):
@@ -14,6 +15,14 @@ class PasswordHasher(Protocol):
 
 class AccessTokenIssuer(Protocol):
     def issue(self, user: User) -> str: ...
+
+
+class InvalidAccessTokenError(Exception):
+    pass
+
+
+class AccessTokenDecoder(Protocol):
+    def decode_subject(self, token: str) -> TSID: ...
 
 
 @dataclass(frozen=True, slots=True)

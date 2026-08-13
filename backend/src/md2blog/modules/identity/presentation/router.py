@@ -11,10 +11,11 @@ from md2blog.modules.identity.application.service.refresh import (
 from md2blog.modules.identity.application.service.signup import EmailAlreadyExistsError
 from md2blog.modules.identity.domain.auth_session import InvalidRefreshSessionError
 from md2blog.modules.identity.domain.commands import LoginCommand
-from md2blog.modules.identity.domain.user import AuthenticationFailedError
+from md2blog.modules.identity.domain.user import AuthenticationFailedError, User
 from md2blog.modules.identity.domain.value_objects import Email, RawPassword
 from md2blog.modules.identity.presentation.dependencies import (
     SignUpDependencies,
+    get_current_user,
     get_login_use_case,
     get_refresh_service,
     get_signup_dependencies,
@@ -135,4 +136,13 @@ async def login(
             email=result.user.email.value,
             display_name=result.user.display_name.value,
         ),
+    )
+
+
+@router.get("/me", response_model=UserResponse)
+async def me(current_user: User = Depends(get_current_user)) -> UserResponse:
+    return UserResponse(
+        id=str(current_user.id),
+        email=current_user.email.value,
+        display_name=current_user.display_name.value,
     )
