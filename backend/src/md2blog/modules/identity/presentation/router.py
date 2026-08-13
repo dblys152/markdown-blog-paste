@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Cookie, Depends, Request, Response, status
 from sqlalchemy.exc import IntegrityError
 
 from md2blog.modules.identity.application.port.inbound.login import LoginRequest, LoginUseCase
@@ -11,7 +11,7 @@ from md2blog.modules.identity.application.service.refresh import (
 from md2blog.modules.identity.application.service.signup import EmailAlreadyExistsError
 from md2blog.modules.identity.domain.auth_session import InvalidRefreshSessionError
 from md2blog.modules.identity.domain.commands import LoginCommand
-from md2blog.modules.identity.domain.user import AuthenticationFailedError, User
+from md2blog.modules.identity.domain.user import User
 from md2blog.modules.identity.domain.value_objects import Email, RawPassword
 from md2blog.modules.identity.presentation.dependencies import (
     SignUpDependencies,
@@ -54,14 +54,11 @@ async def signup(
     dependencies: SignUpDependencies = Depends(get_signup_dependencies),
     refresh_service: RefreshSessionService = Depends(get_refresh_service),
 ) -> TokenResponse:
+    command = await dependencies.command_factory.create(request)
     try:
-        command = await dependencies.command_factory.create(request)
         result = await dependencies.use_case.execute(command)
-    except (EmailAlreadyExistsError, IntegrityError) as error:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="email already exists",
-        ) from error
+    except IntegrityError as error:
+        raise EmailAlreadyExistsError from error
 
     token_pair = await refresh_service.create(result.user, get_session_metadata(http_request))
     set_refresh_cookie(response, token_pair.refresh_token)
@@ -83,17 +80,8 @@ async def refresh(
     service: RefreshSessionService = Depends(get_refresh_service),
 ) -> TokenResponse:
     if refresh_token is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="invalid refresh token",
-        )
-    try:
-        result = await service.rotate(refresh_token, get_session_metadata(request))
-    except InvalidRefreshSessionError as error:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="invalid refresh token",
-        ) from error
+        raise InvalidRefreshSessionError
+    result = await service.rotate(refresh_token, get_session_metadata(request))
 
     set_refresh_cookie(response, result.refresh_token)
     return TokenResponse(
@@ -114,18 +102,12 @@ async def login(
     use_case: LoginUseCase = Depends(get_login_use_case),
     refresh_service: RefreshSessionService = Depends(get_refresh_service),
 ) -> TokenResponse:
-    try:
-        result = await use_case.execute(
-            LoginCommand(
-                email=Email(str(request.email)),
-                password=RawPassword(request.password),
-            )
+    result = await use_case.execute(
+        LoginCommand(
+            email=Email(str(request.email)),
+            password=RawPassword(request.password),
         )
-    except AuthenticationFailedError as error:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="invalid credentials",
-        ) from error
+    )
 
     token_pair = await refresh_service.create(result.user, get_session_metadata(http_request))
     set_refresh_cookie(response, token_pair.refresh_token)

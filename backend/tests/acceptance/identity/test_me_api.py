@@ -42,3 +42,7 @@ async def test_me_requires_bearer_token() -> None:
 
     assert response.status_code == 401
     assert response.headers["www-authenticate"] == "Bearer"
+    assert response.json() == {
+        "code": "AUTH_REQUIRED",
+        "message": "로그인이 필요합니다.",
+    }

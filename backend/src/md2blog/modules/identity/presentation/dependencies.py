@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from datetime import timedelta
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -31,7 +31,7 @@ from md2blog.modules.identity.infrastructure.tokens import (
 from md2blog.settings import get_settings
 from md2blog.shared.infrastructure.database import get_session
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,17 +51,15 @@ def get_authenticate_access_token(
 
 
 async def get_current_user(
-    token: str = Depends(oauth2_scheme),
+    token: str | None = Depends(oauth2_scheme),
     service: AuthenticateAccessToken = Depends(get_authenticate_access_token),
 ) -> User:
+    if token is None:
+        raise AuthenticationRequiredError
     try:
         return await service.execute(token)
     except (InvalidAccessTokenError, AuthenticationRequiredError) as error:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="authentication required",
-            headers={"WWW-Authenticate": "Bearer"},
-        ) from error
+        raise AuthenticationRequiredError from error
 
 
 def get_login_use_case(
