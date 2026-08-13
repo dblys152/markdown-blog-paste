@@ -1,15 +1,23 @@
 import uvicorn
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from md2blog.modules.identity.presentation.router import router as identity_router
 from md2blog.presentation.health import router as health_router
-from md2blog.settings import get_settings
+from md2blog.settings import Settings, get_settings
 from md2blog.shared.presentation.exception_handlers import register_exception_handlers
 
 
-def create_app() -> FastAPI:
-    settings = get_settings()
+def create_app(settings: Settings | None = None) -> FastAPI:
+    settings = settings or get_settings()
     app = FastAPI(title=settings.app_name)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_allowed_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
     register_exception_handlers(app)
     app.include_router(health_router)
     app.include_router(identity_router)

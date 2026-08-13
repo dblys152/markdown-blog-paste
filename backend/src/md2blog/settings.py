@@ -1,8 +1,18 @@
 from functools import lru_cache
+from typing import Annotated, Literal
 
-from pydantic import SecretStr
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import BeforeValidator, SecretStr
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 from sqlalchemy import URL, make_url
+
+
+def parse_comma_separated(value: object) -> object:
+    if isinstance(value, str):
+        return [item.strip() for item in value.split(",") if item.strip()]
+    return value
+
+
+CommaSeparatedList = Annotated[list[str], NoDecode, BeforeValidator(parse_comma_separated)]
 
 
 class Settings(BaseSettings):
@@ -16,7 +26,8 @@ class Settings(BaseSettings):
     access_token_ttl_minutes: int = 15
     refresh_token_ttl_days: int = 14
     refresh_token_cookie_secure: bool = False
-    refresh_token_cookie_samesite: str = "lax"
+    refresh_token_cookie_samesite: Literal["lax", "strict", "none"] = "lax"
+    cors_allowed_origins: CommaSeparatedList = ["http://localhost:5173"]
 
     @property
     def async_database_url(self) -> URL:

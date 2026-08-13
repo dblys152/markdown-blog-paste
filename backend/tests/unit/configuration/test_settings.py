@@ -20,3 +20,14 @@ def test_neon_urls_use_the_driver_for_each_workload() -> None:
         "sslmode": "require",
         "channel_binding": "require",
     }
+
+
+def test_cors_origins_are_parsed_from_comma_separated_environment_value() -> None:
+    settings = Settings(
+        cors_allowed_origins="http://localhost:5173, https://md2blog.pages.dev",  # type: ignore[arg-type]
+    )
+
+    assert settings.cors_allowed_origins == [
+        "http://localhost:5173",
+        "https://md2blog.pages.dev",
+    ]

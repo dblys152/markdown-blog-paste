@@ -12,6 +12,7 @@ from md2blog.modules.identity.presentation.dependencies import (
     get_refresh_service,
     get_signup_dependencies,
 )
+from md2blog.settings import Settings, get_settings
 from md2blog.shared.domain.tsid import TSID
 
 
@@ -63,3 +64,48 @@ async def test_signup_returns_access_token_and_string_user_id() -> None:
             "display_name": "User",
         },
     }
+
+
+async def test_signup_sets_secure_cross_site_cookie_in_production() -> None:
+    settings = Settings(
+        refresh_token_cookie_secure=True,
+        refresh_token_cookie_samesite="none",
+    )
+    use_case = AsyncMock()
+    user = User(
+        id=TSID(123456789),
+        email=Email("user@example.com"),
+        password_hash=PasswordHash("hidden"),
+        display_name=DisplayName("User"),
+    )
+    use_case.execute.return_value = SignUpResult(user=user, access_token="access-token")
+    command_factory = AsyncMock()
+    refresh_service = AsyncMock()
+    refresh_service.create.return_value = TokenPairResult(
+        user=user,
+        access_token="access-token",
+        refresh_token="refresh-token",
+    )
+    app = create_app(settings)
+    app.dependency_overrides[get_settings] = lambda: settings
+    app.dependency_overrides[get_signup_dependencies] = lambda: SignUpDependencies(
+        command_factory=command_factory,
+        use_case=use_case,
+    )
+    app.dependency_overrides[get_refresh_service] = lambda: refresh_service
+    transport = httpx.ASGITransport(app=app)
+
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            "/auth/signup",
+            json={
+                "email": "user@example.com",
+                "password": "strong-password",
+                "display_name": "User",
+            },
+        )
+
+    cookie = response.headers["set-cookie"]
+    assert "HttpOnly" in cookie
+    assert "Secure" in cookie
+    assert "SameSite=none" in cookie

@@ -26,7 +26,7 @@ from md2blog.modules.identity.presentation.dependencies import (
     get_refresh_service,
     get_signup_dependencies,
 )
-from md2blog.settings import get_settings
+from md2blog.settings import Settings, get_settings
 from md2blog.shared.presentation.errors import ErrorCode
 from md2blog.shared.presentation.exception_handlers import error_response
 
@@ -34,26 +34,24 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 REFRESH_TOKEN_COOKIE = "refresh_token"
 
 
-def set_refresh_cookie(response: Response, refresh_token: str) -> None:
-    settings = get_settings()
+def set_refresh_cookie(response: Response, refresh_token: str, settings: Settings) -> None:
     response.set_cookie(
         key=REFRESH_TOKEN_COOKIE,
         value=refresh_token,
         max_age=settings.refresh_token_ttl_days * 24 * 60 * 60,
         httponly=True,
         secure=settings.refresh_token_cookie_secure,
-        samesite=settings.refresh_token_cookie_samesite,  # type: ignore[arg-type]
+        samesite=settings.refresh_token_cookie_samesite,
         path="/auth",
     )
 
 
-def delete_refresh_cookie(response: Response) -> None:
-    settings = get_settings()
+def delete_refresh_cookie(response: Response, settings: Settings) -> None:
     response.delete_cookie(
         key=REFRESH_TOKEN_COOKIE,
         secure=settings.refresh_token_cookie_secure,
         httponly=True,
-        samesite=settings.refresh_token_cookie_samesite,  # type: ignore[arg-type]
+        samesite=settings.refresh_token_cookie_samesite,
         path="/auth",
     )
 
@@ -72,6 +70,7 @@ async def signup(
     response: Response,
     dependencies: SignUpDependencies = Depends(get_signup_dependencies),
     refresh_service: RefreshSessionService = Depends(get_refresh_service),
+    settings: Settings = Depends(get_settings),
 ) -> TokenResponse:
     command = await dependencies.command_factory.create(request)
     try:
@@ -80,7 +79,7 @@ async def signup(
         raise EmailAlreadyExistsError from error
 
     token_pair = await refresh_service.create(result.user, get_session_metadata(http_request))
-    set_refresh_cookie(response, token_pair.refresh_token)
+    set_refresh_cookie(response, token_pair.refresh_token, settings)
     return TokenResponse(
         access_token=token_pair.access_token,
         user=UserResponse(
@@ -97,6 +96,7 @@ async def refresh(
     response: Response,
     refresh_token: str | None = Cookie(default=None),
     service: RefreshSessionService = Depends(get_refresh_service),
+    settings: Settings = Depends(get_settings),
 ) -> TokenResponse | JSONResponse:
     if refresh_token is None:
         raise InvalidRefreshSessionError
@@ -108,10 +108,10 @@ async def refresh(
             ErrorCode.AUTH_INVALID_REFRESH_TOKEN,
             "유효하지 않은 리프레시 토큰입니다.",
         )
-        delete_refresh_cookie(rejection)
+        delete_refresh_cookie(rejection, settings)
         return rejection
 
-    set_refresh_cookie(response, result.refresh_token)
+    set_refresh_cookie(response, result.refresh_token, settings)
     return TokenResponse(
         access_token=result.access_token,
         user=UserResponse(
@@ -129,6 +129,7 @@ async def login(
     response: Response,
     use_case: LoginUseCase = Depends(get_login_use_case),
     refresh_service: RefreshSessionService = Depends(get_refresh_service),
+    settings: Settings = Depends(get_settings),
 ) -> TokenResponse:
     result = await use_case.execute(
         LoginCommand(
@@ -138,7 +139,7 @@ async def login(
     )
 
     token_pair = await refresh_service.create(result.user, get_session_metadata(http_request))
-    set_refresh_cookie(response, token_pair.refresh_token)
+    set_refresh_cookie(response, token_pair.refresh_token, settings)
     return TokenResponse(
         access_token=token_pair.access_token,
         user=UserResponse(
@@ -163,9 +164,10 @@ async def logout(
     response: Response,
     refresh_token: str | None = Cookie(default=None),
     service: LogoutSessionService = Depends(get_logout_service),
+    settings: Settings = Depends(get_settings),
 ) -> None:
     await service.logout(refresh_token)
-    delete_refresh_cookie(response)
+    delete_refresh_cookie(response, settings)
 
 
 @router.post("/logout-all", status_code=status.HTTP_204_NO_CONTENT)
@@ -173,6 +175,7 @@ async def logout_all(
     response: Response,
     current_user: User = Depends(get_current_user),
     service: LogoutSessionService = Depends(get_logout_service),
+    settings: Settings = Depends(get_settings),
 ) -> None:
     await service.logout_all(current_user.id)
-    delete_refresh_cookie(response)
+    delete_refresh_cookie(response, settings)
