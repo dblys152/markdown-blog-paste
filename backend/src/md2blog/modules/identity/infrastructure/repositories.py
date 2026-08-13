@@ -1,7 +1,7 @@
 from sqlalchemy import exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from md2blog.modules.identity.domain.user import User
+from md2blog.modules.identity.domain.user import User, UserStatus
 from md2blog.modules.identity.domain.value_objects import DisplayName, Email, PasswordHash
 from md2blog.modules.identity.infrastructure.models import UserModel
 from md2blog.shared.domain.tsid import TSID
@@ -23,7 +23,7 @@ class SqlAlchemyUserRepository:
                 password_hash=user.password_hash.value,
                 display_name=user.display_name.value,
                 email_verified_at=user.email_verified_at,
-                status=user.status,
+                status=user.status.value,
             )
         )
         await self._session.flush()
@@ -45,5 +45,5 @@ class SqlAlchemyUserRepository:
             password_hash=PasswordHash(model.password_hash),
             display_name=DisplayName(model.display_name),
             email_verified_at=model.email_verified_at,
-            status=model.status,
+            status=UserStatus(model.status),
         )

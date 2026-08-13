@@ -4,7 +4,7 @@ from md2blog.modules.identity.application.service.authenticate_access_token impo
     AuthenticateAccessToken,
     AuthenticationRequiredError,
 )
-from md2blog.modules.identity.domain.user import User
+from md2blog.modules.identity.domain.user import User, UserStatus
 from md2blog.modules.identity.domain.value_objects import DisplayName, Email, PasswordHash
 from md2blog.shared.domain.tsid import TSID
 
@@ -22,7 +22,7 @@ class Users:
         return self.user if self.user and self.user.id.value == user_id else None
 
 
-def make_user(status: str = "active") -> User:
+def make_user(status: UserStatus = UserStatus.ACTIVE) -> User:
     return User(
         id=TSID(123),
         email=Email("user@example.com"),
@@ -39,7 +39,7 @@ async def test_authenticate_access_token_returns_active_user() -> None:
     assert await service.execute("123") == user
 
 
-@pytest.mark.parametrize("user", [None, make_user("suspended")])
+@pytest.mark.parametrize("user", [None, make_user(UserStatus.SUSPENDED)])
 async def test_authenticate_access_token_rejects_missing_or_inactive_user(
     user: User | None,
 ) -> None:

@@ -2,7 +2,7 @@ import pytest
 
 from md2blog.modules.identity.application.service.login import Login
 from md2blog.modules.identity.domain.commands import LoginCommand
-from md2blog.modules.identity.domain.user import AuthenticationFailedError, User
+from md2blog.modules.identity.domain.user import AuthenticationFailedError, User, UserStatus
 from md2blog.modules.identity.domain.value_objects import (
     DisplayName,
     Email,
@@ -37,7 +37,7 @@ class Passwords:
         return password_hash.value == f"hash:{password.value}"
 
 
-def make_user(status: str = "active") -> User:
+def make_user(status: UserStatus = UserStatus.ACTIVE) -> User:
     return User(
         id=TSID(1),
         email=Email("user@example.com"),
@@ -62,7 +62,7 @@ async def test_login_returns_active_user_for_valid_credentials() -> None:
     [
         (None, "correct-password"),
         (make_user(), "wrong-password"),
-        (make_user("suspended"), "correct-password"),
+        (make_user(UserStatus.SUSPENDED), "correct-password"),
     ],
 )
 async def test_login_rejects_unknown_user_wrong_password_and_inactive_user(

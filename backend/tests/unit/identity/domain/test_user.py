@@ -1,11 +1,11 @@
 import pytest
 
-from md2blog.modules.identity.domain.user import AuthenticationFailedError, User
+from md2blog.modules.identity.domain.user import AuthenticationFailedError, User, UserStatus
 from md2blog.modules.identity.domain.value_objects import DisplayName, Email, PasswordHash
 from md2blog.shared.domain.tsid import TSID
 
 
-def make_user(status: str = "active") -> User:
+def make_user(status: UserStatus = UserStatus.ACTIVE) -> User:
     return User(
         id=TSID(1),
         email=Email("user@example.com"),
@@ -21,11 +21,15 @@ def test_active_user_authenticates_with_matching_password() -> None:
 
 @pytest.mark.parametrize(
     ("password_matches", "user_status"),
-    [(False, "active"), (True, "suspended"), (True, "withdrawn")],
+    [
+        (False, UserStatus.ACTIVE),
+        (True, UserStatus.SUSPENDED),
+        (True, UserStatus.WITHDRAWN),
+    ],
 )
 def test_authentication_fails_for_invalid_credentials_or_status(
     password_matches: bool,
-    user_status: str,
+    user_status: UserStatus,
 ) -> None:
     with pytest.raises(AuthenticationFailedError):
         make_user(user_status).authenticate(password_matches)

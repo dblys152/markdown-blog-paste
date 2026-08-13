@@ -11,6 +11,11 @@ from md2blog.modules.identity.application.port.outbound.security import (
 from md2blog.modules.identity.domain.user import User
 from md2blog.shared.domain.tsid import TSID
 
+JWT_ALGORITHM = "HS256"
+ACCESS_TOKEN_TYPE = "access"
+REQUIRED_ACCESS_TOKEN_CLAIMS = ("sub", "type", "iat", "exp")
+REFRESH_TOKEN_BYTES = 48
+
 
 class JwtAccessTokenIssuer:
     def __init__(self, secret_key: str, ttl: timedelta) -> None:
@@ -22,12 +27,12 @@ class JwtAccessTokenIssuer:
         return jwt.encode(
             {
                 "sub": str(user.id),
-                "type": "access",
+                "type": ACCESS_TOKEN_TYPE,
                 "iat": now,
                 "exp": now + self._ttl,
             },
             self._secret_key,
-            algorithm="HS256",
+            algorithm=JWT_ALGORITHM,
         )
 
 
@@ -40,10 +45,10 @@ class JwtAccessTokenDecoder:
             payload = jwt.decode(
                 token,
                 self._secret_key,
-                algorithms=["HS256"],
-                options={"require": ["sub", "type", "iat", "exp"]},
+                algorithms=[JWT_ALGORITHM],
+                options={"require": list(REQUIRED_ACCESS_TOKEN_CLAIMS)},
             )
-            if payload["type"] != "access" or not isinstance(payload["sub"], str):
+            if payload["type"] != ACCESS_TOKEN_TYPE or not isinstance(payload["sub"], str):
                 raise InvalidAccessTokenError
             return TSID.from_string(payload["sub"])
         except (jwt.PyJWTError, KeyError, TypeError, ValueError) as error:
@@ -52,7 +57,7 @@ class JwtAccessTokenDecoder:
 
 class SecureRefreshTokenManager:
     def generate(self) -> RefreshToken:
-        raw = secrets.token_urlsafe(48)
+        raw = secrets.token_urlsafe(REFRESH_TOKEN_BYTES)
         return RefreshToken(raw=raw, token_hash=self.hash(raw))
 
     def hash(self, raw_token: str) -> str:
