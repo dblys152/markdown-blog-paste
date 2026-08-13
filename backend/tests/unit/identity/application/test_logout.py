@@ -19,6 +19,9 @@ class Sessions:
             return self.session
         return None
 
+    async def find_by_token_hash_for_update(self, token_hash: str) -> AuthSession | None:
+        return await self.find_by_token_hash(token_hash)
+
     async def replace(self, previous: AuthSession, replacement: AuthSession) -> None:
         self.session = replacement
 

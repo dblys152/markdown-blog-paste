@@ -17,9 +17,22 @@ class SqlAlchemyAuthSessionRepository:
         await self._session.flush()
 
     async def find_by_token_hash(self, token_hash: str) -> AuthSession | None:
+        return await self._find_by_token_hash(token_hash)
+
+    async def find_by_token_hash_for_update(self, token_hash: str) -> AuthSession | None:
+        return await self._find_by_token_hash(token_hash, for_update=True)
+
+    async def _find_by_token_hash(
+        self,
+        token_hash: str,
+        *,
+        for_update: bool = False,
+    ) -> AuthSession | None:
         statement = select(AuthSessionModel).where(
             AuthSessionModel.refresh_token_hash == token_hash
         )
+        if for_update:
+            statement = statement.with_for_update()
         model = await self._session.scalar(statement)
         return None if model is None else self._to_domain(model)
 

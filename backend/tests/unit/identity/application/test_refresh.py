@@ -9,7 +9,7 @@ from md2blog.modules.identity.application.service.refresh import (
 )
 from md2blog.modules.identity.domain.auth_session import (
     AuthSession,
-    InvalidRefreshSessionError,
+    RefreshTokenReuseDetectedError,
 )
 from md2blog.modules.identity.domain.user import User
 from md2blog.modules.identity.domain.value_objects import DisplayName, Email, PasswordHash
@@ -18,26 +18,34 @@ from md2blog.shared.domain.tsid import TSID
 
 class Sessions:
     def __init__(self) -> None:
-        self.current: AuthSession | None = None
+        self.items: dict[str, AuthSession] = {}
+
+    @property
+    def current(self) -> AuthSession | None:
+        return next(reversed(self.items.values()), None)
 
     async def add(self, session: AuthSession) -> None:
-        self.current = session
+        self.items[session.refresh_token_hash] = session
 
     async def find_by_token_hash(self, token_hash: str) -> AuthSession | None:
-        if self.current and self.current.refresh_token_hash == token_hash:
-            return self.current
-        return None
+        return self.items.get(token_hash)
+
+    async def find_by_token_hash_for_update(self, token_hash: str) -> AuthSession | None:
+        return self.items.get(token_hash)
 
     async def replace(self, previous: AuthSession, replacement: AuthSession) -> None:
         assert previous.revoked_at is not None
-        self.current = replacement
+        self.items[previous.refresh_token_hash] = previous
+        self.items[replacement.refresh_token_hash] = replacement
 
     async def revoke(self, session: AuthSession) -> None:
-        self.current = session
+        self.items[session.refresh_token_hash] = session
 
     async def revoke_all_by_user_id(self, user_id: TSID, revoked_at: datetime) -> None:
-        if self.current and self.current.user_id == user_id:
-            self.current = self.current.revoke(revoked_at)
+        self.items = {
+            token_hash: session.revoke(revoked_at) if session.user_id == user_id else session
+            for token_hash, session in self.items.items()
+        }
 
 
 class Users:
@@ -106,5 +114,29 @@ async def test_refresh_rotates_token_and_rejects_reuse() -> None:
     assert rotated.refresh_token == "raw-2"
     assert sessions.current is not None
     assert sessions.current.user_agent == "agent"
-    with pytest.raises(InvalidRefreshSessionError):
+    with pytest.raises(RefreshTokenReuseDetectedError):
         await service.rotate(created.refresh_token, SessionMetadata(None, None))
+
+    assert sessions.current is not None
+    assert sessions.current.revoked_at == now
+
+
+async def test_reusing_old_token_revokes_entire_replacement_chain() -> None:
+    now = datetime.now(UTC)
+    sessions = Sessions()
+    service = RefreshSessionService(
+        sessions,
+        Users(make_user()),
+        Tokens(),
+        AccessTokens(),
+        FixedClock(now),
+        timedelta(days=14),
+    )
+    first = await service.create(make_user(), SessionMetadata(None, None))
+    second = await service.rotate(first.refresh_token, SessionMetadata(None, None))
+    await service.rotate(second.refresh_token, SessionMetadata(None, None))
+
+    with pytest.raises(RefreshTokenReuseDetectedError):
+        await service.rotate(first.refresh_token, SessionMetadata(None, None))
+
+    assert all(session.revoked_at == now for session in sessions.items.values())

@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Cookie, Depends, Request, Response, status
+from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
 
 from md2blog.modules.identity.application.port.inbound.login import LoginRequest, LoginUseCase
@@ -10,7 +11,10 @@ from md2blog.modules.identity.application.service.refresh import (
     SessionMetadata,
 )
 from md2blog.modules.identity.application.service.signup import EmailAlreadyExistsError
-from md2blog.modules.identity.domain.auth_session import InvalidRefreshSessionError
+from md2blog.modules.identity.domain.auth_session import (
+    InvalidRefreshSessionError,
+    RefreshTokenReuseDetectedError,
+)
 from md2blog.modules.identity.domain.commands import LoginCommand
 from md2blog.modules.identity.domain.user import User
 from md2blog.modules.identity.domain.value_objects import Email, RawPassword
@@ -23,6 +27,8 @@ from md2blog.modules.identity.presentation.dependencies import (
     get_signup_dependencies,
 )
 from md2blog.settings import get_settings
+from md2blog.shared.presentation.errors import ErrorCode
+from md2blog.shared.presentation.exception_handlers import error_response
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 REFRESH_TOKEN_COOKIE = "refresh_token"
@@ -91,10 +97,19 @@ async def refresh(
     response: Response,
     refresh_token: str | None = Cookie(default=None),
     service: RefreshSessionService = Depends(get_refresh_service),
-) -> TokenResponse:
+) -> TokenResponse | JSONResponse:
     if refresh_token is None:
         raise InvalidRefreshSessionError
-    result = await service.rotate(refresh_token, get_session_metadata(request))
+    try:
+        result = await service.rotate(refresh_token, get_session_metadata(request))
+    except RefreshTokenReuseDetectedError:
+        rejection = error_response(
+            status.HTTP_401_UNAUTHORIZED,
+            ErrorCode.AUTH_INVALID_REFRESH_TOKEN,
+            "유효하지 않은 리프레시 토큰입니다.",
+        )
+        delete_refresh_cookie(rejection)
+        return rejection
 
     set_refresh_cookie(response, result.refresh_token)
     return TokenResponse(

@@ -4,6 +4,7 @@ import httpx
 
 from md2blog.main import create_app
 from md2blog.modules.identity.application.service.refresh import TokenPairResult
+from md2blog.modules.identity.domain.auth_session import RefreshTokenReuseDetectedError
 from md2blog.modules.identity.domain.user import User
 from md2blog.modules.identity.domain.value_objects import DisplayName, Email, PasswordHash
 from md2blog.modules.identity.presentation.dependencies import get_refresh_service
@@ -38,3 +39,25 @@ async def test_refresh_rotates_cookie_and_returns_access_token() -> None:
     assert "refresh_token=new-refresh-token" in response.headers["set-cookie"]
     assert "HttpOnly" in response.headers["set-cookie"]
     service.rotate.assert_awaited_once()
+
+
+async def test_refresh_reuse_returns_unauthorized_and_deletes_cookie() -> None:
+    service = AsyncMock()
+    service.rotate.side_effect = RefreshTokenReuseDetectedError
+    app = create_app()
+    app.dependency_overrides[get_refresh_service] = lambda: service
+    transport = httpx.ASGITransport(app=app)
+
+    async with httpx.AsyncClient(
+        transport=transport,
+        base_url="http://test",
+        cookies={"refresh_token": "reused-token"},
+    ) as client:
+        response = await client.post("/auth/refresh")
+
+    assert response.status_code == 401
+    assert response.json() == {
+        "code": "AUTH_INVALID_REFRESH_TOKEN",
+        "message": "유효하지 않은 리프레시 토큰입니다.",
+    }
+    assert "Max-Age=0" in response.headers["set-cookie"]

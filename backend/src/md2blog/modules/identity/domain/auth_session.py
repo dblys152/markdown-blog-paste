@@ -36,3 +36,7 @@ class AuthSession:
 
 class InvalidRefreshSessionError(Exception):
     pass
+
+
+class RefreshTokenReuseDetectedError(Exception):
+    pass

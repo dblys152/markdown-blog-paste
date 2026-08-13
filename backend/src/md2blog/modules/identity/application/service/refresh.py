@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from md2blog.modules.identity.application.port.outbound.security import (
     AccessTokenIssuer,
@@ -9,6 +9,7 @@ from md2blog.modules.identity.application.port.outbound.security import (
 from md2blog.modules.identity.domain.auth_session import (
     AuthSession,
     InvalidRefreshSessionError,
+    RefreshTokenReuseDetectedError,
 )
 from md2blog.modules.identity.domain.repositories import UserRepository
 from md2blog.modules.identity.domain.session_repositories import AuthSessionRepository
@@ -65,8 +66,13 @@ class RefreshSessionService:
     async def rotate(self, raw_token: str, metadata: SessionMetadata) -> TokenPairResult:
         now = self._clock.now()
         token_hash = self._refresh_tokens.hash(raw_token)
-        previous = await self._sessions.find_by_token_hash(token_hash)
-        if previous is None or not previous.is_active(now):
+        previous = await self._sessions.find_by_token_hash_for_update(token_hash)
+        if previous is None:
+            raise InvalidRefreshSessionError
+        if not previous.is_active(now):
+            if previous.replaced_by_token_hash is not None:
+                await self._revoke_replacement_chain(previous.replaced_by_token_hash, now)
+                raise RefreshTokenReuseDetectedError
             raise InvalidRefreshSessionError
 
         user = await self._users.find_by_id(previous.user_id.value)
@@ -89,3 +95,12 @@ class RefreshSessionService:
         )
         await self._sessions.replace(rotated_previous, replacement)
         return TokenPairResult(user, self._access_tokens.issue(user), replacement_token.raw)
+
+    async def _revoke_replacement_chain(self, token_hash: str, now: datetime) -> None:
+        current_hash: str | None = token_hash
+        while current_hash is not None:
+            session = await self._sessions.find_by_token_hash_for_update(current_hash)
+            if session is None:
+                return
+            await self._sessions.revoke(session.revoke(now))
+            current_hash = session.replaced_by_token_hash
