@@ -1,4 +1,6 @@
-from sqlalchemy import select
+from datetime import datetime
+
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from md2blog.modules.identity.domain.auth_session import AuthSession
@@ -28,6 +30,24 @@ class SqlAlchemyAuthSessionRepository:
         model.revoked_at = previous.revoked_at
         model.replaced_by_token_hash = previous.replaced_by_token_hash
         self._session.add(self._to_model(replacement))
+        await self._session.flush()
+
+    async def revoke(self, session: AuthSession) -> None:
+        model = await self._session.get(AuthSessionModel, session.id.value)
+        if model is not None:
+            model.revoked_at = session.revoked_at
+            await self._session.flush()
+
+    async def revoke_all_by_user_id(self, user_id: TSID, revoked_at: datetime) -> None:
+        statement = (
+            update(AuthSessionModel)
+            .where(
+                AuthSessionModel.user_id == user_id.value,
+                AuthSessionModel.revoked_at.is_(None),
+            )
+            .values(revoked_at=revoked_at)
+        )
+        await self._session.execute(statement)
         await self._session.flush()
 
     @staticmethod

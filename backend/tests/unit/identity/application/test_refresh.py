@@ -32,6 +32,13 @@ class Sessions:
         assert previous.revoked_at is not None
         self.current = replacement
 
+    async def revoke(self, session: AuthSession) -> None:
+        self.current = session
+
+    async def revoke_all_by_user_id(self, user_id: TSID, revoked_at: datetime) -> None:
+        if self.current and self.current.user_id == user_id:
+            self.current = self.current.revoke(revoked_at)
+
 
 class Users:
     def __init__(self, user: User) -> None:

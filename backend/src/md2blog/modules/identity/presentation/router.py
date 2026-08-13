@@ -4,6 +4,7 @@ from sqlalchemy.exc import IntegrityError
 from md2blog.modules.identity.application.port.inbound.login import LoginRequest, LoginUseCase
 from md2blog.modules.identity.application.port.inbound.models import TokenResponse, UserResponse
 from md2blog.modules.identity.application.port.inbound.signup import SignUpRequest
+from md2blog.modules.identity.application.service.logout import LogoutSessionService
 from md2blog.modules.identity.application.service.refresh import (
     RefreshSessionService,
     SessionMetadata,
@@ -17,6 +18,7 @@ from md2blog.modules.identity.presentation.dependencies import (
     SignUpDependencies,
     get_current_user,
     get_login_use_case,
+    get_logout_service,
     get_refresh_service,
     get_signup_dependencies,
 )
@@ -34,6 +36,17 @@ def set_refresh_cookie(response: Response, refresh_token: str) -> None:
         max_age=settings.refresh_token_ttl_days * 24 * 60 * 60,
         httponly=True,
         secure=settings.refresh_token_cookie_secure,
+        samesite=settings.refresh_token_cookie_samesite,  # type: ignore[arg-type]
+        path="/auth",
+    )
+
+
+def delete_refresh_cookie(response: Response) -> None:
+    settings = get_settings()
+    response.delete_cookie(
+        key=REFRESH_TOKEN_COOKIE,
+        secure=settings.refresh_token_cookie_secure,
+        httponly=True,
         samesite=settings.refresh_token_cookie_samesite,  # type: ignore[arg-type]
         path="/auth",
     )
@@ -128,3 +141,23 @@ async def me(current_user: User = Depends(get_current_user)) -> UserResponse:
         email=current_user.email.value,
         display_name=current_user.display_name.value,
     )
+
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+async def logout(
+    response: Response,
+    refresh_token: str | None = Cookie(default=None),
+    service: LogoutSessionService = Depends(get_logout_service),
+) -> None:
+    await service.logout(refresh_token)
+    delete_refresh_cookie(response)
+
+
+@router.post("/logout-all", status_code=status.HTTP_204_NO_CONTENT)
+async def logout_all(
+    response: Response,
+    current_user: User = Depends(get_current_user),
+    service: LogoutSessionService = Depends(get_logout_service),
+) -> None:
+    await service.logout_all(current_user.id)
+    delete_refresh_cookie(response)

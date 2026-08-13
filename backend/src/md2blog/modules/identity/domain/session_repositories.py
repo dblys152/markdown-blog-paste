@@ -1,6 +1,8 @@
+from datetime import datetime
 from typing import Protocol
 
 from md2blog.modules.identity.domain.auth_session import AuthSession
+from md2blog.shared.domain.tsid import TSID
 
 
 class AuthSessionRepository(Protocol):
@@ -9,3 +11,7 @@ class AuthSessionRepository(Protocol):
     async def find_by_token_hash(self, token_hash: str) -> AuthSession | None: ...
 
     async def replace(self, previous: AuthSession, replacement: AuthSession) -> None: ...
+
+    async def revoke(self, session: AuthSession) -> None: ...
+
+    async def revoke_all_by_user_id(self, user_id: TSID, revoked_at: datetime) -> None: ...

@@ -14,6 +14,7 @@ from md2blog.modules.identity.application.service.authenticate_access_token impo
     AuthenticationRequiredError,
 )
 from md2blog.modules.identity.application.service.login import Login
+from md2blog.modules.identity.application.service.logout import LogoutSessionService
 from md2blog.modules.identity.application.service.refresh import RefreshSessionService
 from md2blog.modules.identity.application.service.signup import SignUp
 from md2blog.modules.identity.domain.user import User
@@ -105,4 +106,14 @@ def get_refresh_service(
         ),
         clock=SystemClock(),
         refresh_ttl=timedelta(days=settings.refresh_token_ttl_days),
+    )
+
+
+def get_logout_service(
+    session: AsyncSession = Depends(get_session),
+) -> LogoutSessionService:
+    return LogoutSessionService(
+        sessions=SqlAlchemyAuthSessionRepository(session),
+        refresh_tokens=SecureRefreshTokenManager(),
+        clock=SystemClock(),
     )

@@ -28,6 +28,11 @@ class AuthSession:
             replaced_by_token_hash=replacement_hash,
         )
 
+    def revoke(self, now: datetime) -> "AuthSession":
+        if self.revoked_at is not None:
+            return self
+        return replace(self, revoked_at=now)
+
 
 class InvalidRefreshSessionError(Exception):
     pass
