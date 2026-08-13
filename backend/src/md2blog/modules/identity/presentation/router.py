@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
 from sqlalchemy.exc import IntegrityError
 
+from md2blog.modules.identity.application.port.inbound.login import LoginRequest, LoginUseCase
 from md2blog.modules.identity.application.port.inbound.models import TokenResponse, UserResponse
 from md2blog.modules.identity.application.port.inbound.signup import SignUpRequest
 from md2blog.modules.identity.application.service.refresh import (
@@ -9,8 +10,12 @@ from md2blog.modules.identity.application.service.refresh import (
 )
 from md2blog.modules.identity.application.service.signup import EmailAlreadyExistsError
 from md2blog.modules.identity.domain.auth_session import InvalidRefreshSessionError
+from md2blog.modules.identity.domain.commands import LoginCommand
+from md2blog.modules.identity.domain.user import AuthenticationFailedError
+from md2blog.modules.identity.domain.value_objects import Email, RawPassword
 from md2blog.modules.identity.presentation.dependencies import (
     SignUpDependencies,
+    get_login_use_case,
     get_refresh_service,
     get_signup_dependencies,
 )
@@ -92,6 +97,39 @@ async def refresh(
     set_refresh_cookie(response, result.refresh_token)
     return TokenResponse(
         access_token=result.access_token,
+        user=UserResponse(
+            id=str(result.user.id),
+            email=result.user.email.value,
+            display_name=result.user.display_name.value,
+        ),
+    )
+
+
+@router.post("/login", response_model=TokenResponse)
+async def login(
+    request: LoginRequest,
+    http_request: Request,
+    response: Response,
+    use_case: LoginUseCase = Depends(get_login_use_case),
+    refresh_service: RefreshSessionService = Depends(get_refresh_service),
+) -> TokenResponse:
+    try:
+        result = await use_case.execute(
+            LoginCommand(
+                email=Email(str(request.email)),
+                password=RawPassword(request.password),
+            )
+        )
+    except AuthenticationFailedError as error:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="invalid credentials",
+        ) from error
+
+    token_pair = await refresh_service.create(result.user, get_session_metadata(http_request))
+    set_refresh_cookie(response, token_pair.refresh_token)
+    return TokenResponse(
+        access_token=token_pair.access_token,
         user=UserResponse(
             id=str(result.user.id),
             email=result.user.email.value,

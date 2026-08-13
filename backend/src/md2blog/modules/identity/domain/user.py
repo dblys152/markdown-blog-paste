@@ -23,3 +23,11 @@ class User:
             password_hash=command.password_hash,
             display_name=command.display_name,
         )
+
+    def authenticate(self, password_matches: bool) -> None:
+        if not password_matches or self.status != "active":
+            raise AuthenticationFailedError
+
+
+class AuthenticationFailedError(Exception):
+    pass

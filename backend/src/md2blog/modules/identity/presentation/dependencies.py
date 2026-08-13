@@ -5,7 +5,9 @@ from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from md2blog.modules.identity.application.factory.signup import SignUpCommandFactory
+from md2blog.modules.identity.application.port.inbound.login import LoginUseCase
 from md2blog.modules.identity.application.port.inbound.signup import SignUpUseCase
+from md2blog.modules.identity.application.service.login import Login
 from md2blog.modules.identity.application.service.refresh import RefreshSessionService
 from md2blog.modules.identity.application.service.signup import SignUp
 from md2blog.modules.identity.infrastructure.passwords import Argon2PasswordHasher
@@ -26,6 +28,15 @@ from md2blog.shared.infrastructure.database import get_session
 class SignUpDependencies:
     command_factory: SignUpCommandFactory
     use_case: SignUpUseCase
+
+
+def get_login_use_case(
+    session: AsyncSession = Depends(get_session),
+) -> LoginUseCase:
+    return Login(
+        users=SqlAlchemyUserRepository(session),
+        password_hasher=Argon2PasswordHasher(),
+    )
 
 
 def get_signup_dependencies(

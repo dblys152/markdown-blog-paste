@@ -30,8 +30,15 @@ class SqlAlchemyUserRepository:
 
     async def find_by_id(self, user_id: int) -> User | None:
         model = await self._session.get(UserModel, user_id)
-        if model is None:
-            return None
+        return None if model is None else self._to_domain(model)
+
+    async def find_by_email(self, email: Email) -> User | None:
+        statement = select(UserModel).where(UserModel.email == email.value)
+        model = await self._session.scalar(statement)
+        return None if model is None else self._to_domain(model)
+
+    @staticmethod
+    def _to_domain(model: UserModel) -> User:
         return User(
             id=TSID(model.id),
             email=Email(model.email),
