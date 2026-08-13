@@ -7,7 +7,8 @@ from md2blog.modules.identity.application.service.refresh import TokenPairResult
 from md2blog.modules.identity.application.service.signup import SignUpResult
 from md2blog.modules.identity.domain.user import User
 from md2blog.modules.identity.domain.value_objects import DisplayName, Email, PasswordHash
-from md2blog.modules.identity.presentation.router import (
+from md2blog.modules.identity.presentation.dependencies import (
+    SignUpDependencies,
     get_refresh_service,
     get_signup_dependencies,
 )
@@ -33,7 +34,10 @@ async def test_signup_returns_access_token_and_string_user_id() -> None:
         access_token="access-token",
         refresh_token="refresh-token",
     )
-    app.dependency_overrides[get_signup_dependencies] = lambda: (command_factory, use_case)
+    app.dependency_overrides[get_signup_dependencies] = lambda: SignUpDependencies(
+        command_factory=command_factory,
+        use_case=use_case,
+    )
     app.dependency_overrides[get_refresh_service] = lambda: refresh_service
     transport = httpx.ASGITransport(app=app)
 

@@ -1,67 +1,23 @@
-from datetime import timedelta
-
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from md2blog.modules.identity.application.factory.signup import SignUpCommandFactory
 from md2blog.modules.identity.application.port.inbound.models import TokenResponse, UserResponse
-from md2blog.modules.identity.application.port.inbound.signup import SignUpRequest, SignUpUseCase
+from md2blog.modules.identity.application.port.inbound.signup import SignUpRequest
 from md2blog.modules.identity.application.service.refresh import (
     RefreshSessionService,
     SessionMetadata,
 )
-from md2blog.modules.identity.application.service.signup import EmailAlreadyExistsError, SignUp
+from md2blog.modules.identity.application.service.signup import EmailAlreadyExistsError
 from md2blog.modules.identity.domain.auth_session import InvalidRefreshSessionError
-from md2blog.modules.identity.infrastructure.passwords import Argon2PasswordHasher
-from md2blog.modules.identity.infrastructure.repositories import SqlAlchemyUserRepository
-from md2blog.modules.identity.infrastructure.session_repositories import (
-    SqlAlchemyAuthSessionRepository,
-)
-from md2blog.modules.identity.infrastructure.tokens import (
-    JwtAccessTokenIssuer,
-    SecureRefreshTokenManager,
-    SystemClock,
+from md2blog.modules.identity.presentation.dependencies import (
+    SignUpDependencies,
+    get_refresh_service,
+    get_signup_dependencies,
 )
 from md2blog.settings import get_settings
-from md2blog.shared.infrastructure.database import get_session
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 REFRESH_TOKEN_COOKIE = "refresh_token"
-
-
-def get_signup_dependencies(
-    session: AsyncSession = Depends(get_session),
-) -> tuple[SignUpCommandFactory, SignUpUseCase]:
-    settings = get_settings()
-    users = SqlAlchemyUserRepository(session)
-    return (
-        SignUpCommandFactory(users=users, password_hasher=Argon2PasswordHasher()),
-        SignUp(
-            users=users,
-            token_issuer=JwtAccessTokenIssuer(
-            settings.jwt_secret_key.get_secret_value(),
-            timedelta(minutes=settings.access_token_ttl_minutes),
-        ),
-        ),
-    )
-
-
-def get_refresh_service(
-    session: AsyncSession = Depends(get_session),
-) -> RefreshSessionService:
-    settings = get_settings()
-    return RefreshSessionService(
-        sessions=SqlAlchemyAuthSessionRepository(session),
-        users=SqlAlchemyUserRepository(session),
-        refresh_tokens=SecureRefreshTokenManager(),
-        access_tokens=JwtAccessTokenIssuer(
-            settings.jwt_secret_key.get_secret_value(),
-            timedelta(minutes=settings.access_token_ttl_minutes),
-        ),
-        clock=SystemClock(),
-        refresh_ttl=timedelta(days=settings.refresh_token_ttl_days),
-    )
 
 
 def set_refresh_cookie(response: Response, refresh_token: str) -> None:
@@ -89,13 +45,12 @@ async def signup(
     request: SignUpRequest,
     http_request: Request,
     response: Response,
-    dependencies: tuple[SignUpCommandFactory, SignUpUseCase] = Depends(get_signup_dependencies),
+    dependencies: SignUpDependencies = Depends(get_signup_dependencies),
     refresh_service: RefreshSessionService = Depends(get_refresh_service),
 ) -> TokenResponse:
-    command_factory, use_case = dependencies
     try:
-        command = await command_factory.create(request)
-        result = await use_case.execute(command)
+        command = await dependencies.command_factory.create(request)
+        result = await dependencies.use_case.execute(command)
     except (EmailAlreadyExistsError, IntegrityError) as error:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,

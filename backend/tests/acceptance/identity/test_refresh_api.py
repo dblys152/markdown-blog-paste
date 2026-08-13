@@ -6,7 +6,7 @@ from md2blog.main import create_app
 from md2blog.modules.identity.application.service.refresh import TokenPairResult
 from md2blog.modules.identity.domain.user import User
 from md2blog.modules.identity.domain.value_objects import DisplayName, Email, PasswordHash
-from md2blog.modules.identity.presentation.router import get_refresh_service
+from md2blog.modules.identity.presentation.dependencies import get_refresh_service
 from md2blog.shared.domain.tsid import TSID
 
 
