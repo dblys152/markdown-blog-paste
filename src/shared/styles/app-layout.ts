@@ -86,6 +86,11 @@ export const APP_LAYOUT_CSS = `
 .app-login-link { padding: 0 16px; font-size: 13px; font-weight: 800; transition: background-color .15s, border-color .15s, color .15s, box-shadow .15s; }
 .app-login-link:hover { border-color: #2949df; background: #2949df; }
 .app-login-link:focus-visible { outline: 0; box-shadow: 0 0 0 3px rgba(63, 91, 234, .2); }
+.app-user-name { max-width: 140px; overflow: hidden; color: #374151; font-size: 13px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+.app-logout-button { height: 36px; padding: 0 12px; border: 1px solid #d6dbe5; border-radius: 7px; background: #fff; color: #4b5563; font: inherit; font-size: 12px; font-weight: 800; cursor: pointer; }
+.app-logout-button:hover { border-color: #aeb7c6; background: #f8fafc; }
+.app-auth-loading { width: 18px; height: 18px; border: 2px solid #dbe1ea; border-top-color: #3f5bea; border-radius: 50%; animation: app-auth-spin .7s linear infinite; }
+@keyframes app-auth-spin { to { transform: rotate(360deg); } }
 
 .app-route-content { min-width: 0; min-height: 0; overflow: hidden; }
 
@@ -117,6 +122,9 @@ export const APP_LAYOUT_CSS = `
 .auth-form input { width: 100%; height: 44px; padding: 0 12px; border: 1px solid #d1d5db; border-radius: 8px; background: #fff; }
 .auth-form input:focus { border-color: #3f5bea; outline: 3px solid rgba(63,91,234,.12); }
 .auth-submit { min-height: 44px; border: 0; border-radius: 8px; background: #3f5bea; color: #fff; font-weight: 800; }
+.auth-submit:not(:disabled) { cursor: pointer; }
+.auth-submit:disabled { opacity: .62; }
+.auth-error { margin: -2px 0 0; padding: 10px 12px; border-radius: 7px; background: #fff1f2; color: #be123c; font-size: 12px; font-weight: 700; line-height: 1.5; }
 .auth-footer { margin: 22px 0 0; color: #6b7280; font-size: 13px; text-align: center; }
 .auth-footer a { color: #2949df; font-weight: 800; }
 .not-found-card { text-align: center; }
@@ -333,6 +341,8 @@ export const APP_LAYOUT_CSS = `
   .app-top-nav { gap: 2px; }
   .app-top-nav a { padding-inline: 7px; font-size: 12px; }
   .app-login-link { height: 34px; padding: 0 10px; font-size: 11px; }
+  .app-user-name { max-width: 74px; font-size: 11px; }
+  .app-logout-button { height: 34px; padding: 0 8px; font-size: 11px; }
   .route-page { padding: 20px; }
   .auth-card, .not-found-card { padding: 26px 22px; }
 }

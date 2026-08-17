@@ -11,6 +11,16 @@ vi.mock("../../src/pages/workspace/WorkspaceGatePage", () => ({
   WorkspaceGatePage: () => <main>비회원 임시 페이지 편집 화면</main>,
 }));
 
+vi.mock("../../src/features/auth/AuthProvider", () => ({
+  useAuth: () => ({
+    status: "guest",
+    user: null,
+    login: vi.fn(),
+    signup: vi.fn(),
+    logout: vi.fn(),
+  }),
+}));
+
 import { AppRoutes } from "../../src/app/router";
 
 function renderRoute(path: string) {

@@ -1,7 +1,10 @@
-import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
+import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "../features/auth/AuthProvider";
 
 export function AppLayout() {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { status, user, logout } = useAuth();
   const isWorkspace = location.pathname.startsWith("/workspace");
 
   return (
@@ -21,7 +24,26 @@ export function AppLayout() {
         </nav>
 
         <div className="app-header-actions">
-          <Link className="app-login-link" to="/login">로그인</Link>
+          {status === "authenticated" && user ? (
+            <>
+              <span className="app-user-name">{user.display_name}</span>
+              <button
+                className="app-logout-button"
+                type="button"
+                onClick={() => {
+                  void logout()
+                    .catch(() => undefined)
+                    .finally(() => navigate("/"));
+                }}
+              >
+                로그아웃
+              </button>
+            </>
+          ) : status === "guest" ? (
+            <Link className="app-login-link" to="/login">로그인</Link>
+          ) : (
+            <span className="app-auth-loading" aria-label="로그인 상태 확인 중" />
+          )}
         </div>
       </header>
 
