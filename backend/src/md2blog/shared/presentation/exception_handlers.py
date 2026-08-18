@@ -11,6 +11,7 @@ from md2blog.modules.identity.application.service.authenticate_access_token impo
 from md2blog.modules.identity.application.service.signup import EmailAlreadyExistsError
 from md2blog.modules.identity.domain.auth_session import InvalidRefreshSessionError
 from md2blog.modules.identity.domain.user import AuthenticationFailedError
+from md2blog.modules.workspace.domain.page import ParentPageNotFoundError
 from md2blog.shared.presentation.errors import ErrorCode, ErrorResponse, FieldError
 
 
@@ -63,6 +64,14 @@ async def handle_email_already_exists(_: Request, __: Exception) -> JSONResponse
     )
 
 
+async def handle_parent_page_not_found(_: Request, __: Exception) -> JSONResponse:
+    return error_response(
+        status.HTTP_404_NOT_FOUND,
+        ErrorCode.WORKSPACE_PARENT_PAGE_NOT_FOUND,
+        "상위 페이지를 찾을 수 없습니다.",
+    )
+
+
 async def handle_validation_error(_: Request, error: Exception) -> JSONResponse:
     if not isinstance(error, RequestValidationError):
         raise error
@@ -104,5 +113,6 @@ def register_exception_handlers(app: FastAPI) -> None:
     app.add_exception_handler(InvalidAccessTokenError, handle_authentication_required)
     app.add_exception_handler(InvalidRefreshSessionError, handle_invalid_refresh_token)
     app.add_exception_handler(EmailAlreadyExistsError, handle_email_already_exists)
+    app.add_exception_handler(ParentPageNotFoundError, handle_parent_page_not_found)
     app.add_exception_handler(RequestValidationError, handle_validation_error)
     app.add_exception_handler(HTTPException, handle_http_exception)

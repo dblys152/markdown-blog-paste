@@ -4,6 +4,7 @@ from alembic import context
 from sqlalchemy import create_engine, pool
 
 from md2blog.modules.identity.infrastructure import models as identity_models  # noqa: F401
+from md2blog.modules.workspace.infrastructure import models as workspace_models  # noqa: F401
 from md2blog.settings import get_settings
 from md2blog.shared.infrastructure.persistence import Base
 
