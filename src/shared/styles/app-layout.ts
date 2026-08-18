@@ -169,10 +169,14 @@ export const APP_LAYOUT_CSS = `
 .workspace-page-node > .workspace-page-item.drop-inside { outline: 2px solid #8095ff; outline-offset: -2px; background: #edf0ff; }
 .workspace-page-select { display: flex; min-width: 0; align-items: center; gap: 8px; overflow: hidden; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .workspace-page-select span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.workspace-page-actions { display: flex; opacity: 0; }
+.workspace-page-actions { position: relative; display: flex; opacity: 0; }
 .workspace-page-item:hover .workspace-page-actions, .workspace-page-item:focus-within .workspace-page-actions { opacity: 1; }
 .workspace-page-actions button { display: grid; width: 22px; height: 24px; place-items: center; border: 0; border-radius: 4px; background: transparent; color: #667085; cursor: pointer; }
 .workspace-page-actions button:hover { background: #dfe5ff; color: #2949df; }
+.workspace-page-rename-input { min-width: 0; height: 28px; padding: 0 7px; border: 1px solid #8095ff; border-radius: 5px; outline: none; background: #fff; color: #253b80; font: inherit; }
+.workspace-page-actions .workspace-page-menu { position: absolute; z-index: 20; top: 28px; right: 0; display: grid; width: 112px; padding: 5px; border: 1px solid #dfe3eb; border-radius: 7px; background: #fff; box-shadow: 0 10px 28px rgba(15, 23, 42, .16); }
+.workspace-page-actions .workspace-page-menu button { display: block; width: 100%; height: 30px; padding: 0 9px; color: #344054; text-align: left; white-space: nowrap; }
+.workspace-page-actions .workspace-page-menu button.is-danger { color: #dc2626; }
 .workspace-empty-pages { margin: 12px 22px; color: #98a2b3; font-size: 12px; line-height: 1.7; }
 
 .workspace-guest-card { position: relative; margin: 18px 12px 0; padding: 15px; border: 1px solid #d9def8; border-radius: 9px; background: #f7f8ff; }
@@ -285,6 +289,10 @@ export const APP_LAYOUT_CSS = `
 .save-dialog label:has(input:checked) { border-color: #3f5bea; background: #f5f7ff; color: #2949df; }
 .save-dialog input { margin: 0; accent-color: #3f5bea; }
 .save-dialog fieldset small { margin: -3px 4px 2px 28px; color: #c2410c; font-size: 11px; }
+.save-dialog .save-dialog-select-label { display: block; min-height: 0; margin-bottom: 7px; padding: 0; border: 0; color: #475467; font-size: 12px; cursor: default; }
+.save-dialog .save-dialog-select-label:hover { background: transparent; }
+.save-dialog-select { width: 100%; height: 42px; margin-bottom: 16px; padding: 0 11px; border: 1px solid #d8dde6; border-radius: 7px; background: #fff; color: #344054; font: inherit; }
+.save-dialog-select:focus { border-color: #637df2; outline: 2px solid #e5e9ff; }
 .save-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 22px; }
 .save-dialog-actions button { min-height: 38px; padding: 0 15px; border: 1px solid #d8dde6; border-radius: 7px; background: #fff; color: #344054; font-weight: 750; cursor: pointer; }
 .save-dialog-actions button.is-primary { border-color: #3f5bea; background: #3f5bea; color: #fff; }

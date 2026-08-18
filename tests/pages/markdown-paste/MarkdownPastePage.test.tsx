@@ -1,15 +1,30 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { convertMarkdown, copyPreviewHtml, downloadHtml, downloadPdf, loadGuestDraft, saveGuestDraft } = vi.hoisted(() => ({
+const {
+  convertMarkdown,
+  copyPreviewHtml,
+  downloadHtml,
+  downloadPdf,
+  loadGuestDraft,
+  saveGuestDraft,
+  useAuth,
+  listWorkspacePages,
+  createWorkspacePage,
+  updateWorkspacePage,
+} = vi.hoisted(() => ({
   convertMarkdown: vi.fn(),
   copyPreviewHtml: vi.fn(),
   downloadHtml: vi.fn(),
   downloadPdf: vi.fn(),
   loadGuestDraft: vi.fn(),
   saveGuestDraft: vi.fn(),
+  useAuth: vi.fn(),
+  listWorkspacePages: vi.fn(),
+  createWorkspacePage: vi.fn(),
+  updateWorkspacePage: vi.fn(),
 }));
 
 vi.mock("../../../src/shared/markdown/converter-core", () => ({ convertMarkdown }));
@@ -20,6 +35,12 @@ vi.mock("../../../src/shared/export/clipboard", () => ({
 vi.mock("../../../src/shared/export/html-export", () => ({ downloadHtml }));
 vi.mock("../../../src/shared/export/pdf-export", () => ({ downloadPdf }));
 vi.mock("../../../src/pages/workspace/guest-draft-store", () => ({ loadGuestDraft, saveGuestDraft }));
+vi.mock("../../../src/features/auth/AuthProvider", () => ({ useAuth }));
+vi.mock("../../../src/features/workspace/api", () => ({
+  listWorkspacePages,
+  createWorkspacePage,
+  updateWorkspacePage,
+}));
 
 import { MarkdownPastePage } from "../../../src/pages/markdown-paste/MarkdownPastePage";
 import { clearQuickConversionDraft } from "../../../src/pages/markdown-paste/quick-conversion-draft-store";
@@ -46,6 +67,10 @@ describe("MarkdownPastePage", () => {
     downloadPdf.mockResolvedValue(undefined);
     loadGuestDraft.mockResolvedValue(null);
     saveGuestDraft.mockResolvedValue(undefined);
+    useAuth.mockReturnValue({ status: "guest", user: null });
+    listWorkspacePages.mockResolvedValue([]);
+    createWorkspacePage.mockResolvedValue(undefined);
+    updateWorkspacePage.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -257,5 +282,33 @@ describe("MarkdownPastePage", () => {
         updatedAt: expect.any(Number),
       });
     });
+  });
+
+  it("로그인 사용자는 임시 페이지 대신 서버 기록장 저장 대상을 선택한다", async () => {
+    useAuth.mockReturnValue({ status: "authenticated", user: { id: "1" } });
+    listWorkspacePages.mockResolvedValue([
+      { id: "10", title: "개발 노트", content: "기존 내용", parent_id: null, position: 0 },
+    ]);
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByTitle("변환 결과");
+
+    await user.click(screen.getByRole("button", { name: "기록장에 저장" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "기록장에 저장" });
+    expect(within(dialog).queryByText("임시 페이지를 현재 내용으로 교체")).toBeNull();
+    expect(within(dialog).getByRole("option", { name: "새 페이지로 저장" })).not.toBeNull();
+    expect(within(dialog).getByRole("option", { name: "개발 노트" })).not.toBeNull();
+
+    await user.click(within(dialog).getByRole("button", { name: "기록장에 저장" }));
+
+    await waitFor(() => {
+      expect(createWorkspacePage).toHaveBeenCalledWith({
+        title: "sample-post",
+        content: expect.stringContaining("# "),
+        parent_id: null,
+      });
+    });
+    expect(saveGuestDraft).not.toHaveBeenCalled();
   });
 });

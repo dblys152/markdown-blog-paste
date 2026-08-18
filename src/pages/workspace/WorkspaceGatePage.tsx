@@ -69,6 +69,9 @@ export function WorkspaceGatePage() {
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
   const [draggedPageId, setDraggedPageId] = useState<string | null>(null);
   const [dropHint, setDropHint] = useState<{ pageId: string; placement: DropPlacement } | null>(null);
+  const [openPageMenuId, setOpenPageMenuId] = useState<string | null>(null);
+  const [renamingPageId, setRenamingPageId] = useState<string | null>(null);
+  const [renameTitle, setRenameTitle] = useState("");
   const [markdown, setMarkdown] = useState(SAMPLE_MARKDOWN);
   const [result, setResult] = useState<ConversionResult | null>(null);
   const [isConverting, setIsConverting] = useState(true);
@@ -184,6 +187,7 @@ export function WorkspaceGatePage() {
   }, [isAuthenticated, markdown, selectedPageId, title]);
 
   const selectPage = useCallback((page: WorkspacePage) => {
+    setOpenPageMenuId(null);
     skipNextServerSave.current = true;
     setSelectedPageId(page.id);
     setMarkdown(page.content);
@@ -233,6 +237,27 @@ export function WorkspaceGatePage() {
     }
   }, [pages, selectedPageId, showToast]);
 
+  const beginRenamePage = (page: WorkspacePage) => {
+    setOpenPageMenuId(null);
+    setRenamingPageId(page.id);
+    setRenameTitle(page.title);
+  };
+
+  const commitPageRename = async (page: WorkspacePage) => {
+    const nextTitle = renameTitle.trim();
+    setRenamingPageId(null);
+    if (!nextTitle || nextTitle === page.title) return;
+    try {
+      const updated = await updateWorkspacePage(page.id, { title: nextTitle });
+      if (page.id === selectedPageId) skipNextServerSave.current = true;
+      setPages((current) => current.map((candidate) => (
+        candidate.id === updated.id ? updated : candidate
+      )));
+    } catch {
+      showToast("페이지 이름을 변경하지 못했습니다.");
+    }
+  };
+
   const getDropPlacement = (event: DragEvent<HTMLDivElement>): DropPlacement => {
     const rect = event.currentTarget.getBoundingClientRect();
     const ratio = rect.height > 0 ? (event.clientY - rect.top) / rect.height : 0.5;
@@ -280,6 +305,7 @@ export function WorkspaceGatePage() {
             style={{ paddingLeft: `${16 + Math.min(depth, 6) * 16}px` }}
             draggable
             onDragStart={(event) => {
+              setOpenPageMenuId(null);
               event.dataTransfer.effectAllowed = "move";
               event.dataTransfer.setData("text/plain", page.id);
               setDraggedPageId(page.id);
@@ -300,12 +326,36 @@ export function WorkspaceGatePage() {
             }}
             onDrop={(event) => void handlePageDrop(event, page)}
           >
-            <button type="button" className="workspace-page-select" onClick={() => selectPage(page)}>
-              <span aria-hidden="true">▤</span><span>{page.title}</span>
-            </button>
+            {renamingPageId === page.id ? (
+              <input
+                className="workspace-page-rename-input"
+                aria-label={`${page.title} 이름 변경`}
+                value={renameTitle}
+                maxLength={200}
+                autoFocus
+                onChange={(event) => setRenameTitle(event.target.value)}
+                onBlur={() => void commitPageRename(page)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") event.currentTarget.blur();
+                }}
+              />
+            ) : (
+              <button type="button" className="workspace-page-select" onClick={() => selectPage(page)}>
+                <span aria-hidden="true">▤</span><span>{page.title}</span>
+              </button>
+            )}
             <div className="workspace-page-actions">
               <button type="button" aria-label={`${page.title} 하위 페이지 추가`} onClick={() => void addPage(page.id)}>+</button>
-              <button type="button" aria-label={`${page.title} 삭제`} onClick={() => void removePage(page)}>×</button>
+              <button type="button" aria-label={`${page.title} 메뉴`} onClick={() => setOpenPageMenuId((current) => current === page.id ? null : page.id)}>⋮</button>
+              {openPageMenuId === page.id && (
+                <div className="workspace-page-menu" role="menu">
+                  <button type="button" role="menuitem" onClick={() => beginRenamePage(page)}>이름 변경</button>
+                  <button type="button" role="menuitem" className="is-danger" onClick={() => {
+                    setOpenPageMenuId(null);
+                    void removePage(page);
+                  }}>삭제</button>
+                </div>
+              )}
             </div>
           </div>
           {renderPageTree(page.id, depth + 1)}

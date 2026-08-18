@@ -263,4 +263,30 @@ describe("WorkspaceGatePage", () => {
       });
     });
   });
+
+  it("페이지 메뉴에서 이름을 변경한다", async () => {
+    useAuth.mockReturnValue({ status: "authenticated", user: { id: "1" } });
+    listWorkspacePages.mockResolvedValue([
+      { id: "10", title: "개발 노트", content: "", parent_id: null, position: 0 },
+    ]);
+    updateWorkspacePage.mockResolvedValue({
+      id: "10",
+      title: "서버 설계",
+      content: "",
+      parent_id: null,
+      position: 0,
+    });
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "개발 노트 메뉴" }));
+    await user.click(screen.getByRole("menuitem", { name: "이름 변경" }));
+    const input = screen.getByRole("textbox", { name: "개발 노트 이름 변경" });
+    await user.clear(input);
+    await user.type(input, "서버 설계{Enter}");
+
+    await waitFor(() => {
+      expect(updateWorkspacePage).toHaveBeenCalledWith("10", { title: "서버 설계" });
+    });
+  });
 });
