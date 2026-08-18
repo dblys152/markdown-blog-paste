@@ -12,6 +12,7 @@ const {
   createWorkspacePage,
   updateWorkspacePage,
   deleteWorkspacePage,
+  moveWorkspacePage,
 } = vi.hoisted(() => ({
   convertMarkdown: vi.fn(),
   loadGuestDraft: vi.fn(),
@@ -21,6 +22,7 @@ const {
   createWorkspacePage: vi.fn(),
   updateWorkspacePage: vi.fn(),
   deleteWorkspacePage: vi.fn(),
+  moveWorkspacePage: vi.fn(),
 }));
 
 vi.mock("../../../src/shared/markdown/converter-core", () => ({ convertMarkdown }));
@@ -31,6 +33,7 @@ vi.mock("../../../src/features/workspace/api", () => ({
   createWorkspacePage,
   updateWorkspacePage,
   deleteWorkspacePage,
+  moveWorkspacePage,
 }));
 
 import { WorkspaceGatePage } from "../../../src/pages/workspace/WorkspaceGatePage";
@@ -82,6 +85,13 @@ describe("WorkspaceGatePage", () => {
       position: 0,
     }));
     deleteWorkspacePage.mockResolvedValue(undefined);
+    moveWorkspacePage.mockImplementation(async (id, input) => ({
+      id,
+      title: "이동한 페이지",
+      content: "",
+      parent_id: input.parent_id,
+      position: input.position,
+    }));
   });
 
   afterEach(() => {
@@ -211,5 +221,46 @@ describe("WorkspaceGatePage", () => {
       });
     });
     expect(await screen.findByRole("button", { name: "새 페이지" })).not.toBeNull();
+  });
+
+  it("페이지 가운데에 드롭하면 하위 페이지로 이동한다", async () => {
+    useAuth.mockReturnValue({ status: "authenticated", user: { id: "1" } });
+    listWorkspacePages.mockResolvedValue([
+      { id: "10", title: "개발 노트", content: "", parent_id: null, position: 0 },
+      { id: "20", title: "API 설계", content: "", parent_id: null, position: 1 },
+    ]);
+    moveWorkspacePage.mockResolvedValue({
+      id: "20",
+      title: "API 설계",
+      content: "",
+      parent_id: "10",
+      position: 0,
+    });
+    renderPage();
+    const source = (await screen.findByRole("button", { name: "API 설계" })).closest(".workspace-page-item");
+    const target = screen.getByRole("button", { name: "개발 노트" }).closest(".workspace-page-item");
+    expect(source).not.toBeNull();
+    expect(target).not.toBeNull();
+    vi.spyOn(target as HTMLElement, "getBoundingClientRect").mockReturnValue({
+      top: 0, bottom: 40, height: 40, left: 0, right: 200, width: 200, x: 0, y: 0,
+      toJSON: () => ({}),
+    });
+    const dataTransfer = {
+      effectAllowed: "none",
+      dropEffect: "none",
+      setData: vi.fn(),
+      getData: vi.fn(),
+    };
+
+    fireEvent.dragStart(source as HTMLElement, { dataTransfer });
+    fireEvent.dragOver(target as HTMLElement, { dataTransfer, clientY: 20 });
+    fireEvent.drop(target as HTMLElement, { dataTransfer, clientY: 20 });
+
+    await waitFor(() => {
+      expect(moveWorkspacePage).toHaveBeenCalledWith("20", {
+        parent_id: "10",
+        position: 0,
+      });
+    });
   });
 });

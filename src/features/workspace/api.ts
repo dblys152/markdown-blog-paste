@@ -19,6 +19,11 @@ export type UpdateWorkspacePageInput = {
   content?: string;
 };
 
+export type MoveWorkspacePageInput = {
+  parent_id: string | null;
+  position: number;
+};
+
 export function listWorkspacePages(): Promise<WorkspacePage[]> {
   return authenticatedRequest<WorkspacePage[]>("/workspace/pages");
 }
@@ -42,4 +47,14 @@ export function updateWorkspacePage(
 
 export function deleteWorkspacePage(pageId: string): Promise<void> {
   return authenticatedRequest<void>(`/workspace/pages/${pageId}`, { method: "DELETE" });
+}
+
+export function moveWorkspacePage(
+  pageId: string,
+  input: MoveWorkspacePageInput,
+): Promise<WorkspacePage> {
+  return authenticatedRequest<WorkspacePage>(`/workspace/pages/${pageId}/move`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
 }

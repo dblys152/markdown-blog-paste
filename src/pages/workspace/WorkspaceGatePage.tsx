@@ -1,13 +1,19 @@
-import { type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, type DragEvent, type KeyboardEvent, type PointerEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../features/auth/AuthProvider";
 import {
   createWorkspacePage,
   deleteWorkspacePage,
   listWorkspacePages,
+  moveWorkspacePage,
   updateWorkspacePage,
   type WorkspacePage,
 } from "../../features/workspace/api";
+import {
+  applyPageMove,
+  resolvePageMoveDestination,
+  type DropPlacement,
+} from "../../features/workspace/page-tree";
 import { convertMarkdown } from "../../shared/markdown/converter-core";
 import type { ConversionResult } from "../../shared/markdown/types";
 import { DocumentActions } from "../../shared/ui/DocumentActions";
@@ -61,6 +67,8 @@ export function WorkspaceGatePage() {
   const isAuthenticated = authStatus === "authenticated";
   const [pages, setPages] = useState<WorkspacePage[]>([]);
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
+  const [draggedPageId, setDraggedPageId] = useState<string | null>(null);
+  const [dropHint, setDropHint] = useState<{ pageId: string; placement: DropPlacement } | null>(null);
   const [markdown, setMarkdown] = useState(SAMPLE_MARKDOWN);
   const [result, setResult] = useState<ConversionResult | null>(null);
   const [isConverting, setIsConverting] = useState(true);
@@ -225,13 +233,73 @@ export function WorkspaceGatePage() {
     }
   }, [pages, selectedPageId, showToast]);
 
+  const getDropPlacement = (event: DragEvent<HTMLDivElement>): DropPlacement => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const ratio = rect.height > 0 ? (event.clientY - rect.top) / rect.height : 0.5;
+    if (ratio < 0.25) return "before";
+    if (ratio > 0.75) return "after";
+    return "inside";
+  };
+
+  const handlePageDrop = async (
+    event: DragEvent<HTMLDivElement>,
+    targetPage: WorkspacePage,
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const placement = getDropPlacement(event);
+    const destination = draggedPageId
+      ? resolvePageMoveDestination(pages, draggedPageId, targetPage.id, placement)
+      : null;
+    setDropHint(null);
+    setDraggedPageId(null);
+    if (!draggedPageId || !destination) return;
+
+    try {
+      const moved = await moveWorkspacePage(draggedPageId, {
+        parent_id: destination.parentId,
+        position: destination.position,
+      });
+      setPages((current) => applyPageMove(current, moved.id, {
+        parentId: moved.parent_id,
+        position: moved.position,
+      }));
+    } catch {
+      showToast("페이지를 이동하지 못했습니다.");
+    }
+  };
+
   const renderPageTree = (parentId: string | null, depth = 0): ReactNode => {
     return pages
       .filter((page) => page.parent_id === parentId)
       .sort((left, right) => left.position - right.position)
       .map((page) => (
         <div key={page.id} className="workspace-page-node">
-          <div className={`workspace-page-item ${page.id === selectedPageId ? "is-active" : ""}`} style={{ paddingLeft: `${16 + Math.min(depth, 6) * 16}px` }}>
+          <div
+            className={`workspace-page-item ${page.id === selectedPageId ? "is-active" : ""} ${draggedPageId === page.id ? "is-dragging" : ""} ${dropHint?.pageId === page.id ? `drop-${dropHint.placement}` : ""}`}
+            style={{ paddingLeft: `${16 + Math.min(depth, 6) * 16}px` }}
+            draggable
+            onDragStart={(event) => {
+              event.dataTransfer.effectAllowed = "move";
+              event.dataTransfer.setData("text/plain", page.id);
+              setDraggedPageId(page.id);
+            }}
+            onDragEnd={() => {
+              setDraggedPageId(null);
+              setDropHint(null);
+            }}
+            onDragOver={(event) => {
+              if (!draggedPageId || draggedPageId === page.id) return;
+              event.preventDefault();
+              event.stopPropagation();
+              event.dataTransfer.dropEffect = "move";
+              setDropHint({ pageId: page.id, placement: getDropPlacement(event) });
+            }}
+            onDragLeave={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDropHint(null);
+            }}
+            onDrop={(event) => void handlePageDrop(event, page)}
+          >
             <button type="button" className="workspace-page-select" onClick={() => selectPage(page)}>
               <span aria-hidden="true">▤</span><span>{page.title}</span>
             </button>

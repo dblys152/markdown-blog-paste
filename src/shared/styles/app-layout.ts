@@ -163,6 +163,10 @@ export const APP_LAYOUT_CSS = `
 .workspace-page-item { display: grid; grid-template-columns: 22px minmax(0,1fr); gap: 8px; align-items: center; height: 38px; margin: 0 10px; padding: 0 10px 0 14px; border: 0; border-radius: 6px; background: transparent; color: #344054; cursor: pointer; text-align: left; }
 .workspace-page-item.is-active { background: #edf0ff; color: #2949df; font-weight: 750; }
 .workspace-page-node > .workspace-page-item { grid-template-columns: minmax(0,1fr) auto; gap: 4px; cursor: default; }
+.workspace-page-node > .workspace-page-item.is-dragging { opacity: .45; }
+.workspace-page-node > .workspace-page-item.drop-before { box-shadow: inset 0 2px #4263eb; }
+.workspace-page-node > .workspace-page-item.drop-after { box-shadow: inset 0 -2px #4263eb; }
+.workspace-page-node > .workspace-page-item.drop-inside { outline: 2px solid #8095ff; outline-offset: -2px; background: #edf0ff; }
 .workspace-page-select { display: flex; min-width: 0; align-items: center; gap: 8px; overflow: hidden; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .workspace-page-select span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .workspace-page-actions { display: flex; opacity: 0; }

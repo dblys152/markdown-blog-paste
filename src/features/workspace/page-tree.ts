@@ -1,0 +1,70 @@
+import type { WorkspacePage } from "./api";
+
+export type DropPlacement = "before" | "inside" | "after";
+
+export type PageMoveDestination = {
+  parentId: string | null;
+  position: number;
+};
+
+function sortedSiblings(pages: WorkspacePage[], parentId: string | null, excludedId: string) {
+  return pages
+    .filter((page) => page.parent_id === parentId && page.id !== excludedId)
+    .sort((left, right) => left.position - right.position || left.id.localeCompare(right.id));
+}
+
+export function resolvePageMoveDestination(
+  pages: WorkspacePage[],
+  draggedId: string,
+  targetId: string,
+  placement: DropPlacement,
+): PageMoveDestination | null {
+  const target = pages.find((page) => page.id === targetId);
+  if (!target || draggedId === targetId) return null;
+
+  if (placement === "inside") {
+    return {
+      parentId: target.id,
+      position: sortedSiblings(pages, target.id, draggedId).length,
+    };
+  }
+
+  const siblings = sortedSiblings(pages, target.parent_id, draggedId);
+  const targetIndex = siblings.findIndex((page) => page.id === target.id);
+  if (targetIndex < 0) return null;
+  return {
+    parentId: target.parent_id,
+    position: targetIndex + (placement === "after" ? 1 : 0),
+  };
+}
+
+export function applyPageMove(
+  pages: WorkspacePage[],
+  pageId: string,
+  destination: PageMoveDestination,
+): WorkspacePage[] {
+  const movingPage = pages.find((page) => page.id === pageId);
+  if (!movingPage) return pages;
+
+  const oldParentId = movingPage.parent_id;
+  const withoutMoving = pages.filter((page) => page.id !== pageId);
+  const oldSiblings = sortedSiblings(withoutMoving, oldParentId, pageId);
+  const targetSiblings = oldParentId === destination.parentId
+    ? oldSiblings
+    : sortedSiblings(withoutMoving, destination.parentId, pageId);
+  const targetPosition = Math.min(destination.position, targetSiblings.length);
+  const movedPage = { ...movingPage, parent_id: destination.parentId, position: targetPosition };
+  targetSiblings.splice(targetPosition, 0, movedPage);
+
+  const reordered = new Map<string, WorkspacePage>();
+  if (oldParentId !== destination.parentId) {
+    oldSiblings.forEach((page, index) => reordered.set(page.id, { ...page, position: index }));
+  }
+  targetSiblings.forEach((page, index) => reordered.set(page.id, {
+    ...page,
+    parent_id: destination.parentId,
+    position: index,
+  }));
+
+  return pages.map((page) => reordered.get(page.id) ?? page);
+}
