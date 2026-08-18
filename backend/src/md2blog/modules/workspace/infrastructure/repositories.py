@@ -1,4 +1,4 @@
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from md2blog.modules.workspace.domain.page import Page
@@ -20,6 +20,19 @@ class SqlAlchemyPageRepository:
             position=page.position,
         )
         self._session.add(model)
+        await self._session.flush()
+        return page
+
+    async def update(self, page: Page) -> Page:
+        statement = (
+            update(PageModel)
+            .where(
+                PageModel.id == page.id.value,
+                PageModel.owner_id == page.owner_id.value,
+            )
+            .values(title=page.title, content=page.content)
+        )
+        await self._session.execute(statement)
         await self._session.flush()
         return page
 

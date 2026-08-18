@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 
 from md2blog.shared.domain.tsid import TSID
@@ -43,6 +43,17 @@ class Page:
             parent_id=parent_id,
             position=position,
         )
+
+    def revise(self, *, title: str | None = None, content: str | None = None) -> "Page":
+        return replace(
+            self,
+            title=self.title if title is None else title,
+            content=self.content if content is None else content,
+        )
+
+
+class PageNotFoundError(Exception):
+    pass
 
 
 class ParentPageNotFoundError(Exception):

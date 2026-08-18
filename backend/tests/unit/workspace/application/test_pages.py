@@ -1,7 +1,11 @@
 import pytest
 
-from md2blog.modules.workspace.application.service.pages import CreatePage, ListPages
-from md2blog.modules.workspace.domain.page import Page, ParentPageNotFoundError
+from md2blog.modules.workspace.application.service.pages import CreatePage, ListPages, UpdatePage
+from md2blog.modules.workspace.domain.page import (
+    Page,
+    PageNotFoundError,
+    ParentPageNotFoundError,
+)
 from md2blog.shared.domain.tsid import TSID
 
 
@@ -11,6 +15,10 @@ class InMemoryPages:
 
     async def add(self, page: Page) -> Page:
         self.pages.append(page)
+        return page
+
+    async def update(self, page: Page) -> Page:
+        self.pages = [page if current.id == page.id else current for current in self.pages]
         return page
 
     async def find_owned_by_id(self, page_id: TSID, owner_id: TSID) -> Page | None:
@@ -72,3 +80,36 @@ async def test_list_pages_returns_only_owner_pages() -> None:
     result = await ListPages(InMemoryPages([mine, other])).execute(TSID(1))
 
     assert result == [mine]
+
+
+async def test_update_page_revises_only_provided_fields() -> None:
+    original = Page(
+        id=TSID(2),
+        owner_id=TSID(1),
+        title="개발 노트",
+        content="# 이전 본문",
+    )
+    pages = InMemoryPages([original])
+
+    updated = await UpdatePage(pages).execute(
+        page_id=original.id,
+        owner_id=original.owner_id,
+        title=None,
+        content="# 변경된 본문",
+    )
+
+    assert updated.title == "개발 노트"
+    assert updated.content == "# 변경된 본문"
+    assert pages.pages == [updated]
+
+
+async def test_update_page_hides_another_users_page_as_not_found() -> None:
+    other = Page(id=TSID(2), owner_id=TSID(99), title="다른 페이지", content="")
+
+    with pytest.raises(PageNotFoundError):
+        await UpdatePage(InMemoryPages([other])).execute(
+            page_id=other.id,
+            owner_id=TSID(1),
+            title="탈취 시도",
+            content=None,
+        )

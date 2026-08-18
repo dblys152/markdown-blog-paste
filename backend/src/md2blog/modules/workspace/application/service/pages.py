@@ -1,4 +1,4 @@
-from md2blog.modules.workspace.domain.page import Page, ParentPageNotFoundError
+from md2blog.modules.workspace.domain.page import Page, PageNotFoundError, ParentPageNotFoundError
 from md2blog.modules.workspace.domain.repositories import PageRepository
 from md2blog.shared.domain.tsid import TSID
 
@@ -38,3 +38,21 @@ class ListPages:
 
     async def execute(self, owner_id: TSID) -> list[Page]:
         return await self._pages.list_by_owner(owner_id)
+
+
+class UpdatePage:
+    def __init__(self, pages: PageRepository) -> None:
+        self._pages = pages
+
+    async def execute(
+        self,
+        *,
+        page_id: TSID,
+        owner_id: TSID,
+        title: str | None,
+        content: str | None,
+    ) -> Page:
+        page = await self._pages.find_owned_by_id(page_id, owner_id)
+        if page is None:
+            raise PageNotFoundError
+        return await self._pages.update(page.revise(title=title, content=content))

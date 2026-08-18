@@ -1,6 +1,6 @@
 from typing import Protocol
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from md2blog.modules.workspace.domain.page import Page
 from md2blog.shared.domain.tsid import TSID
@@ -17,6 +17,17 @@ class CreatePageRequest(BaseModel):
         if value is not None:
             TSID.from_string(value)
         return value
+
+
+class UpdatePageRequest(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    content: str | None = None
+
+    @model_validator(mode="after")
+    def require_changes(self) -> "UpdatePageRequest":
+        if self.title is None and self.content is None:
+            raise ValueError("at least one page field must be provided")
+        return self
 
 
 class PageResponse(BaseModel):
@@ -50,3 +61,14 @@ class CreatePageUseCase(Protocol):
 
 class ListPagesUseCase(Protocol):
     async def execute(self, owner_id: TSID) -> list[Page]: ...
+
+
+class UpdatePageUseCase(Protocol):
+    async def execute(
+        self,
+        *,
+        page_id: TSID,
+        owner_id: TSID,
+        title: str | None,
+        content: str | None,
+    ) -> Page: ...
