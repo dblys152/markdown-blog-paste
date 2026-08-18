@@ -157,11 +157,19 @@ export const APP_LAYOUT_CSS = `
 .workspace-sidebar-title strong { color: #1f2937; font-size: 14px; font-weight: 800; }
 
 .workspace-pages-heading { display: flex; align-items: center; justify-content: space-between; padding: 17px 15px 8px 22px; color: #667085; font-size: 11px; font-weight: 800; }
-.workspace-pages-heading a { display: grid; width: 28px; height: 28px; place-items: center; border-radius: 6px; color: #344054; font-size: 21px; line-height: 1; text-decoration: none; }
-.workspace-pages-heading a:hover { background: #e9edff; color: #2949df; }
+.workspace-pages-heading a, .workspace-pages-heading button { display: grid; width: 28px; height: 28px; place-items: center; border: 0; border-radius: 6px; background: transparent; color: #344054; font-size: 21px; line-height: 1; text-decoration: none; cursor: pointer; }
+.workspace-pages-heading a:hover, .workspace-pages-heading button:hover { background: #e9edff; color: #2949df; }
 
 .workspace-page-item { display: grid; grid-template-columns: 22px minmax(0,1fr); gap: 8px; align-items: center; height: 38px; margin: 0 10px; padding: 0 10px 0 14px; border: 0; border-radius: 6px; background: transparent; color: #344054; cursor: pointer; text-align: left; }
 .workspace-page-item.is-active { background: #edf0ff; color: #2949df; font-weight: 750; }
+.workspace-page-node > .workspace-page-item { grid-template-columns: minmax(0,1fr) auto; gap: 4px; cursor: default; }
+.workspace-page-select { display: flex; min-width: 0; align-items: center; gap: 8px; overflow: hidden; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.workspace-page-select span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.workspace-page-actions { display: flex; opacity: 0; }
+.workspace-page-item:hover .workspace-page-actions, .workspace-page-item:focus-within .workspace-page-actions { opacity: 1; }
+.workspace-page-actions button { display: grid; width: 22px; height: 24px; place-items: center; border: 0; border-radius: 4px; background: transparent; color: #667085; cursor: pointer; }
+.workspace-page-actions button:hover { background: #dfe5ff; color: #2949df; }
+.workspace-empty-pages { margin: 12px 22px; color: #98a2b3; font-size: 12px; line-height: 1.7; }
 
 .workspace-guest-card { position: relative; margin: 18px 12px 0; padding: 15px; border: 1px solid #d9def8; border-radius: 9px; background: #f7f8ff; }
 .workspace-guest-card > button { position: absolute; top: 7px; right: 8px; border: 0; background: transparent; color: #7a8496; cursor: pointer; }
@@ -179,6 +187,8 @@ export const APP_LAYOUT_CSS = `
 .workspace-editor-heading strong { font-size: 14px; font-weight: 700; }
 .workspace-document-state { display: flex; align-items: center; gap: 7px; color: #667085; font-size: 11px; white-space: nowrap; }
 .workspace-document-title { color: #475467; font-weight: 700; }
+.workspace-document-title-input { width: min(220px, 24vw); border: 1px solid transparent; border-radius: 5px; background: transparent; color: #475467; font: inherit; font-weight: 700; text-align: right; }
+.workspace-document-title-input:hover, .workspace-document-title-input:focus { border-color: #cbd3ea; outline: none; background: #fff; }
 .workspace-save-label.save-saving { color: #b86f00; }
 .workspace-save-label.save-saved { color: #16a34a; }
 .workspace-save-label.save-error { color: #dc2626; }

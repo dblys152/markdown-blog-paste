@@ -1,5 +1,13 @@
-import { type CSSProperties, type KeyboardEvent, type PointerEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import { useAuth } from "../../features/auth/AuthProvider";
+import {
+  createWorkspacePage,
+  deleteWorkspacePage,
+  listWorkspacePages,
+  updateWorkspacePage,
+  type WorkspacePage,
+} from "../../features/workspace/api";
 import { convertMarkdown } from "../../shared/markdown/converter-core";
 import type { ConversionResult } from "../../shared/markdown/types";
 import { DocumentActions } from "../../shared/ui/DocumentActions";
@@ -49,7 +57,10 @@ function saveEditorRatio(ratio: number): void {
 }
 
 export function WorkspaceGatePage() {
-  const title = "임시 페이지";
+  const { status: authStatus } = useAuth();
+  const isAuthenticated = authStatus === "authenticated";
+  const [pages, setPages] = useState<WorkspacePage[]>([]);
+  const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
   const [markdown, setMarkdown] = useState(SAMPLE_MARKDOWN);
   const [result, setResult] = useState<ConversionResult | null>(null);
   const [isConverting, setIsConverting] = useState(true);
@@ -63,7 +74,11 @@ export function WorkspaceGatePage() {
   const workspaceRef = useRef<HTMLElement>(null);
   const resizingRef = useRef(false);
   const hydrated = useRef(false);
+  const serverHydrated = useRef(false);
+  const skipNextServerSave = useRef(false);
   const toastTimer = useRef<number | undefined>(undefined);
+  const selectedPage = pages.find((page) => page.id === selectedPageId) ?? null;
+  const title = isAuthenticated ? (selectedPage?.title ?? "페이지를 선택하세요") : "임시 페이지";
 
   const showToast = useCallback((message: string) => {
     window.clearTimeout(toastTimer.current);
@@ -74,6 +89,7 @@ export function WorkspaceGatePage() {
   useEffect(() => () => window.clearTimeout(toastTimer.current), []);
 
   useEffect(() => {
+    if (authStatus !== "guest") return;
     loadGuestDraft()
       .then(async (draft) => {
         if (draft?.markdown) setMarkdown(draft.markdown);
@@ -86,7 +102,30 @@ export function WorkspaceGatePage() {
         hydrated.current = true;
         setSaveState((current) => (current === "error" ? current : "saved"));
       });
-  }, []);
+  }, [authStatus]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    let cancelled = false;
+    setSaveState("loading");
+    listWorkspacePages()
+      .then((loadedPages) => {
+        if (cancelled) return;
+        setPages(loadedPages);
+        const firstPage = loadedPages[0] ?? null;
+        setSelectedPageId(firstPage?.id ?? null);
+        setMarkdown(firstPage?.content ?? "");
+        skipNextServerSave.current = true;
+        serverHydrated.current = true;
+        setSaveState("saved");
+      })
+      .catch(() => {
+        if (!cancelled) setSaveState("error");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated]);
 
   useEffect(() => {
     let cancelled = false;
@@ -104,7 +143,7 @@ export function WorkspaceGatePage() {
   }, [markdown, title]);
 
   useEffect(() => {
-    if (!hydrated.current) return;
+    if (authStatus !== "guest" || !hydrated.current) return;
     setSaveState("saving");
     const timer = window.setTimeout(() => {
       saveGuestDraft({ title, markdown, updatedAt: Date.now() })
@@ -112,7 +151,99 @@ export function WorkspaceGatePage() {
         .catch(() => setSaveState("error"));
     }, 450);
     return () => window.clearTimeout(timer);
-  }, [markdown, title]);
+  }, [authStatus, markdown, title]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !serverHydrated.current || !selectedPageId) return;
+    if (skipNextServerSave.current) {
+      skipNextServerSave.current = false;
+      return;
+    }
+    if (!title.trim()) {
+      setSaveState("error");
+      return;
+    }
+    setSaveState("saving");
+    const timer = window.setTimeout(() => {
+      updateWorkspacePage(selectedPageId, { title, content: markdown })
+        .then((updatedPage) => {
+          setPages((current) => current.map((page) => page.id === updatedPage.id ? updatedPage : page));
+          setSaveState("saved");
+        })
+        .catch(() => setSaveState("error"));
+    }, 600);
+    return () => window.clearTimeout(timer);
+  }, [isAuthenticated, markdown, selectedPageId, title]);
+
+  const selectPage = useCallback((page: WorkspacePage) => {
+    skipNextServerSave.current = true;
+    setSelectedPageId(page.id);
+    setMarkdown(page.content);
+    setSaveState("saved");
+    setMobilePane("editor");
+  }, []);
+
+  const addPage = useCallback(async (parentId: string | null = null) => {
+    try {
+      const created = await createWorkspacePage({
+        title: "새 페이지",
+        content: "# 새 페이지\n",
+        parent_id: parentId,
+      });
+      setPages((current) => [...current, created]);
+      selectPage(created);
+    } catch {
+      showToast("페이지를 만들지 못했습니다.");
+    }
+  }, [selectPage, showToast]);
+
+  const removePage = useCallback(async (page: WorkspacePage) => {
+    if (!window.confirm(`'${page.title}' 페이지와 하위 페이지를 삭제할까요?`)) return;
+    try {
+      await deleteWorkspacePage(page.id);
+      const deletedIds = new Set([page.id]);
+      let changed = true;
+      while (changed) {
+        changed = false;
+        for (const candidate of pages) {
+          if (candidate.parent_id && deletedIds.has(candidate.parent_id) && !deletedIds.has(candidate.id)) {
+            deletedIds.add(candidate.id);
+            changed = true;
+          }
+        }
+      }
+      const remaining = pages.filter((candidate) => !deletedIds.has(candidate.id));
+      setPages(remaining);
+      if (deletedIds.has(selectedPageId ?? "")) {
+        const nextPage = remaining[0] ?? null;
+        setSelectedPageId(nextPage?.id ?? null);
+        setMarkdown(nextPage?.content ?? "");
+        skipNextServerSave.current = true;
+      }
+    } catch {
+      showToast("페이지를 삭제하지 못했습니다.");
+    }
+  }, [pages, selectedPageId, showToast]);
+
+  const renderPageTree = (parentId: string | null, depth = 0): ReactNode => {
+    return pages
+      .filter((page) => page.parent_id === parentId)
+      .sort((left, right) => left.position - right.position)
+      .map((page) => (
+        <div key={page.id} className="workspace-page-node">
+          <div className={`workspace-page-item ${page.id === selectedPageId ? "is-active" : ""}`} style={{ paddingLeft: `${16 + Math.min(depth, 6) * 16}px` }}>
+            <button type="button" className="workspace-page-select" onClick={() => selectPage(page)}>
+              <span aria-hidden="true">▤</span><span>{page.title}</span>
+            </button>
+            <div className="workspace-page-actions">
+              <button type="button" aria-label={`${page.title} 하위 페이지 추가`} onClick={() => void addPage(page.id)}>+</button>
+              <button type="button" aria-label={`${page.title} 삭제`} onClick={() => void removePage(page)}>×</button>
+            </div>
+          </div>
+          {renderPageTree(page.id, depth + 1)}
+        </div>
+      ));
+  };
 
   const lineCount = useMemo(() => markdown.split("\n").length, [markdown]);
 
@@ -213,19 +344,27 @@ export function WorkspaceGatePage() {
 
         <div className="workspace-pages-heading">
           <span>페이지</span>
-          <Link
-            to="/login"
-            aria-label="새 페이지 추가"
-            title="로그인 후 새 페이지를 만들 수 있어요"
-          >+</Link>
+          {isAuthenticated ? (
+            <button type="button" aria-label="새 페이지 추가" onClick={() => void addPage()}>+</button>
+          ) : (
+            <Link
+              to="/login"
+              aria-label="새 페이지 추가"
+              title="로그인 후 새 페이지를 만들 수 있어요"
+            >+</Link>
+          )}
         </div>
 
-        <button className="workspace-page-item is-active" type="button" onClick={() => setMobilePane("editor")}>
-          <span aria-hidden="true">▤</span>
-          <span>{title}</span>
-        </button>
+        {isAuthenticated ? (pages.length > 0 ? renderPageTree(null) : (
+          <p className="workspace-empty-pages">아직 페이지가 없습니다.<br />+ 버튼으로 첫 페이지를 만들어보세요.</p>
+        )) : (
+          <button className="workspace-page-item is-active" type="button" onClick={() => setMobilePane("editor")}>
+            <span aria-hidden="true">▤</span>
+            <span>{title}</span>
+          </button>
+        )}
 
-        {isGuestInfoOpen && (
+        {!isAuthenticated && isGuestInfoOpen && (
           <section className="workspace-guest-card" aria-label="임시 페이지 안내">
             <button type="button" aria-label="안내 닫기" onClick={() => setIsGuestInfoOpen(false)}>×</button>
             <strong>현재 브라우저에 저장 중</strong>
@@ -234,22 +373,32 @@ export function WorkspaceGatePage() {
           </section>
         )}
 
-        <div className="workspace-sidebar-footer">
+        {!isAuthenticated && <div className="workspace-sidebar-footer">
           <span aria-hidden="true">ⓘ</span>
           브라우저 데이터를 삭제하면 임시 페이지도 사라집니다.
-        </div>
+        </div>}
       </aside>
 
       <section className="workspace-editor" aria-label="Markdown 편집기">
         <div className="workspace-editor-heading">
           <div><span aria-hidden="true">✎</span><strong>Markdown</strong></div>
           <div className="workspace-document-state">
-            <span className="workspace-document-title">{title}</span>
+            {isAuthenticated && selectedPage ? (
+              <input
+                className="workspace-document-title-input"
+                aria-label="페이지 제목"
+                value={selectedPage.title}
+                maxLength={200}
+                onChange={(event) => setPages((current) => current.map((page) => (
+                  page.id === selectedPage.id ? { ...page, title: event.target.value } : page
+                )))}
+              />
+            ) : <span className="workspace-document-title">{title}</span>}
             <span aria-hidden="true">·</span>
             <span className={`workspace-save-label save-${saveState}`}>
               {saveState === "loading" && "불러오는 중"}
               {saveState === "saving" && "저장 중…"}
-              {saveState === "saved" && "✓ 브라우저에 저장됨"}
+              {saveState === "saved" && (isAuthenticated ? "✓ 저장됨" : "✓ 브라우저에 저장됨")}
               {saveState === "error" && "저장 실패"}
             </span>
           </div>
@@ -263,6 +412,7 @@ export function WorkspaceGatePage() {
             spellCheck={false}
             value={markdown}
             onChange={(event) => setMarkdown(event.target.value)}
+            disabled={isAuthenticated && !selectedPage}
           />
         </div>
         <footer className="workspace-statusbar">

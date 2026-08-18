@@ -3,14 +3,35 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { convertMarkdown, loadGuestDraft, saveGuestDraft } = vi.hoisted(() => ({
+const {
+  convertMarkdown,
+  loadGuestDraft,
+  saveGuestDraft,
+  useAuth,
+  listWorkspacePages,
+  createWorkspacePage,
+  updateWorkspacePage,
+  deleteWorkspacePage,
+} = vi.hoisted(() => ({
   convertMarkdown: vi.fn(),
   loadGuestDraft: vi.fn(),
   saveGuestDraft: vi.fn(),
+  useAuth: vi.fn(),
+  listWorkspacePages: vi.fn(),
+  createWorkspacePage: vi.fn(),
+  updateWorkspacePage: vi.fn(),
+  deleteWorkspacePage: vi.fn(),
 }));
 
 vi.mock("../../../src/shared/markdown/converter-core", () => ({ convertMarkdown }));
 vi.mock("../../../src/pages/workspace/guest-draft-store", () => ({ loadGuestDraft, saveGuestDraft }));
+vi.mock("../../../src/features/auth/AuthProvider", () => ({ useAuth }));
+vi.mock("../../../src/features/workspace/api", () => ({
+  listWorkspacePages,
+  createWorkspacePage,
+  updateWorkspacePage,
+  deleteWorkspacePage,
+}));
 
 import { WorkspaceGatePage } from "../../../src/pages/workspace/WorkspaceGatePage";
 
@@ -44,6 +65,23 @@ describe("WorkspaceGatePage", () => {
     loadGuestDraft.mockResolvedValue(null);
     saveGuestDraft.mockResolvedValue(undefined);
     convertMarkdown.mockResolvedValue(conversionResult);
+    useAuth.mockReturnValue({ status: "guest", user: null });
+    listWorkspacePages.mockResolvedValue([]);
+    createWorkspacePage.mockResolvedValue({
+      id: "10",
+      title: "새 페이지",
+      content: "# 새 페이지\n",
+      parent_id: null,
+      position: 0,
+    });
+    updateWorkspacePage.mockImplementation(async (id, input) => ({
+      id,
+      title: input.title ?? "페이지",
+      content: input.content ?? "",
+      parent_id: null,
+      position: 0,
+    }));
+    deleteWorkspacePage.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -127,5 +165,51 @@ describe("WorkspaceGatePage", () => {
 
     fireEvent.doubleClick(divider);
     await waitFor(() => expect(divider.getAttribute("aria-valuenow")).toBe("48"));
+  });
+
+  it("로그인 사용자는 서버 페이지를 불러오고 선택한 본문을 자동 저장한다", async () => {
+    useAuth.mockReturnValue({ status: "authenticated", user: { id: "1" } });
+    listWorkspacePages.mockResolvedValue([
+      {
+        id: "10",
+        title: "개발 노트",
+        content: "# 기존 본문",
+        parent_id: null,
+        position: 0,
+      },
+    ]);
+    const user = userEvent.setup();
+    renderPage();
+
+    const editor = await screen.findByDisplayValue("# 기존 본문");
+    expect(screen.queryByText("현재 브라우저에 저장 중")).toBeNull();
+
+    await user.clear(editor);
+    await user.type(editor, "# 변경 본문");
+
+    await waitFor(() => {
+      expect(updateWorkspacePage).toHaveBeenLastCalledWith("10", {
+        title: "개발 노트",
+        content: "# 변경 본문",
+      });
+    }, { timeout: 1800 });
+  });
+
+  it("로그인 사용자는 최상위 페이지를 추가할 수 있다", async () => {
+    useAuth.mockReturnValue({ status: "authenticated", user: { id: "1" } });
+    const user = userEvent.setup();
+    renderPage();
+    await waitFor(() => expect(listWorkspacePages).toHaveBeenCalled());
+
+    await user.click(screen.getByRole("button", { name: "새 페이지 추가" }));
+
+    await waitFor(() => {
+      expect(createWorkspacePage).toHaveBeenCalledWith({
+        title: "새 페이지",
+        content: "# 새 페이지\n",
+        parent_id: null,
+      });
+    });
+    expect(await screen.findByRole("button", { name: "새 페이지" })).not.toBeNull();
   });
 });
