@@ -30,6 +30,18 @@ class UpdatePageRequest(BaseModel):
         return self
 
 
+class MovePageRequest(BaseModel):
+    parent_id: str | None
+    position: int = Field(ge=0)
+
+    @field_validator("parent_id")
+    @classmethod
+    def validate_parent_id(cls, value: str | None) -> str | None:
+        if value is not None:
+            TSID.from_string(value)
+        return value
+
+
 class PageResponse(BaseModel):
     id: str
     title: str
@@ -76,3 +88,14 @@ class UpdatePageUseCase(Protocol):
 
 class DeletePageUseCase(Protocol):
     async def execute(self, *, page_id: TSID, owner_id: TSID) -> None: ...
+
+
+class MovePageUseCase(Protocol):
+    async def execute(
+        self,
+        *,
+        page_id: TSID,
+        owner_id: TSID,
+        parent_id: TSID | None,
+        position: int,
+    ) -> Page: ...

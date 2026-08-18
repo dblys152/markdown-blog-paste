@@ -1,3 +1,5 @@
+from collections.abc import Sequence
+
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -43,6 +45,79 @@ class SqlAlchemyPageRepository:
         )
         await self._session.execute(statement)
         await self._session.flush()
+
+    async def move(self, page: Page, parent_id: TSID | None, position: int) -> Page:
+        old_parent_id = page.parent_id
+        old_siblings = await self._sibling_models(page.owner_id, old_parent_id, exclude_id=page.id)
+        if old_parent_id == parent_id:
+            target_siblings: list[PageModel | None] = list(old_siblings)
+        else:
+            target_siblings = list(
+                await self._sibling_models(
+                    page.owner_id,
+                    parent_id,
+                    exclude_id=page.id,
+                )
+            )
+
+        target_position = min(position, len(target_siblings))
+        target_siblings.insert(target_position, None)
+
+        if old_parent_id != parent_id:
+            await self._write_positions(old_siblings)
+        await self._write_positions(target_siblings, moving_page=page, parent_id=parent_id)
+        await self._session.flush()
+        return page.move_to(parent_id=parent_id, position=target_position)
+
+    async def _sibling_models(
+        self,
+        owner_id: TSID,
+        parent_id: TSID | None,
+        *,
+        exclude_id: TSID,
+    ) -> list[PageModel]:
+        parent_filter = (
+            PageModel.parent_id == parent_id.value
+            if parent_id is not None
+            else PageModel.parent_id.is_(None)
+        )
+        statement = (
+            select(PageModel)
+            .where(
+                PageModel.owner_id == owner_id.value,
+                parent_filter,
+                PageModel.id != exclude_id.value,
+            )
+            .order_by(PageModel.position, PageModel.id)
+            .with_for_update()
+        )
+        return list((await self._session.scalars(statement)).all())
+
+    async def _write_positions(
+        self,
+        siblings: Sequence[PageModel | None],
+        *,
+        moving_page: Page | None = None,
+        parent_id: TSID | None = None,
+    ) -> None:
+        for index, sibling in enumerate(siblings):
+            if sibling is None:
+                if moving_page is None:
+                    continue
+                statement = (
+                    update(PageModel)
+                    .where(
+                        PageModel.id == moving_page.id.value,
+                        PageModel.owner_id == moving_page.owner_id.value,
+                    )
+                    .values(
+                        parent_id=parent_id.value if parent_id is not None else None,
+                        position=index,
+                    )
+                )
+                await self._session.execute(statement)
+            elif sibling.position != index:
+                sibling.position = index
 
     async def find_owned_by_id(self, page_id: TSID, owner_id: TSID) -> Page | None:
         statement = select(PageModel).where(

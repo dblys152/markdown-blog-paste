@@ -11,6 +11,7 @@ from md2blog.modules.workspace.presentation.dependencies import (
     get_create_page,
     get_delete_page,
     get_list_pages,
+    get_move_page,
     get_update_page,
 )
 from md2blog.shared.domain.tsid import TSID
@@ -198,3 +199,52 @@ async def test_delete_page_requires_authentication() -> None:
 
     assert response.status_code == 401
     assert response.json()["code"] == "AUTH_REQUIRED"
+
+
+async def test_move_page_accepts_root_destination() -> None:
+    use_case = AsyncMock()
+    use_case.execute.return_value = Page(
+        id=TSID(2),
+        owner_id=TSID(1),
+        title="이동한 페이지",
+        content="",
+        parent_id=None,
+        position=1,
+    )
+    app = create_app()
+    app.dependency_overrides[get_current_user] = authenticated_user
+    app.dependency_overrides[get_move_page] = lambda: use_case
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        response = await client.patch(
+            "/workspace/pages/2/move",
+            json={"parent_id": None, "position": 1},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["parent_id"] is None
+    assert response.json()["position"] == 1
+    use_case.execute.assert_awaited_once_with(
+        page_id=TSID(2),
+        owner_id=TSID(1),
+        parent_id=None,
+        position=1,
+    )
+
+
+async def test_move_page_requires_destination_parent_field() -> None:
+    app = create_app()
+    app.dependency_overrides[get_current_user] = authenticated_user
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        response = await client.patch(
+            "/workspace/pages/2/move",
+            json={"position": 0},
+        )
+
+    assert response.status_code == 422
+    assert response.json()["code"] == "VALIDATION_ERROR"

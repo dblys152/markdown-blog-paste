@@ -5,6 +5,7 @@ from md2blog.modules.workspace.application.service.pages import (
     CreatePage,
     DeletePage,
     ListPages,
+    MovePage,
     UpdatePage,
 )
 from md2blog.modules.workspace.infrastructure.repositories import SqlAlchemyPageRepository
@@ -25,3 +26,7 @@ def get_update_page(session: AsyncSession = Depends(get_session)) -> UpdatePage:
 
 def get_delete_page(session: AsyncSession = Depends(get_session)) -> DeletePage:
     return DeletePage(SqlAlchemyPageRepository(session))
+
+
+def get_move_page(session: AsyncSession = Depends(get_session)) -> MovePage:
+    return MovePage(SqlAlchemyPageRepository(session))

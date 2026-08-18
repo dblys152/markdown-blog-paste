@@ -51,8 +51,17 @@ class Page:
             content=self.content if content is None else content,
         )
 
+    def move_to(self, *, parent_id: TSID | None, position: int) -> "Page":
+        if parent_id == self.id:
+            raise InvalidPageMoveError
+        return replace(self, parent_id=parent_id, position=position)
+
 
 class PageNotFoundError(Exception):
+    pass
+
+
+class InvalidPageMoveError(Exception):
     pass
 
 

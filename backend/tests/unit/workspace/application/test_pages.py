@@ -4,9 +4,11 @@ from md2blog.modules.workspace.application.service.pages import (
     CreatePage,
     DeletePage,
     ListPages,
+    MovePage,
     UpdatePage,
 )
 from md2blog.modules.workspace.domain.page import (
+    InvalidPageMoveError,
     Page,
     PageNotFoundError,
     ParentPageNotFoundError,
@@ -34,6 +36,27 @@ class InMemoryPages:
                 break
             deleted_ids.update(children)
         self.pages = [current for current in self.pages if current.id not in deleted_ids]
+
+    async def move(self, page: Page, parent_id: TSID | None, position: int) -> Page:
+        remaining = [current for current in self.pages if current.id != page.id]
+        siblings = sorted(
+            (
+                current
+                for current in remaining
+                if current.owner_id == page.owner_id and current.parent_id == parent_id
+            ),
+            key=lambda current: current.position,
+        )
+        target_position = min(position, len(siblings))
+        moved = page.move_to(parent_id=parent_id, position=target_position)
+        siblings.insert(target_position, moved)
+        reordered = {
+            sibling.id: sibling.move_to(parent_id=parent_id, position=index)
+            for index, sibling in enumerate(siblings)
+        }
+        self.pages = [reordered.get(current.id, current) for current in remaining]
+        self.pages.append(reordered[moved.id])
+        return reordered[moved.id]
 
     async def find_owned_by_id(self, page_id: TSID, owner_id: TSID) -> Page | None:
         return next(
@@ -159,4 +182,79 @@ async def test_delete_page_hides_another_users_page_as_not_found() -> None:
         await DeletePage(InMemoryPages([other])).execute(
             page_id=other.id,
             owner_id=TSID(1),
+        )
+
+
+async def test_move_page_changes_parent_and_clamps_sibling_position() -> None:
+    owner_id = TSID(1)
+    page = Page(id=TSID(2), owner_id=owner_id, title="이동할 페이지", content="")
+    parent = Page(id=TSID(3), owner_id=owner_id, title="상위 페이지", content="")
+    child = Page(
+        id=TSID(4),
+        owner_id=owner_id,
+        parent_id=parent.id,
+        title="기존 하위 페이지",
+        content="",
+    )
+    pages = InMemoryPages([page, parent, child])
+
+    moved = await MovePage(pages).execute(
+        page_id=page.id,
+        owner_id=owner_id,
+        parent_id=parent.id,
+        position=99,
+    )
+
+    assert moved.parent_id == parent.id
+    assert moved.position == 1
+
+
+async def test_move_page_reorders_pages_in_same_parent() -> None:
+    owner_id = TSID(1)
+    first = Page(id=TSID(2), owner_id=owner_id, title="첫 번째", content="", position=0)
+    second = Page(id=TSID(3), owner_id=owner_id, title="두 번째", content="", position=1)
+    pages = InMemoryPages([first, second])
+
+    moved = await MovePage(pages).execute(
+        page_id=second.id,
+        owner_id=owner_id,
+        parent_id=None,
+        position=0,
+    )
+
+    assert moved.position == 0
+    positions = {page.id: page.position for page in pages.pages}
+    assert positions == {first.id: 1, second.id: 0}
+
+
+async def test_move_page_rejects_descendant_as_parent() -> None:
+    owner_id = TSID(1)
+    parent = Page(id=TSID(2), owner_id=owner_id, title="상위", content="")
+    child = Page(
+        id=TSID(3),
+        owner_id=owner_id,
+        parent_id=parent.id,
+        title="하위",
+        content="",
+    )
+
+    with pytest.raises(InvalidPageMoveError):
+        await MovePage(InMemoryPages([parent, child])).execute(
+            page_id=parent.id,
+            owner_id=owner_id,
+            parent_id=child.id,
+            position=0,
+        )
+
+
+async def test_move_page_rejects_parent_owned_by_another_user() -> None:
+    page = Page(id=TSID(2), owner_id=TSID(1), title="내 페이지", content="")
+    other_parent = Page(id=TSID(3), owner_id=TSID(99), title="다른 사용자", content="")
+
+    with pytest.raises(ParentPageNotFoundError):
+        await MovePage(InMemoryPages([page, other_parent])).execute(
+            page_id=page.id,
+            owner_id=page.owner_id,
+            parent_id=other_parent.id,
+            position=0,
         )

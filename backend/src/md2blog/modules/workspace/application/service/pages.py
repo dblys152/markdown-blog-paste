@@ -1,4 +1,9 @@
-from md2blog.modules.workspace.domain.page import Page, PageNotFoundError, ParentPageNotFoundError
+from md2blog.modules.workspace.domain.page import (
+    InvalidPageMoveError,
+    Page,
+    PageNotFoundError,
+    ParentPageNotFoundError,
+)
 from md2blog.modules.workspace.domain.repositories import PageRepository
 from md2blog.shared.domain.tsid import TSID
 
@@ -67,3 +72,35 @@ class DeletePage:
         if page is None:
             raise PageNotFoundError
         await self._pages.delete(page)
+
+
+class MovePage:
+    def __init__(self, pages: PageRepository) -> None:
+        self._pages = pages
+
+    async def execute(
+        self,
+        *,
+        page_id: TSID,
+        owner_id: TSID,
+        parent_id: TSID | None,
+        position: int,
+    ) -> Page:
+        page = await self._pages.find_owned_by_id(page_id, owner_id)
+        if page is None:
+            raise PageNotFoundError
+
+        await self._ensure_valid_parent(page, parent_id)
+        return await self._pages.move(page, parent_id, position)
+
+    async def _ensure_valid_parent(self, page: Page, parent_id: TSID | None) -> None:
+        current_id = parent_id
+        visited: set[TSID] = set()
+        while current_id is not None:
+            if current_id == page.id or current_id in visited:
+                raise InvalidPageMoveError
+            visited.add(current_id)
+            current = await self._pages.find_owned_by_id(current_id, page.owner_id)
+            if current is None:
+                raise ParentPageNotFoundError
+            current_id = current.parent_id
