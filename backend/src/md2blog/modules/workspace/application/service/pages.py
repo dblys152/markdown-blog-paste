@@ -56,3 +56,14 @@ class UpdatePage:
         if page is None:
             raise PageNotFoundError
         return await self._pages.update(page.revise(title=title, content=content))
+
+
+class DeletePage:
+    def __init__(self, pages: PageRepository) -> None:
+        self._pages = pages
+
+    async def execute(self, *, page_id: TSID, owner_id: TSID) -> None:
+        page = await self._pages.find_owned_by_id(page_id, owner_id)
+        if page is None:
+            raise PageNotFoundError
+        await self._pages.delete(page)

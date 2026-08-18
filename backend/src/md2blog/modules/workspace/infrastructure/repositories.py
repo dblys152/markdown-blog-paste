@@ -1,4 +1,4 @@
-from sqlalchemy import func, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from md2blog.modules.workspace.domain.page import Page
@@ -35,6 +35,14 @@ class SqlAlchemyPageRepository:
         await self._session.execute(statement)
         await self._session.flush()
         return page
+
+    async def delete(self, page: Page) -> None:
+        statement = delete(PageModel).where(
+            PageModel.id == page.id.value,
+            PageModel.owner_id == page.owner_id.value,
+        )
+        await self._session.execute(statement)
+        await self._session.flush()
 
     async def find_owned_by_id(self, page_id: TSID, owner_id: TSID) -> Page | None:
         statement = select(PageModel).where(

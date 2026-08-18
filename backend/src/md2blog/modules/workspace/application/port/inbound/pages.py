@@ -72,3 +72,7 @@ class UpdatePageUseCase(Protocol):
         title: str | None,
         content: str | None,
     ) -> Page: ...
+
+
+class DeletePageUseCase(Protocol):
+    async def execute(self, *, page_id: TSID, owner_id: TSID) -> None: ...

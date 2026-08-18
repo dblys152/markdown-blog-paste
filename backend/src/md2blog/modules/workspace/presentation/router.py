@@ -7,6 +7,7 @@ from md2blog.modules.identity.presentation.dependencies import get_current_user
 from md2blog.modules.workspace.application.port.inbound.pages import (
     CreatePageRequest,
     CreatePageUseCase,
+    DeletePageUseCase,
     ListPagesUseCase,
     PageResponse,
     UpdatePageRequest,
@@ -14,6 +15,7 @@ from md2blog.modules.workspace.application.port.inbound.pages import (
 )
 from md2blog.modules.workspace.presentation.dependencies import (
     get_create_page,
+    get_delete_page,
     get_list_pages,
     get_update_page,
 )
@@ -60,3 +62,12 @@ async def update_page(
         content=request.content,
     )
     return PageResponse.from_domain(page)
+
+
+@router.delete("/{page_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_page(
+    page_id: Annotated[int, Path(ge=0, le=2**63 - 1)],
+    current_user: User = Depends(get_current_user),
+    use_case: DeletePageUseCase = Depends(get_delete_page),
+) -> None:
+    await use_case.execute(page_id=TSID(page_id), owner_id=current_user.id)

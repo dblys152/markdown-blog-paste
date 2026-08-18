@@ -9,6 +9,7 @@ from md2blog.modules.identity.presentation.dependencies import get_current_user
 from md2blog.modules.workspace.domain.page import Page
 from md2blog.modules.workspace.presentation.dependencies import (
     get_create_page,
+    get_delete_page,
     get_list_pages,
     get_update_page,
 )
@@ -169,3 +170,31 @@ async def test_update_page_rejects_invalid_page_id() -> None:
 
     assert response.status_code == 422
     assert response.json()["code"] == "VALIDATION_ERROR"
+
+
+async def test_delete_page_returns_no_content() -> None:
+    use_case = AsyncMock()
+    app = create_app()
+    app.dependency_overrides[get_current_user] = authenticated_user
+    app.dependency_overrides[get_delete_page] = lambda: use_case
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        response = await client.delete("/workspace/pages/2")
+
+    assert response.status_code == 204
+    assert response.content == b""
+    use_case.execute.assert_awaited_once_with(page_id=TSID(2), owner_id=TSID(1))
+
+
+async def test_delete_page_requires_authentication() -> None:
+    app = create_app()
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        response = await client.delete("/workspace/pages/2")
+
+    assert response.status_code == 401
+    assert response.json()["code"] == "AUTH_REQUIRED"

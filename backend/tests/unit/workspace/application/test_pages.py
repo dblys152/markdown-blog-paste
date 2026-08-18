@@ -1,6 +1,11 @@
 import pytest
 
-from md2blog.modules.workspace.application.service.pages import CreatePage, ListPages, UpdatePage
+from md2blog.modules.workspace.application.service.pages import (
+    CreatePage,
+    DeletePage,
+    ListPages,
+    UpdatePage,
+)
 from md2blog.modules.workspace.domain.page import (
     Page,
     PageNotFoundError,
@@ -20,6 +25,15 @@ class InMemoryPages:
     async def update(self, page: Page) -> Page:
         self.pages = [page if current.id == page.id else current for current in self.pages]
         return page
+
+    async def delete(self, page: Page) -> None:
+        deleted_ids = {page.id}
+        while True:
+            children = {current.id for current in self.pages if current.parent_id in deleted_ids}
+            if children.issubset(deleted_ids):
+                break
+            deleted_ids.update(children)
+        self.pages = [current for current in self.pages if current.id not in deleted_ids]
 
     async def find_owned_by_id(self, page_id: TSID, owner_id: TSID) -> Page | None:
         return next(
@@ -112,4 +126,37 @@ async def test_update_page_hides_another_users_page_as_not_found() -> None:
             owner_id=TSID(1),
             title="탈취 시도",
             content=None,
+        )
+
+
+async def test_delete_page_removes_page_and_descendants() -> None:
+    parent = Page(id=TSID(2), owner_id=TSID(1), title="상위 페이지", content="")
+    child = Page(
+        id=TSID(3),
+        owner_id=TSID(1),
+        parent_id=parent.id,
+        title="하위 페이지",
+        content="",
+    )
+    grandchild = Page(
+        id=TSID(4),
+        owner_id=TSID(1),
+        parent_id=child.id,
+        title="손자 페이지",
+        content="",
+    )
+    pages = InMemoryPages([parent, child, grandchild])
+
+    await DeletePage(pages).execute(page_id=parent.id, owner_id=parent.owner_id)
+
+    assert pages.pages == []
+
+
+async def test_delete_page_hides_another_users_page_as_not_found() -> None:
+    other = Page(id=TSID(2), owner_id=TSID(99), title="다른 페이지", content="")
+
+    with pytest.raises(PageNotFoundError):
+        await DeletePage(InMemoryPages([other])).execute(
+            page_id=other.id,
+            owner_id=TSID(1),
         )
