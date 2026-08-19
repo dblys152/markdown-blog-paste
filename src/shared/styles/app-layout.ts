@@ -153,11 +153,12 @@ export const APP_LAYOUT_CSS = `
   display: flex;
   min-height: 0;
   flex-direction: column;
+  overflow: hidden;
   border-right: 1px solid #dfe3eb;
   background: #fbfcfe;
 }
 
-.workspace-sidebar button { font: inherit; }
+.workspace-sidebar button { font-family: inherit; }
 .workspace-sidebar-title { display: flex; height: 54px; align-items: center; padding: 0 22px; border-bottom: 1px solid #e4e7ed; }
 .workspace-sidebar-title strong { color: #1f2937; font-size: 14px; font-weight: 800; }
 
@@ -166,6 +167,10 @@ export const APP_LAYOUT_CSS = `
 .workspace-pages-heading a:hover, .workspace-pages-heading button:hover { background: #e9edff; color: #2949df; }
 .workspace-root-page-add::after { position: absolute; z-index: 30; top: calc(100% + 6px); right: 0; width: max-content; padding: 6px 8px; border-radius: 5px; background: #202938; color: #fff; content: attr(data-tooltip); font-size: 11px; font-weight: 600; line-height: 1.35; opacity: 0; pointer-events: none; white-space: nowrap; box-shadow: 0 6px 18px rgba(15, 23, 42, .2); transform: translateY(-2px); transition: opacity .1s ease .12s, transform .1s ease .12s; }
 .workspace-root-page-add:hover::after, .workspace-root-page-add:focus-visible::after { opacity: 1; transform: translateY(0); }
+.workspace-page-list { min-height: 0; flex: 1 1 auto; padding-bottom: 14px; overflow-x: hidden; overflow-y: auto; scrollbar-gutter: stable; overscroll-behavior: contain; }
+.workspace-page-list::-webkit-scrollbar { width: 8px; }
+.workspace-page-list::-webkit-scrollbar-thumb { border: 2px solid transparent; border-radius: 999px; background: #cbd2df; background-clip: padding-box; }
+.workspace-page-list::-webkit-scrollbar-track { background: transparent; }
 
 .workspace-page-item { display: grid; grid-template-columns: 22px minmax(0,1fr); gap: 8px; align-items: center; height: 38px; margin: 0 10px; padding: 0 10px 0 14px; border: 0; border-radius: 6px; background: transparent; color: #344054; font-size: 13px; cursor: pointer; text-align: left; }
 .workspace-page-item:hover { background: #f2f4f8; }
@@ -187,6 +192,7 @@ export const APP_LAYOUT_CSS = `
 .workspace-page-add-button:hover::after, .workspace-page-add-button:focus-visible::after { opacity: 1; transform: translateY(0); }
 .workspace-page-rename-input { min-width: 0; height: 28px; padding: 0 7px; border: 1px solid #8095ff; border-radius: 5px; outline: none; background: #fff; color: #253b80; font: inherit; }
 .workspace-page-actions .workspace-page-menu { position: absolute; z-index: 20; top: 28px; right: 0; display: grid; width: 112px; padding: 5px; border: 1px solid #dfe3eb; border-radius: 7px; background: #fff; box-shadow: 0 10px 28px rgba(15, 23, 42, .16); }
+.workspace-page-actions .workspace-page-menu.is-upward { top: auto; bottom: 28px; }
 .workspace-page-actions .workspace-page-menu button { display: block; width: 100%; height: 30px; padding: 0 9px; color: #344054; font-size: 12px; line-height: 30px; text-align: left; white-space: nowrap; }
 .workspace-page-actions .workspace-page-menu button.is-danger { color: #dc2626; }
 .workspace-empty-pages { margin: 12px 22px; color: #98a2b3; font-size: 12px; line-height: 1.7; }
@@ -291,25 +297,25 @@ export const APP_LAYOUT_CSS = `
 }
 .save-dialog {
   width: min(100%, 440px);
-  padding: 24px;
+  padding: 22px;
   border: 1px solid #e0e4eb;
   border-radius: 12px;
   background: #fff;
   box-shadow: 0 24px 64px rgba(15, 23, 42, .22);
 }
-.save-dialog h2 { margin: 0; color: #172033; font-size: 20px; letter-spacing: -.02em; }
-.save-dialog > p { margin: 9px 0 20px; color: #667085; font-size: 13px; }
+.save-dialog h2 { margin: 0; color: #172033; font-size: 18px; letter-spacing: -.02em; }
+.save-dialog > p { margin: 8px 0 18px; color: #667085; font-size: 12px; }
 .save-dialog fieldset { display: grid; gap: 10px; margin: 0; padding: 0; border: 0; }
-.save-dialog label { display: flex; min-height: 46px; gap: 10px; align-items: center; padding: 0 13px; border: 1px solid #dfe3eb; border-radius: 8px; color: #344054; font-size: 13px; font-weight: 700; cursor: pointer; }
+.save-dialog label { display: flex; min-height: 44px; gap: 10px; align-items: center; padding: 0 13px; border: 1px solid #dfe3eb; border-radius: 8px; color: #344054; font-size: 12px; font-weight: 700; cursor: pointer; }
 .save-dialog label:has(input:checked) { border-color: #3f5bea; background: #f5f7ff; color: #2949df; }
 .save-dialog input { margin: 0; accent-color: #3f5bea; }
 .save-dialog fieldset small { margin: -3px 4px 2px 28px; color: #c2410c; font-size: 11px; }
 .save-dialog .save-dialog-select-label { display: block; min-height: 0; margin-bottom: 7px; padding: 0; border: 0; color: #475467; font-size: 12px; cursor: default; }
 .save-dialog .save-dialog-select-label:hover { background: transparent; }
-.save-dialog-select { width: 100%; height: 42px; margin-bottom: 16px; padding: 0 11px; border: 1px solid #d8dde6; border-radius: 7px; background: #fff; color: #344054; font: inherit; }
+.save-dialog-select { width: 100%; height: 40px; margin-bottom: 16px; padding: 0 11px; border: 1px solid #d8dde6; border-radius: 7px; background: #fff; color: #344054; font-family: inherit; font-size: 13px; }
 .save-dialog-select:focus { border-color: #637df2; outline: 2px solid #e5e9ff; }
 .save-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 22px; }
-.save-dialog-actions button { min-height: 38px; padding: 0 15px; border: 1px solid #d8dde6; border-radius: 7px; background: #fff; color: #344054; font-weight: 750; cursor: pointer; }
+.save-dialog-actions button { min-height: 36px; padding: 0 14px; border: 1px solid #d8dde6; border-radius: 7px; background: #fff; color: #344054; font-family: inherit; font-size: 12px; font-weight: 750; cursor: pointer; }
 .save-dialog-actions button.is-primary { border-color: #3f5bea; background: #3f5bea; color: #fff; }
 .save-dialog-actions button:disabled { cursor: not-allowed; opacity: .55; }
 
@@ -355,7 +361,7 @@ export const APP_LAYOUT_CSS = `
   .workspace-shell.mobile-pane-editor .workspace-editor,
   .workspace-shell.mobile-pane-preview .workspace-preview { display: grid; }
   .workspace-shell.mobile-pane-pages .workspace-sidebar { display: flex; }
-  .workspace-sidebar { min-height: 0; border-right: 0; border-bottom: 0; overflow: auto; }
+  .workspace-sidebar { min-height: 0; border-right: 0; border-bottom: 0; overflow: hidden; }
   .workspace-sidebar-footer { display: none; }
   .workspace-guest-card { margin-bottom: 14px; }
   .workspace-editor,

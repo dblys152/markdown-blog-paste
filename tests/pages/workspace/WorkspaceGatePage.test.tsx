@@ -178,6 +178,20 @@ describe("WorkspaceGatePage", () => {
     expect(screen.getByRole("link", { name: "내 기록장으로 옮기기" }).getAttribute("href")).toBe("/login");
   });
 
+  it("비회원이 페이지 추가를 누르면 로그인 화면 이동 여부를 확인한다", async () => {
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByRole("textbox", { name: "Markdown 내용" });
+
+    await user.click(screen.getByRole("link", { name: "새 페이지 추가" }));
+
+    expect(confirm).toHaveBeenCalledWith(
+      "페이지를 추가하려면 로그인이 필요합니다.\n로그인 화면으로 이동하시겠습니까?",
+    );
+    expect(screen.getByRole("textbox", { name: "Markdown 내용" })).not.toBeNull();
+  });
+
   it("구분선 방향키 조절과 더블 클릭 초기화를 지원하고 비율을 저장한다", async () => {
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function () {
       if (this.classList.contains("workspace-shell")) {
@@ -215,6 +229,7 @@ describe("WorkspaceGatePage", () => {
     renderPage();
 
     const editor = await screen.findByDisplayValue("# 기존 본문");
+    expect(screen.getByRole("region", { name: "페이지 목록" })).not.toBeNull();
     expect(screen.queryByText("현재 브라우저에 저장 중")).toBeNull();
 
     await user.clear(editor);
@@ -333,6 +348,24 @@ describe("WorkspaceGatePage", () => {
       name: "아주 긴 페이지 이름 전체 내용 하위 페이지 추가",
     });
     expect(addButton.getAttribute("data-tooltip")).toBe("하위 페이지 추가");
+  });
+
+  it("페이지 목록 하단에서는 페이지 메뉴를 위쪽으로 연다", async () => {
+    useAuth.mockReturnValue({ status: "authenticated", user: { id: "1" } });
+    listWorkspacePages.mockResolvedValue([
+      { id: "10", title: "마지막 페이지", content: "", parent_id: null, position: 0 },
+    ]);
+    const user = userEvent.setup();
+    renderPage();
+
+    const menuButton = await screen.findByRole("button", { name: "마지막 페이지 메뉴" });
+    const pageList = screen.getByRole("region", { name: "페이지 목록" });
+    vi.spyOn(pageList, "getBoundingClientRect").mockReturnValue({ top: 100, bottom: 500 } as DOMRect);
+    vi.spyOn(menuButton, "getBoundingClientRect").mockReturnValue({ top: 455, bottom: 479 } as DOMRect);
+
+    await user.click(menuButton);
+
+    expect(screen.getByRole("menu").classList.contains("is-upward")).toBe(true);
   });
 
   it("삭제 확인 문구는 실제 하위 페이지 존재 여부를 반영한다", async () => {

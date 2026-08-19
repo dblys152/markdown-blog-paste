@@ -70,6 +70,7 @@ export function WorkspaceGatePage() {
   const [draggedPageId, setDraggedPageId] = useState<string | null>(null);
   const [dropHint, setDropHint] = useState<{ pageId: string; placement: DropPlacement } | null>(null);
   const [openPageMenuId, setOpenPageMenuId] = useState<string | null>(null);
+  const [openPageMenuUpward, setOpenPageMenuUpward] = useState(false);
   const [renamingPageId, setRenamingPageId] = useState<string | null>(null);
   const [renameTitle, setRenameTitle] = useState("");
   const [markdown, setMarkdown] = useState(SAMPLE_MARKDOWN);
@@ -372,9 +373,26 @@ export function WorkspaceGatePage() {
                 data-tooltip="하위 페이지 추가"
                 onClick={() => void addPage(page.id)}
               >+</button>
-              <button type="button" aria-label={`${page.title} 메뉴`} onClick={() => setOpenPageMenuId((current) => current === page.id ? null : page.id)}>⋮</button>
+              <button
+                type="button"
+                aria-label={`${page.title} 메뉴`}
+                onClick={(event) => {
+                  if (openPageMenuId === page.id) {
+                    setOpenPageMenuId(null);
+                    return;
+                  }
+
+                  const list = event.currentTarget.closest<HTMLElement>(".workspace-page-list");
+                  const buttonRect = event.currentTarget.getBoundingClientRect();
+                  const listRect = list?.getBoundingClientRect();
+                  const spaceBelow = listRect ? listRect.bottom - buttonRect.bottom : window.innerHeight - buttonRect.bottom;
+                  const spaceAbove = listRect ? buttonRect.top - listRect.top : buttonRect.top;
+                  setOpenPageMenuUpward(spaceBelow < 78 && spaceAbove > spaceBelow);
+                  setOpenPageMenuId(page.id);
+                }}
+              >⋮</button>
               {openPageMenuId === page.id && (
-                <div className="workspace-page-menu" role="menu">
+                <div className={`workspace-page-menu ${openPageMenuUpward ? "is-upward" : ""}`} role="menu">
                   <button type="button" role="menuitem" onClick={() => beginRenamePage(page)}>이름 변경</button>
                   <button type="button" role="menuitem" className="is-danger" onClick={() => {
                     setOpenPageMenuId(null);
@@ -520,13 +538,23 @@ export function WorkspaceGatePage() {
               className="workspace-root-page-add"
               aria-label="새 페이지 추가"
               data-tooltip="페이지 추가"
+              onClick={(event) => {
+                const shouldMove = window.confirm(
+                  "페이지를 추가하려면 로그인이 필요합니다.\n로그인 화면으로 이동하시겠습니까?",
+                );
+                if (!shouldMove) event.preventDefault();
+              }}
             >+</Link>
           )}
         </div>
 
-        {isAuthenticated ? (pages.length > 0 ? renderPageTree(null) : (
-          <p className="workspace-empty-pages">아직 페이지가 없습니다.<br />+ 버튼으로 첫 페이지를 만들어보세요.</p>
-        )) : (
+        {isAuthenticated ? (
+          <div className="workspace-page-list" role="region" aria-label="페이지 목록">
+            {pages.length > 0 ? renderPageTree(null) : (
+              <p className="workspace-empty-pages">아직 페이지가 없습니다.<br />+ 버튼으로 첫 페이지를 만들어보세요.</p>
+            )}
+          </div>
+        ) : (
           <button className="workspace-page-item is-active" type="button" onClick={() => setMobilePane("editor")}>
             <span aria-hidden="true">▤</span>
             <span>{title}</span>
