@@ -321,6 +321,7 @@ export function WorkspaceGatePage() {
             className={`workspace-page-item ${page.id === selectedPageId ? "is-active" : ""} ${draggedPageId === page.id ? "is-dragging" : ""} ${dropHint?.pageId === page.id ? `drop-${dropHint.placement}` : ""}`}
             style={{ paddingLeft: `${16 + Math.min(depth, 6) * 16}px` }}
             draggable
+            onClick={() => selectPage(page)}
             onDragStart={(event) => {
               setOpenPageMenuId(null);
               event.dataTransfer.effectAllowed = "move";
@@ -350,6 +351,7 @@ export function WorkspaceGatePage() {
                 value={renameTitle}
                 maxLength={200}
                 autoFocus
+                onClick={(event) => event.stopPropagation()}
                 onChange={(event) => setRenameTitle(event.target.value)}
                 onBlur={() => void commitPageRename(page)}
                 onKeyDown={(event) => {
@@ -360,12 +362,11 @@ export function WorkspaceGatePage() {
               <button
                 type="button"
                 className="workspace-page-select"
-                onClick={() => selectPage(page)}
               >
                 <span aria-hidden="true">▤</span><span>{page.title}</span>
               </button>
             )}
-            <div className="workspace-page-actions">
+            <div className="workspace-page-actions" onClick={(event) => event.stopPropagation()}>
               <button
                 type="button"
                 className="workspace-page-add-button"

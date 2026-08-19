@@ -176,7 +176,7 @@ export const APP_LAYOUT_CSS = `
 .workspace-page-item:hover { background: #f2f4f8; }
 .workspace-page-item.is-active { background: #edf0ff; color: #2949df; font-weight: 750; }
 .workspace-page-item.is-active:hover { background: #e7ebff; }
-.workspace-page-node > .workspace-page-item { grid-template-columns: minmax(0,1fr) auto; gap: 4px; cursor: default; }
+.workspace-page-node > .workspace-page-item { grid-template-columns: minmax(0,1fr) auto; gap: 4px; cursor: pointer; }
 .workspace-page-node > .workspace-page-item.is-dragging { opacity: .45; }
 .workspace-page-node > .workspace-page-item.drop-before { box-shadow: inset 0 2px #4263eb; }
 .workspace-page-node > .workspace-page-item.drop-after { box-shadow: inset 0 -2px #4263eb; }

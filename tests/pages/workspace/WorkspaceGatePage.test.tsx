@@ -368,6 +368,22 @@ describe("WorkspaceGatePage", () => {
     expect(screen.getByRole("menu").classList.contains("is-upward")).toBe(true);
   });
 
+  it("페이지 제목 바깥의 행을 클릭해도 해당 페이지를 선택한다", async () => {
+    useAuth.mockReturnValue({ status: "authenticated", user: { id: "1" } });
+    listWorkspacePages.mockResolvedValue([
+      { id: "10", title: "첫 페이지", content: "첫 내용", parent_id: null, position: 0 },
+      { id: "20", title: "둘째 페이지", content: "둘째 내용", parent_id: null, position: 1 },
+    ]);
+    renderPage();
+
+    const secondPageButton = await screen.findByRole("button", { name: "둘째 페이지" });
+    const secondPageRow = secondPageButton.closest(".workspace-page-item");
+    fireEvent.click(secondPageRow as HTMLElement);
+
+    expect(secondPageRow?.classList.contains("is-active")).toBe(true);
+    expect((screen.getByRole("textbox", { name: "Markdown 내용" }) as HTMLTextAreaElement).value).toBe("둘째 내용");
+  });
+
   it("삭제 확인 문구는 실제 하위 페이지 존재 여부를 반영한다", async () => {
     useAuth.mockReturnValue({ status: "authenticated", user: { id: "1" } });
     listWorkspacePages.mockResolvedValue([
