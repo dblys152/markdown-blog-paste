@@ -24,8 +24,16 @@ export type MoveWorkspacePageInput = {
   position: number;
 };
 
+let listPagesPromise: Promise<WorkspacePage[]> | null = null;
+
 export function listWorkspacePages(): Promise<WorkspacePage[]> {
-  return authenticatedRequest<WorkspacePage[]>("/workspace/pages");
+  if (!listPagesPromise) {
+    listPagesPromise = authenticatedRequest<WorkspacePage[]>("/workspace/pages")
+      .finally(() => {
+        listPagesPromise = null;
+      });
+  }
+  return listPagesPromise;
 }
 
 export function createWorkspacePage(input: CreateWorkspacePageInput): Promise<WorkspacePage> {

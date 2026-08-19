@@ -23,6 +23,17 @@ describe("workspace api", () => {
     expect(authenticatedRequest).toHaveBeenCalledWith("/workspace/pages");
   });
 
+  it("동시에 요청한 페이지 목록은 하나의 네트워크 요청을 공유한다", async () => {
+    authenticatedRequest.mockResolvedValue([]);
+
+    const first = listWorkspacePages();
+    const second = listWorkspacePages();
+
+    expect(first).toBe(second);
+    await Promise.all([first, second]);
+    expect(authenticatedRequest).toHaveBeenCalledTimes(1);
+  });
+
   it("페이지 생성·수정·삭제 요청을 전달한다", async () => {
     authenticatedRequest.mockResolvedValue(undefined);
 

@@ -42,7 +42,7 @@ flowchart LR
 const DEFAULT_EDITOR_RATIO = 0.48;
 const MIN_EDITOR_WIDTH = 360;
 const MIN_PREVIEW_WIDTH = 460;
-const DIVIDER_WIDTH = 10;
+const DIVIDER_WIDTH = 14;
 const EDITOR_RATIO_STORAGE_KEY = "md2blog-workspace-editor-ratio";
 
 function loadEditorRatio(): number {
@@ -78,6 +78,8 @@ export function WorkspaceGatePage() {
   const [toast, setToast] = useState("");
   const [saveState, setSaveState] = useState<"loading" | "saving" | "saved" | "error">("loading");
   const [isGuestInfoOpen, setIsGuestInfoOpen] = useState(true);
+  const [workspaceLoadState, setWorkspaceLoadState] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [workspaceReloadKey, setWorkspaceReloadKey] = useState(0);
   const [editorRatio, setEditorRatio] = useState(loadEditorRatio);
   const [editorWidth, setEditorWidth] = useState<number | null>(null);
   const [isResizing, setIsResizing] = useState(false);
@@ -116,8 +118,14 @@ export function WorkspaceGatePage() {
   }, [authStatus]);
 
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated) {
+      serverHydrated.current = false;
+      setWorkspaceLoadState("idle");
+      return;
+    }
     let cancelled = false;
+    serverHydrated.current = false;
+    setWorkspaceLoadState("loading");
     setSaveState("loading");
     listWorkspacePages()
       .then((loadedPages) => {
@@ -128,15 +136,19 @@ export function WorkspaceGatePage() {
         setMarkdown(firstPage?.content ?? "");
         skipNextServerSave.current = true;
         serverHydrated.current = true;
+        setWorkspaceLoadState("ready");
         setSaveState("saved");
       })
       .catch(() => {
-        if (!cancelled) setSaveState("error");
+        if (!cancelled) {
+          setWorkspaceLoadState("error");
+          setSaveState("error");
+        }
       });
     return () => {
       cancelled = true;
     };
-  }, [isAuthenticated]);
+  }, [isAuthenticated, workspaceReloadKey]);
 
   useEffect(() => {
     let cancelled = false;
@@ -210,7 +222,11 @@ export function WorkspaceGatePage() {
   }, [selectPage, showToast]);
 
   const removePage = useCallback(async (page: WorkspacePage) => {
-    if (!window.confirm(`'${page.title}' 페이지와 하위 페이지를 삭제할까요?`)) return;
+    const hasChildren = pages.some((candidate) => candidate.parent_id === page.id);
+    const confirmationMessage = hasChildren
+      ? `'${page.title}' 페이지와 모든 하위 페이지를 삭제할까요?`
+      : `'${page.title}' 페이지를 삭제할까요?`;
+    if (!window.confirm(confirmationMessage)) return;
     try {
       await deleteWorkspacePage(page.id);
       const deletedIds = new Set([page.id]);
@@ -340,12 +356,22 @@ export function WorkspaceGatePage() {
                 }}
               />
             ) : (
-              <button type="button" className="workspace-page-select" onClick={() => selectPage(page)}>
+              <button
+                type="button"
+                className="workspace-page-select"
+                onClick={() => selectPage(page)}
+              >
                 <span aria-hidden="true">▤</span><span>{page.title}</span>
               </button>
             )}
             <div className="workspace-page-actions">
-              <button type="button" aria-label={`${page.title} 하위 페이지 추가`} onClick={() => void addPage(page.id)}>+</button>
+              <button
+                type="button"
+                className="workspace-page-add-button"
+                aria-label={`${page.title} 하위 페이지 추가`}
+                data-tooltip="하위 페이지 추가"
+                onClick={() => void addPage(page.id)}
+              >+</button>
               <button type="button" aria-label={`${page.title} 메뉴`} onClick={() => setOpenPageMenuId((current) => current === page.id ? null : page.id)}>⋮</button>
               {openPageMenuId === page.id && (
                 <div className="workspace-page-menu" role="menu">
@@ -448,6 +474,24 @@ export function WorkspaceGatePage() {
     "--workspace-editor-size": editorWidth === null ? `${editorRatio}fr` : `${editorWidth}px`,
   } as CSSProperties;
 
+  if (authStatus === "loading" || (isAuthenticated && workspaceLoadState !== "ready" && workspaceLoadState !== "error")) {
+    return (
+      <main className="workspace-loading-state" aria-live="polite" aria-busy="true">
+        <span className="workspace-loading-spinner" aria-hidden="true" />
+        <strong>내 기록장을 불러오는 중…</strong>
+      </main>
+    );
+  }
+
+  if (isAuthenticated && workspaceLoadState === "error") {
+    return (
+      <main className="workspace-loading-state" role="alert">
+        <strong>내 기록장을 불러오지 못했습니다.</strong>
+        <button type="button" onClick={() => setWorkspaceReloadKey((key) => key + 1)}>다시 시도</button>
+      </main>
+    );
+  }
+
   return (
     <main ref={workspaceRef} className={`workspace-shell mobile-pane-${mobilePane} ${isResizing ? "is-resizing" : ""}`} style={workspaceStyle}>
       <div className="workspace-mobile-tabs" role="tablist" aria-label="기록장 화면">
@@ -463,12 +507,19 @@ export function WorkspaceGatePage() {
         <div className="workspace-pages-heading">
           <span>페이지</span>
           {isAuthenticated ? (
-            <button type="button" aria-label="새 페이지 추가" onClick={() => void addPage()}>+</button>
+            <button
+              type="button"
+              className="workspace-root-page-add"
+              aria-label="새 페이지 추가"
+              data-tooltip="페이지 추가"
+              onClick={() => void addPage()}
+            >+</button>
           ) : (
             <Link
               to="/login"
+              className="workspace-root-page-add"
               aria-label="새 페이지 추가"
-              title="로그인 후 새 페이지를 만들 수 있어요"
+              data-tooltip="페이지 추가"
             >+</Link>
           )}
         </div>

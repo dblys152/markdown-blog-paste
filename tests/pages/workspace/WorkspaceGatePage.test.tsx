@@ -100,6 +100,27 @@ describe("WorkspaceGatePage", () => {
     vi.clearAllMocks();
   });
 
+  it("로그인 상태 확인 중에는 임시 페이지를 표시하지 않는다", () => {
+    useAuth.mockReturnValue({ status: "loading", user: null });
+
+    renderPage();
+
+    expect(screen.getByText("내 기록장을 불러오는 중…")).not.toBeNull();
+    expect(screen.queryByText("임시 페이지")).toBeNull();
+    expect(loadGuestDraft).not.toHaveBeenCalled();
+  });
+
+  it("회원 페이지 API 응답 전에도 임시 페이지를 표시하지 않는다", () => {
+    useAuth.mockReturnValue({ status: "authenticated", user: { id: "1" } });
+    listWorkspacePages.mockReturnValue(new Promise(() => undefined));
+
+    renderPage();
+
+    expect(screen.getByText("내 기록장을 불러오는 중…")).not.toBeNull();
+    expect(screen.queryByText("임시 페이지")).toBeNull();
+    expect(loadGuestDraft).not.toHaveBeenCalled();
+  });
+
   it("페이지 탭에서 임시 페이지를 선택하면 Markdown 탭으로 이동한다", async () => {
     const user = userEvent.setup();
     renderPage();
@@ -151,7 +172,9 @@ describe("WorkspaceGatePage", () => {
     renderPage();
     await screen.findByRole("textbox", { name: "Markdown 내용" });
 
-    expect(screen.getByRole("link", { name: "새 페이지 추가" }).getAttribute("href")).toBe("/login");
+    const addPageLink = screen.getByRole("link", { name: "새 페이지 추가" });
+    expect(addPageLink.getAttribute("href")).toBe("/login");
+    expect(addPageLink.getAttribute("data-tooltip")).toBe("페이지 추가");
     expect(screen.getByRole("link", { name: "내 기록장으로 옮기기" }).getAttribute("href")).toBe("/login");
   });
 
@@ -288,5 +311,48 @@ describe("WorkspaceGatePage", () => {
     await waitFor(() => {
       expect(updateWorkspacePage).toHaveBeenCalledWith("10", { title: "서버 설계" });
     });
+  });
+
+  it("페이지 이름 툴팁 없이 하위 페이지 추가 버튼에만 툴팁을 제공한다", async () => {
+    useAuth.mockReturnValue({ status: "authenticated", user: { id: "1" } });
+    listWorkspacePages.mockResolvedValue([
+      {
+        id: "10",
+        title: "아주 긴 페이지 이름 전체 내용",
+        content: "",
+        parent_id: null,
+        position: 0,
+      },
+    ]);
+    renderPage();
+
+    const pageButton = await screen.findByRole("button", { name: "아주 긴 페이지 이름 전체 내용" });
+    expect(pageButton.getAttribute("title")).toBeNull();
+    expect(pageButton.getAttribute("data-page-title")).toBeNull();
+    const addButton = screen.getByRole("button", {
+      name: "아주 긴 페이지 이름 전체 내용 하위 페이지 추가",
+    });
+    expect(addButton.getAttribute("data-tooltip")).toBe("하위 페이지 추가");
+  });
+
+  it("삭제 확인 문구는 실제 하위 페이지 존재 여부를 반영한다", async () => {
+    useAuth.mockReturnValue({ status: "authenticated", user: { id: "1" } });
+    listWorkspacePages.mockResolvedValue([
+      { id: "10", title: "개발 노트", content: "", parent_id: null, position: 0 },
+      { id: "20", title: "API 설계", content: "", parent_id: "10", position: 0 },
+    ]);
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "API 설계 메뉴" }));
+    await user.click(screen.getByRole("menuitem", { name: "삭제" }));
+    expect(confirm).toHaveBeenLastCalledWith("'API 설계' 페이지를 삭제할까요?");
+
+    await user.click(screen.getByRole("button", { name: "개발 노트 메뉴" }));
+    await user.click(screen.getByRole("menuitem", { name: "삭제" }));
+    expect(confirm).toHaveBeenLastCalledWith(
+      "'개발 노트' 페이지와 모든 하위 페이지를 삭제할까요?",
+    );
   });
 });

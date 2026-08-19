@@ -779,6 +779,19 @@ button:disabled {
   cursor: pointer;
 }
 
+.preview-tabs button:hover,
+.preview-tabs button:active {
+  border-color: transparent;
+  background: transparent;
+  color: #344054;
+  box-shadow: none;
+  transform: none;
+}
+
+.preview-tabs button[aria-selected="true"]:hover {
+  color: #2949df;
+}
+
 .preview-tabs button:first-child {
   padding-left: 0;
 }
