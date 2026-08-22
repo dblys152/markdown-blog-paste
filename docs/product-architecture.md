@@ -201,6 +201,58 @@ backend/
 - Infrastructure는 DB, 암호화, 메일 등 외부 구현을 담당합니다.
 - Presentation은 HTTP 요청과 응답을 애플리케이션 유스케이스에 연결합니다.
 - SQLAlchemy 모델과 도메인 엔티티를 분리합니다.
+- HTTP DTO는 `presentation/schemas`에 두고 Pydantic으로 전송 형식을 검증합니다.
+- 프레임워크 독립적인 변경 명령은 `domain/commands.py`의 dataclass로 정의합니다.
+- Presentation은 HTTP DTO를 Command로 변환하고 UseCase에는 Command 하나를 전달합니다.
+- DB 조회가 필요한 Command 조립은 `application/factory`가 담당합니다.
+- 조회 결과인 `PageListItem`, `PageDetail`은 `application/model`에 둡니다.
+
+### 5.3 Workspace 저장 구조
+
+페이지의 계층·제목·정렬 정보와 크기가 커질 수 있는 Markdown 본문을 물리적으로 분리합니다.
+
+```text
+pages
+- id
+- owner_id
+- parent_id
+- title
+- sort_order
+- created_at
+- updated_at
+
+page_contents
+- page_id (PK, FK -> pages.id, ON DELETE CASCADE)
+- content
+- created_at
+- updated_at
+```
+
+- `pages.parent_id`는 같은 테이블의 `id`를 참조하여 페이지 계층을 표현합니다.
+- `page_contents.page_id`는 페이지와 일대일 관계이며 페이지 삭제 시 함께 삭제됩니다.
+- 페이지 생성 시 메타데이터와 본문을 같은 트랜잭션에서 저장합니다.
+- 목록 조회는 `pages`에서 필요한 컬럼만 선택하고 본문 테이블을 조인하지 않습니다.
+- 상세 조회와 본문 수정에서만 `page_contents`에 접근합니다.
+- 애그리거트 루트인 `Page`는 `PageContent`를 항상 포함하며 불완전한 상태를 허용하지 않습니다.
+- `PageRepository`는 완전한 도메인 모델을, `PageQueryRepository`는 조회 목적에 맞는
+  `PageListItem` 또는 `PageDetail`을 반환합니다.
+
+### 5.4 Workspace API
+
+```text
+POST   /workspace/pages
+GET    /workspace/pages
+GET    /workspace/pages/{page_id}
+PATCH  /workspace/pages/{page_id}
+DELETE /workspace/pages/{page_id}
+PATCH  /workspace/pages/{page_id}/move
+```
+
+- 목록 API는 `id`, `owner_id`, `title`, `parent_id`, `sort_order`만 반환합니다.
+- 상세 API는 목록 필드와 Markdown `contents`를 반환합니다.
+- 프론트엔드는 목록 응답을 먼저 표시하고 선택한 페이지의 상세를 지연 조회합니다.
+- 조회한 본문은 현재 애플리케이션 세션의 메모리에 캐시하여 같은 페이지 재선택 시 재사용합니다.
+- 모든 조회와 변경은 인증 사용자의 소유권을 검증합니다.
 
 ## 6. 인증 설계
 
@@ -374,6 +426,8 @@ SQLite로 PostgreSQL 동작을 대신하지 않고 테스트용 PostgreSQL을 �
 - 사용자별 접근 제어
 - 자동 저장
 
+현재 1~4단계와 기본 운영 배포는 완료되었습니다. 이후 개발은 인증 확장과 운영 안정화 항목을 중심으로 진행합니다.
+
 ### 5단계: 인증 확장
 
 - 이메일 인증
@@ -409,12 +463,11 @@ SQLite로 PostgreSQL 동작을 대신하지 않고 테스트용 PostgreSQL을 �
 
 ## 11. 추후 결정 사항
 
-- 프론트엔드 라우터 및 상태 관리 도구
 - Markdown 자동 저장 주기와 충돌 처리 방식
 - 이메일 발송 서비스
 - Access Token 전달 방식의 최종 선택
 - CORS와 쿠키를 단순화할 커스텀 도메인 구조
-- 페이지 삭제 정책과 휴지통 보존 기간
+- 페이지 삭제 및 복구 정책
 - 전문 검색 도입 여부
 - 첨부 파일 저장소
 - 협업 및 공유 기능의 범위
