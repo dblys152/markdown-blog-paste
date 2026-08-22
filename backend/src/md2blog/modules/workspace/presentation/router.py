@@ -8,9 +8,11 @@ from md2blog.modules.workspace.application.port.inbound.pages import (
     CreatePageRequest,
     CreatePageUseCase,
     DeletePageUseCase,
+    GetPageUseCase,
     ListPagesUseCase,
     MovePageRequest,
     MovePageUseCase,
+    PageListItemResponse,
     PageResponse,
     UpdatePageRequest,
     UpdatePageUseCase,
@@ -20,6 +22,7 @@ from md2blog.modules.workspace.presentation.dependencies import (
     get_delete_page,
     get_list_pages,
     get_move_page,
+    get_page,
     get_update_page,
 )
 from md2blog.shared.domain.tsid import TSID
@@ -43,12 +46,25 @@ async def create_page(
     return PageResponse.from_domain(page)
 
 
-@router.get("", response_model=list[PageResponse])
+@router.get("", response_model=list[PageListItemResponse])
 async def list_pages(
     current_user: User = Depends(get_current_user),
     use_case: ListPagesUseCase = Depends(get_list_pages),
-) -> list[PageResponse]:
-    return [PageResponse.from_domain(page) for page in await use_case.execute(current_user.id)]
+) -> list[PageListItemResponse]:
+    return [
+        PageListItemResponse.from_domain(page)
+        for page in await use_case.execute(current_user.id)
+    ]
+
+
+@router.get("/{page_id}", response_model=PageResponse)
+async def get_page_detail(
+    page_id: Annotated[int, Path(ge=0, le=2**63 - 1)],
+    current_user: User = Depends(get_current_user),
+    use_case: GetPageUseCase = Depends(get_page),
+) -> PageResponse:
+    page = await use_case.execute(page_id=TSID(page_id), owner_id=current_user.id)
+    return PageResponse.from_domain(page)
 
 
 @router.patch("/{page_id}", response_model=PageResponse)

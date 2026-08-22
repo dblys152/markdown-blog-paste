@@ -20,5 +20,16 @@ class PageModel(TSIDPrimaryKeyMixin, TimestampMixin, Base):
         index=True,
     )
     title: Mapped[str] = mapped_column(String(200), nullable=False)
-    content: Mapped[str] = mapped_column(Text, nullable=False, default="")
     position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
+class PageContentModel(TimestampMixin, Base):
+    __tablename__ = "page_contents"
+
+    page_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey("pages.id", ondelete="CASCADE"),
+        primary_key=True,
+        autoincrement=False,
+    )
+    content: Mapped[str] = mapped_column(Text, nullable=False, default="")

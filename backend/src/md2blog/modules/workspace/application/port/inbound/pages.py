@@ -2,7 +2,7 @@ from typing import Protocol
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from md2blog.modules.workspace.domain.page import Page
+from md2blog.modules.workspace.domain.page import Page, PageListItem
 from md2blog.shared.domain.tsid import TSID
 
 
@@ -60,6 +60,22 @@ class PageResponse(BaseModel):
         )
 
 
+class PageListItemResponse(BaseModel):
+    id: str
+    title: str
+    parent_id: str | None
+    position: int
+
+    @classmethod
+    def from_domain(cls, page: PageListItem) -> "PageListItemResponse":
+        return cls(
+            id=str(page.id),
+            title=page.title,
+            parent_id=str(page.parent_id) if page.parent_id else None,
+            position=page.position,
+        )
+
+
 class CreatePageUseCase(Protocol):
     async def execute(
         self,
@@ -72,7 +88,11 @@ class CreatePageUseCase(Protocol):
 
 
 class ListPagesUseCase(Protocol):
-    async def execute(self, owner_id: TSID) -> list[Page]: ...
+    async def execute(self, owner_id: TSID) -> list[PageListItem]: ...
+
+
+class GetPageUseCase(Protocol):
+    async def execute(self, *, page_id: TSID, owner_id: TSID) -> Page: ...
 
 
 class UpdatePageUseCase(Protocol):

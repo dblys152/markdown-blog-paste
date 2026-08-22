@@ -9,6 +9,7 @@ const {
   saveGuestDraft,
   useAuth,
   listWorkspacePages,
+  getWorkspacePage,
   createWorkspacePage,
   updateWorkspacePage,
   deleteWorkspacePage,
@@ -19,6 +20,7 @@ const {
   saveGuestDraft: vi.fn(),
   useAuth: vi.fn(),
   listWorkspacePages: vi.fn(),
+  getWorkspacePage: vi.fn(),
   createWorkspacePage: vi.fn(),
   updateWorkspacePage: vi.fn(),
   deleteWorkspacePage: vi.fn(),
@@ -30,6 +32,7 @@ vi.mock("../../../src/pages/workspace/guest-draft-store", () => ({ loadGuestDraf
 vi.mock("../../../src/features/auth/AuthProvider", () => ({ useAuth }));
 vi.mock("../../../src/features/workspace/api", () => ({
   listWorkspacePages,
+  getWorkspacePage,
   createWorkspacePage,
   updateWorkspacePage,
   deleteWorkspacePage,
@@ -70,6 +73,13 @@ describe("WorkspaceGatePage", () => {
     convertMarkdown.mockResolvedValue(conversionResult);
     useAuth.mockReturnValue({ status: "guest", user: null });
     listWorkspacePages.mockResolvedValue([]);
+    getWorkspacePage.mockImplementation(async (pageId: string) => ({
+      id: pageId,
+      title: "페이지",
+      content: "",
+      parent_id: null,
+      position: 0,
+    }));
     createWorkspacePage.mockResolvedValue({
       id: "10",
       title: "새 페이지",
@@ -225,6 +235,13 @@ describe("WorkspaceGatePage", () => {
         position: 0,
       },
     ]);
+    getWorkspacePage.mockResolvedValue({
+      id: "10",
+      title: "개발 노트",
+      content: "# 기존 본문",
+      parent_id: null,
+      position: 0,
+    });
     const user = userEvent.setup();
     renderPage();
 
@@ -374,6 +391,13 @@ describe("WorkspaceGatePage", () => {
       { id: "10", title: "첫 페이지", content: "첫 내용", parent_id: null, position: 0 },
       { id: "20", title: "둘째 페이지", content: "둘째 내용", parent_id: null, position: 1 },
     ]);
+    getWorkspacePage.mockImplementation(async (pageId: string) => ({
+      id: pageId,
+      title: pageId === "10" ? "첫 페이지" : "둘째 페이지",
+      content: pageId === "10" ? "첫 내용" : "둘째 내용",
+      parent_id: null,
+      position: pageId === "10" ? 0 : 1,
+    }));
     renderPage();
 
     const secondPageButton = await screen.findByRole("button", { name: "둘째 페이지" });
@@ -381,7 +405,9 @@ describe("WorkspaceGatePage", () => {
     fireEvent.click(secondPageRow as HTMLElement);
 
     expect(secondPageRow?.classList.contains("is-active")).toBe(true);
-    expect((screen.getByRole("textbox", { name: "Markdown 내용" }) as HTMLTextAreaElement).value).toBe("둘째 내용");
+    await waitFor(() => {
+      expect((screen.getByRole("textbox", { name: "Markdown 내용" }) as HTMLTextAreaElement).value).toBe("둘째 내용");
+    });
   });
 
   it("삭제 확인 문구는 실제 하위 페이지 존재 여부를 반영한다", async () => {

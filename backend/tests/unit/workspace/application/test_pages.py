@@ -3,6 +3,7 @@ import pytest
 from md2blog.modules.workspace.application.service.pages import (
     CreatePage,
     DeletePage,
+    GetPage,
     ListPages,
     MovePage,
     UpdatePage,
@@ -24,7 +25,13 @@ class InMemoryPages:
         self.pages.append(page)
         return page
 
-    async def update(self, page: Page) -> Page:
+    async def update(
+        self,
+        page: Page,
+        *,
+        title_changed: bool,
+        content_changed: bool,
+    ) -> Page:
         self.pages = [page if current.id == page.id else current for current in self.pages]
         return page
 
@@ -117,6 +124,14 @@ async def test_list_pages_returns_only_owner_pages() -> None:
     result = await ListPages(InMemoryPages([mine, other])).execute(TSID(1))
 
     assert result == [mine]
+
+
+async def test_get_page_returns_owned_page_with_content() -> None:
+    page = Page(id=TSID(2), owner_id=TSID(1), title="내 페이지", content="# 본문")
+
+    result = await GetPage(InMemoryPages([page])).execute(page_id=page.id, owner_id=page.owner_id)
+
+    assert result == page
 
 
 async def test_update_page_revises_only_provided_fields() -> None:

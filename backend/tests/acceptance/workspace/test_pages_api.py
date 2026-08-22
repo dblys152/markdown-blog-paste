@@ -6,12 +6,13 @@ from md2blog.main import create_app
 from md2blog.modules.identity.domain.user import User
 from md2blog.modules.identity.domain.value_objects import DisplayName, Email, PasswordHash
 from md2blog.modules.identity.presentation.dependencies import get_current_user
-from md2blog.modules.workspace.domain.page import Page
+from md2blog.modules.workspace.domain.page import Page, PageListItem
 from md2blog.modules.workspace.presentation.dependencies import (
     get_create_page,
     get_delete_page,
     get_list_pages,
     get_move_page,
+    get_page,
     get_update_page,
 )
 from md2blog.shared.domain.tsid import TSID
@@ -64,13 +65,12 @@ async def test_create_page_uses_authenticated_user() -> None:
 async def test_list_pages_returns_flat_ordered_collection() -> None:
     use_case = AsyncMock()
     use_case.execute.return_value = [
-        Page(id=TSID(2), owner_id=TSID(1), title="개발 노트", content=""),
-        Page(
+        PageListItem(id=TSID(2), owner_id=TSID(1), title="개발 노트"),
+        PageListItem(
             id=TSID(3),
             owner_id=TSID(1),
             parent_id=TSID(2),
             title="API 설계",
-            content="",
         ),
     ]
     app = create_app()
@@ -84,6 +84,29 @@ async def test_list_pages_returns_flat_ordered_collection() -> None:
 
     assert response.status_code == 200
     assert [item["id"] for item in response.json()] == ["2", "3"]
+    assert all("content" not in item for item in response.json())
+
+
+async def test_get_page_returns_markdown_content() -> None:
+    use_case = AsyncMock()
+    use_case.execute.return_value = Page(
+        id=TSID(2),
+        owner_id=TSID(1),
+        title="개발 노트",
+        content="# 개발 노트",
+    )
+    app = create_app()
+    app.dependency_overrides[get_current_user] = authenticated_user
+    app.dependency_overrides[get_page] = lambda: use_case
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        response = await client.get("/workspace/pages/2")
+
+    assert response.status_code == 200
+    assert response.json()["content"] == "# 개발 노트"
+    use_case.execute.assert_awaited_once_with(page_id=TSID(2), owner_id=TSID(1))
 
 
 async def test_pages_require_authentication() -> None:

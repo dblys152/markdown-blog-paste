@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from md2blog.modules.workspace.application.service.pages import (
     CreatePage,
     DeletePage,
+    GetPage,
     ListPages,
     MovePage,
     UpdatePage,
@@ -18,6 +19,10 @@ def get_create_page(session: AsyncSession = Depends(get_session)) -> CreatePage:
 
 def get_list_pages(session: AsyncSession = Depends(get_session)) -> ListPages:
     return ListPages(SqlAlchemyPageRepository(session))
+
+
+def get_page(session: AsyncSession = Depends(get_session)) -> GetPage:
+    return GetPage(SqlAlchemyPageRepository(session))
 
 
 def get_update_page(session: AsyncSession = Depends(get_session)) -> UpdatePage:

@@ -3,9 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../features/auth/AuthProvider";
 import {
   createWorkspacePage,
+  getWorkspacePage,
   listWorkspacePages,
   updateWorkspacePage,
-  type WorkspacePage,
+  type WorkspacePageListItem,
 } from "../../features/workspace/api";
 import { copyMermaidPng } from "../../shared/export/clipboard";
 import { convertMarkdown } from "../../shared/markdown/converter-core";
@@ -67,7 +68,7 @@ export function MarkdownPastePage() {
   const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
   const [saveMode, setSaveMode] = useState<"replace" | "append">("replace");
   const [existingGuestDraft, setExistingGuestDraft] = useState<GuestDraft | null>(null);
-  const [workspacePages, setWorkspacePages] = useState<WorkspacePage[]>([]);
+  const [workspacePages, setWorkspacePages] = useState<WorkspacePageListItem[]>([]);
   const [workspaceSaveTarget, setWorkspaceSaveTarget] = useState("new");
   const [isSaving, setIsSaving] = useState(false);
   const previewFrameRef = useRef<HTMLIFrameElement>(null);
@@ -236,7 +237,9 @@ export function MarkdownPastePage() {
         } else {
           const targetPage = workspacePages.find((page) => page.id === workspaceSaveTarget);
           if (!targetPage) throw new Error("저장 대상을 찾을 수 없습니다.");
-          const existingMarkdown = targetPage.content.trimEnd();
+          const existingMarkdown = saveMode === "append"
+            ? (await getWorkspacePage(targetPage.id)).content.trimEnd()
+            : "";
           const nextMarkdown = saveMode === "append" && existingMarkdown
             ? `${existingMarkdown}\n\n${markdownText}`
             : markdownText;

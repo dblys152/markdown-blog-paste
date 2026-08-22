@@ -7,6 +7,7 @@ vi.mock("../../../src/features/auth/api", () => ({ authenticatedRequest }));
 import {
   createWorkspacePage,
   deleteWorkspacePage,
+  getWorkspacePage,
   listWorkspacePages,
   moveWorkspacePage,
   updateWorkspacePage,
@@ -21,6 +22,14 @@ describe("workspace api", () => {
     await listWorkspacePages();
 
     expect(authenticatedRequest).toHaveBeenCalledWith("/workspace/pages");
+  });
+
+  it("선택한 페이지 상세를 별도 요청으로 조회한다", async () => {
+    authenticatedRequest.mockResolvedValue({ id: "10", content: "# 본문" });
+
+    await getWorkspacePage("10");
+
+    expect(authenticatedRequest).toHaveBeenCalledWith("/workspace/pages/10");
   });
 
   it("동시에 요청한 페이지 목록은 하나의 네트워크 요청을 공유한다", async () => {

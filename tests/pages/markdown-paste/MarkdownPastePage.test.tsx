@@ -12,6 +12,7 @@ const {
   saveGuestDraft,
   useAuth,
   listWorkspacePages,
+  getWorkspacePage,
   createWorkspacePage,
   updateWorkspacePage,
 } = vi.hoisted(() => ({
@@ -23,6 +24,7 @@ const {
   saveGuestDraft: vi.fn(),
   useAuth: vi.fn(),
   listWorkspacePages: vi.fn(),
+  getWorkspacePage: vi.fn(),
   createWorkspacePage: vi.fn(),
   updateWorkspacePage: vi.fn(),
 }));
@@ -38,6 +40,7 @@ vi.mock("../../../src/pages/workspace/guest-draft-store", () => ({ loadGuestDraf
 vi.mock("../../../src/features/auth/AuthProvider", () => ({ useAuth }));
 vi.mock("../../../src/features/workspace/api", () => ({
   listWorkspacePages,
+  getWorkspacePage,
   createWorkspacePage,
   updateWorkspacePage,
 }));
@@ -69,6 +72,13 @@ describe("MarkdownPastePage", () => {
     saveGuestDraft.mockResolvedValue(undefined);
     useAuth.mockReturnValue({ status: "guest", user: null });
     listWorkspacePages.mockResolvedValue([]);
+    getWorkspacePage.mockResolvedValue({
+      id: "10",
+      title: "개발 노트",
+      content: "기존 내용",
+      parent_id: null,
+      position: 0,
+    });
     createWorkspacePage.mockResolvedValue(undefined);
     updateWorkspacePage.mockResolvedValue(undefined);
   });

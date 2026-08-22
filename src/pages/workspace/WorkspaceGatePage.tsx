@@ -4,10 +4,11 @@ import { useAuth } from "../../features/auth/AuthProvider";
 import {
   createWorkspacePage,
   deleteWorkspacePage,
+  getWorkspacePage,
   listWorkspacePages,
   moveWorkspacePage,
   updateWorkspacePage,
-  type WorkspacePage,
+  type WorkspacePageListItem,
 } from "../../features/workspace/api";
 import {
   applyPageMove,
@@ -65,7 +66,8 @@ function saveEditorRatio(ratio: number): void {
 export function WorkspaceGatePage() {
   const { status: authStatus } = useAuth();
   const isAuthenticated = authStatus === "authenticated";
-  const [pages, setPages] = useState<WorkspacePage[]>([]);
+  const [pages, setPages] = useState<WorkspacePageListItem[]>([]);
+  const pageContentCache = useRef(new Map<string, string>());
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
   const [draggedPageId, setDraggedPageId] = useState<string | null>(null);
   const [dropHint, setDropHint] = useState<{ pageId: string; placement: DropPlacement } | null>(null);
@@ -90,6 +92,7 @@ export function WorkspaceGatePage() {
   const hydrated = useRef(false);
   const serverHydrated = useRef(false);
   const skipNextServerSave = useRef(false);
+  const pageRequestId = useRef(0);
   const toastTimer = useRef<number | undefined>(undefined);
   const selectedPage = pages.find((page) => page.id === selectedPageId) ?? null;
   const title = isAuthenticated ? (selectedPage?.title ?? "페이지를 선택하세요") : "임시 페이지";
@@ -134,11 +137,29 @@ export function WorkspaceGatePage() {
         setPages(loadedPages);
         const firstPage = loadedPages[0] ?? null;
         setSelectedPageId(firstPage?.id ?? null);
-        setMarkdown(firstPage?.content ?? "");
-        skipNextServerSave.current = true;
-        serverHydrated.current = true;
         setWorkspaceLoadState("ready");
-        setSaveState("saved");
+        if (firstPage) {
+          setMarkdown("");
+          getWorkspacePage(firstPage.id)
+            .then((detail) => {
+              if (cancelled) return;
+              pageContentCache.current.set(detail.id, detail.content);
+              setMarkdown(detail.content);
+              skipNextServerSave.current = true;
+              serverHydrated.current = true;
+              setSaveState("saved");
+            })
+            .catch(() => {
+              if (cancelled) return;
+              setSaveState("error");
+              showToast("페이지 내용을 불러오지 못했습니다.");
+            });
+        } else {
+          setMarkdown("");
+          skipNextServerSave.current = true;
+          serverHydrated.current = true;
+          setSaveState("saved");
+        }
       })
       .catch(() => {
         if (!cancelled) {
@@ -149,7 +170,7 @@ export function WorkspaceGatePage() {
     return () => {
       cancelled = true;
     };
-  }, [isAuthenticated, workspaceReloadKey]);
+  }, [isAuthenticated, showToast, workspaceReloadKey]);
 
   useEffect(() => {
     let cancelled = false;
@@ -191,6 +212,7 @@ export function WorkspaceGatePage() {
     const timer = window.setTimeout(() => {
       updateWorkspacePage(selectedPageId, { title, content: markdown })
         .then((updatedPage) => {
+          pageContentCache.current.set(updatedPage.id, updatedPage.content);
           setPages((current) => current.map((page) => page.id === updatedPage.id ? updatedPage : page));
           setSaveState("saved");
         })
@@ -199,14 +221,36 @@ export function WorkspaceGatePage() {
     return () => window.clearTimeout(timer);
   }, [isAuthenticated, markdown, selectedPageId, title]);
 
-  const selectPage = useCallback((page: WorkspacePage) => {
+  const selectPage = useCallback(async (page: WorkspacePageListItem) => {
     setOpenPageMenuId(null);
+    const requestId = ++pageRequestId.current;
     skipNextServerSave.current = true;
+    serverHydrated.current = false;
     setSelectedPageId(page.id);
-    setMarkdown(page.content);
-    setSaveState("saved");
     setMobilePane("editor");
-  }, []);
+    const cachedContent = pageContentCache.current.get(page.id);
+    if (cachedContent !== undefined) {
+      setMarkdown(cachedContent);
+      serverHydrated.current = true;
+      setSaveState("saved");
+      return;
+    }
+
+    setSaveState("loading");
+    setMarkdown("");
+    try {
+      const detail = await getWorkspacePage(page.id);
+      if (pageRequestId.current !== requestId) return;
+      pageContentCache.current.set(detail.id, detail.content);
+      setMarkdown(detail.content);
+      serverHydrated.current = true;
+      setSaveState("saved");
+    } catch {
+      if (pageRequestId.current !== requestId) return;
+      setSaveState("error");
+      showToast("페이지 내용을 불러오지 못했습니다.");
+    }
+  }, [showToast]);
 
   const addPage = useCallback(async (parentId: string | null = null) => {
     try {
@@ -215,14 +259,15 @@ export function WorkspaceGatePage() {
         content: "# 새 페이지\n",
         parent_id: parentId,
       });
+      pageContentCache.current.set(created.id, created.content);
       setPages((current) => [...current, created]);
-      selectPage(created);
+      await selectPage(created);
     } catch {
       showToast("페이지를 만들지 못했습니다.");
     }
   }, [selectPage, showToast]);
 
-  const removePage = useCallback(async (page: WorkspacePage) => {
+  const removePage = useCallback(async (page: WorkspacePageListItem) => {
     const hasChildren = pages.some((candidate) => candidate.parent_id === page.id);
     const confirmationMessage = hasChildren
       ? `'${page.title}' 페이지와 모든 하위 페이지를 삭제할까요?`
@@ -241,26 +286,30 @@ export function WorkspaceGatePage() {
           }
         }
       }
+      deletedIds.forEach((id) => pageContentCache.current.delete(id));
       const remaining = pages.filter((candidate) => !deletedIds.has(candidate.id));
       setPages(remaining);
       if (deletedIds.has(selectedPageId ?? "")) {
         const nextPage = remaining[0] ?? null;
-        setSelectedPageId(nextPage?.id ?? null);
-        setMarkdown(nextPage?.content ?? "");
+        if (nextPage) await selectPage(nextPage);
+        else {
+          setSelectedPageId(null);
+          setMarkdown("");
+        }
         skipNextServerSave.current = true;
       }
     } catch {
       showToast("페이지를 삭제하지 못했습니다.");
     }
-  }, [pages, selectedPageId, showToast]);
+  }, [pages, selectPage, selectedPageId, showToast]);
 
-  const beginRenamePage = (page: WorkspacePage) => {
+  const beginRenamePage = (page: WorkspacePageListItem) => {
     setOpenPageMenuId(null);
     setRenamingPageId(page.id);
     setRenameTitle(page.title);
   };
 
-  const commitPageRename = async (page: WorkspacePage) => {
+  const commitPageRename = async (page: WorkspacePageListItem) => {
     const nextTitle = renameTitle.trim();
     setRenamingPageId(null);
     if (!nextTitle || nextTitle === page.title) return;
@@ -285,7 +334,7 @@ export function WorkspaceGatePage() {
 
   const handlePageDrop = async (
     event: DragEvent<HTMLDivElement>,
-    targetPage: WorkspacePage,
+    targetPage: WorkspacePageListItem,
   ) => {
     event.preventDefault();
     event.stopPropagation();

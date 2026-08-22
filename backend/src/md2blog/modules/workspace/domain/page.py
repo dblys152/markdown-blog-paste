@@ -5,6 +5,17 @@ from md2blog.shared.domain.tsid import TSID
 
 
 @dataclass(frozen=True, slots=True)
+class PageListItem:
+    id: TSID
+    owner_id: TSID
+    title: str
+    parent_id: TSID | None = None
+    position: int = 0
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class Page:
     id: TSID
     owner_id: TSID

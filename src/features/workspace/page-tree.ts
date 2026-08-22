@@ -1,4 +1,4 @@
-import type { WorkspacePage } from "./api";
+import type { WorkspacePageListItem } from "./api";
 
 export type DropPlacement = "before" | "inside" | "after";
 
@@ -7,14 +7,14 @@ export type PageMoveDestination = {
   position: number;
 };
 
-function sortedSiblings(pages: WorkspacePage[], parentId: string | null, excludedId: string) {
+function sortedSiblings(pages: WorkspacePageListItem[], parentId: string | null, excludedId: string) {
   return pages
     .filter((page) => page.parent_id === parentId && page.id !== excludedId)
     .sort((left, right) => left.position - right.position || left.id.localeCompare(right.id));
 }
 
 export function resolvePageMoveDestination(
-  pages: WorkspacePage[],
+  pages: WorkspacePageListItem[],
   draggedId: string,
   targetId: string,
   placement: DropPlacement,
@@ -39,10 +39,10 @@ export function resolvePageMoveDestination(
 }
 
 export function applyPageMove(
-  pages: WorkspacePage[],
+  pages: WorkspacePageListItem[],
   pageId: string,
   destination: PageMoveDestination,
-): WorkspacePage[] {
+): WorkspacePageListItem[] {
   const movingPage = pages.find((page) => page.id === pageId);
   if (!movingPage) return pages;
 
@@ -56,7 +56,7 @@ export function applyPageMove(
   const movedPage = { ...movingPage, parent_id: destination.parentId, position: targetPosition };
   targetSiblings.splice(targetPosition, 0, movedPage);
 
-  const reordered = new Map<string, WorkspacePage>();
+  const reordered = new Map<string, WorkspacePageListItem>();
   if (oldParentId !== destination.parentId) {
     oldSiblings.forEach((page, index) => reordered.set(page.id, { ...page, position: index }));
   }

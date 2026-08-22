@@ -1,11 +1,14 @@
 import { authenticatedRequest } from "../auth/api";
 
-export type WorkspacePage = {
+export type WorkspacePageListItem = {
   id: string;
   title: string;
-  content: string;
   parent_id: string | null;
   position: number;
+};
+
+export type WorkspacePage = WorkspacePageListItem & {
+  content: string;
 };
 
 export type CreateWorkspacePageInput = {
@@ -24,16 +27,20 @@ export type MoveWorkspacePageInput = {
   position: number;
 };
 
-let listPagesPromise: Promise<WorkspacePage[]> | null = null;
+let listPagesPromise: Promise<WorkspacePageListItem[]> | null = null;
 
-export function listWorkspacePages(): Promise<WorkspacePage[]> {
+export function listWorkspacePages(): Promise<WorkspacePageListItem[]> {
   if (!listPagesPromise) {
-    listPagesPromise = authenticatedRequest<WorkspacePage[]>("/workspace/pages")
+    listPagesPromise = authenticatedRequest<WorkspacePageListItem[]>("/workspace/pages")
       .finally(() => {
         listPagesPromise = null;
       });
   }
   return listPagesPromise;
+}
+
+export function getWorkspacePage(pageId: string): Promise<WorkspacePage> {
+  return authenticatedRequest<WorkspacePage>(`/workspace/pages/${pageId}`);
 }
 
 export function createWorkspacePage(input: CreateWorkspacePageInput): Promise<WorkspacePage> {

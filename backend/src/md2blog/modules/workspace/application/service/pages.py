@@ -1,6 +1,7 @@
 from md2blog.modules.workspace.domain.page import (
     InvalidPageMoveError,
     Page,
+    PageListItem,
     PageNotFoundError,
     ParentPageNotFoundError,
 )
@@ -41,8 +42,19 @@ class ListPages:
     def __init__(self, pages: PageRepository) -> None:
         self._pages = pages
 
-    async def execute(self, owner_id: TSID) -> list[Page]:
+    async def execute(self, owner_id: TSID) -> list[PageListItem]:
         return await self._pages.list_by_owner(owner_id)
+
+
+class GetPage:
+    def __init__(self, pages: PageRepository) -> None:
+        self._pages = pages
+
+    async def execute(self, *, page_id: TSID, owner_id: TSID) -> Page:
+        page = await self._pages.find_owned_by_id(page_id, owner_id)
+        if page is None:
+            raise PageNotFoundError
+        return page
 
 
 class UpdatePage:
@@ -60,7 +72,11 @@ class UpdatePage:
         page = await self._pages.find_owned_by_id(page_id, owner_id)
         if page is None:
             raise PageNotFoundError
-        return await self._pages.update(page.revise(title=title, content=content))
+        return await self._pages.update(
+            page.revise(title=title, content=content),
+            title_changed=title is not None,
+            content_changed=content is not None,
+        )
 
 
 class DeletePage:
