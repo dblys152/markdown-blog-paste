@@ -2,13 +2,14 @@ import { authenticatedRequest } from "../auth/api";
 
 export type WorkspacePageListItem = {
   id: string;
+  owner_id: string;
   title: string;
   parent_id: string | null;
-  position: number;
+  sort_order: number;
 };
 
 export type WorkspacePage = WorkspacePageListItem & {
-  content: string;
+  contents: string;
 };
 
 export type CreateWorkspacePageInput = {
@@ -24,7 +25,7 @@ export type UpdateWorkspacePageInput = {
 
 export type MoveWorkspacePageInput = {
   parent_id: string | null;
-  position: number;
+  sort_order: number;
 };
 
 let listPagesPromise: Promise<WorkspacePageListItem[]> | null = null;

@@ -143,8 +143,8 @@ export function WorkspaceGatePage() {
           getWorkspacePage(firstPage.id)
             .then((detail) => {
               if (cancelled) return;
-              pageContentCache.current.set(detail.id, detail.content);
-              setMarkdown(detail.content);
+              pageContentCache.current.set(detail.id, detail.contents);
+              setMarkdown(detail.contents);
               skipNextServerSave.current = true;
               serverHydrated.current = true;
               setSaveState("saved");
@@ -212,7 +212,7 @@ export function WorkspaceGatePage() {
     const timer = window.setTimeout(() => {
       updateWorkspacePage(selectedPageId, { title, content: markdown })
         .then((updatedPage) => {
-          pageContentCache.current.set(updatedPage.id, updatedPage.content);
+          pageContentCache.current.set(updatedPage.id, updatedPage.contents);
           setPages((current) => current.map((page) => page.id === updatedPage.id ? updatedPage : page));
           setSaveState("saved");
         })
@@ -241,8 +241,8 @@ export function WorkspaceGatePage() {
     try {
       const detail = await getWorkspacePage(page.id);
       if (pageRequestId.current !== requestId) return;
-      pageContentCache.current.set(detail.id, detail.content);
-      setMarkdown(detail.content);
+      pageContentCache.current.set(detail.id, detail.contents);
+      setMarkdown(detail.contents);
       serverHydrated.current = true;
       setSaveState("saved");
     } catch {
@@ -259,7 +259,7 @@ export function WorkspaceGatePage() {
         content: "# 새 페이지\n",
         parent_id: parentId,
       });
-      pageContentCache.current.set(created.id, created.content);
+      pageContentCache.current.set(created.id, created.contents);
       setPages((current) => [...current, created]);
       await selectPage(created);
     } catch {
@@ -349,11 +349,11 @@ export function WorkspaceGatePage() {
     try {
       const moved = await moveWorkspacePage(draggedPageId, {
         parent_id: destination.parentId,
-        position: destination.position,
+        sort_order: destination.sortOrder,
       });
       setPages((current) => applyPageMove(current, moved.id, {
         parentId: moved.parent_id,
-        position: moved.position,
+        sortOrder: moved.sort_order,
       }));
     } catch {
       showToast("페이지를 이동하지 못했습니다.");
@@ -363,7 +363,7 @@ export function WorkspaceGatePage() {
   const renderPageTree = (parentId: string | null, depth = 0): ReactNode => {
     return pages
       .filter((page) => page.parent_id === parentId)
-      .sort((left, right) => left.position - right.position)
+      .sort((left, right) => left.sort_order - right.sort_order)
       .map((page) => (
         <div key={page.id} className="workspace-page-node">
           <div

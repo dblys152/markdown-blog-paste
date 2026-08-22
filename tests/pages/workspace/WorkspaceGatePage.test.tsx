@@ -76,31 +76,31 @@ describe("WorkspaceGatePage", () => {
     getWorkspacePage.mockImplementation(async (pageId: string) => ({
       id: pageId,
       title: "페이지",
-      content: "",
+      contents: "",
       parent_id: null,
-      position: 0,
+      sort_order: 0,
     }));
     createWorkspacePage.mockResolvedValue({
       id: "10",
       title: "새 페이지",
-      content: "# 새 페이지\n",
+      contents: "# 새 페이지\n",
       parent_id: null,
-      position: 0,
+      sort_order: 0,
     });
     updateWorkspacePage.mockImplementation(async (id, input) => ({
       id,
       title: input.title ?? "페이지",
-      content: input.content ?? "",
+      contents: input.content ?? "",
       parent_id: null,
-      position: 0,
+      sort_order: 0,
     }));
     deleteWorkspacePage.mockResolvedValue(undefined);
     moveWorkspacePage.mockImplementation(async (id, input) => ({
       id,
       title: "이동한 페이지",
-      content: "",
+      contents: "",
       parent_id: input.parent_id,
-      position: input.position,
+      sort_order: input.sort_order,
     }));
   });
 
@@ -232,15 +232,15 @@ describe("WorkspaceGatePage", () => {
         title: "개발 노트",
         content: "# 기존 본문",
         parent_id: null,
-        position: 0,
+        sort_order: 0,
       },
     ]);
     getWorkspacePage.mockResolvedValue({
       id: "10",
       title: "개발 노트",
-      content: "# 기존 본문",
+      contents: "# 기존 본문",
       parent_id: null,
-      position: 0,
+      sort_order: 0,
     });
     const user = userEvent.setup();
     renderPage();
@@ -281,15 +281,15 @@ describe("WorkspaceGatePage", () => {
   it("페이지 가운데에 드롭하면 하위 페이지로 이동한다", async () => {
     useAuth.mockReturnValue({ status: "authenticated", user: { id: "1" } });
     listWorkspacePages.mockResolvedValue([
-      { id: "10", title: "개발 노트", content: "", parent_id: null, position: 0 },
-      { id: "20", title: "API 설계", content: "", parent_id: null, position: 1 },
+      { id: "10", owner_id: "1", title: "개발 노트", parent_id: null, sort_order: 0 },
+      { id: "20", owner_id: "1", title: "API 설계", parent_id: null, sort_order: 1 },
     ]);
     moveWorkspacePage.mockResolvedValue({
       id: "20",
       title: "API 설계",
-      content: "",
+      contents: "",
       parent_id: "10",
-      position: 0,
+      sort_order: 0,
     });
     renderPage();
     const source = (await screen.findByRole("button", { name: "API 설계" })).closest(".workspace-page-item");
@@ -314,7 +314,7 @@ describe("WorkspaceGatePage", () => {
     await waitFor(() => {
       expect(moveWorkspacePage).toHaveBeenCalledWith("20", {
         parent_id: "10",
-        position: 0,
+        sort_order: 0,
       });
     });
   });
@@ -322,14 +322,14 @@ describe("WorkspaceGatePage", () => {
   it("페이지 메뉴에서 이름을 변경한다", async () => {
     useAuth.mockReturnValue({ status: "authenticated", user: { id: "1" } });
     listWorkspacePages.mockResolvedValue([
-      { id: "10", title: "개발 노트", content: "", parent_id: null, position: 0 },
+      { id: "10", owner_id: "1", title: "개발 노트", parent_id: null, sort_order: 0 },
     ]);
     updateWorkspacePage.mockResolvedValue({
       id: "10",
       title: "서버 설계",
-      content: "",
+      contents: "",
       parent_id: null,
-      position: 0,
+      sort_order: 0,
     });
     const user = userEvent.setup();
     renderPage();
@@ -353,7 +353,7 @@ describe("WorkspaceGatePage", () => {
         title: "아주 긴 페이지 이름 전체 내용",
         content: "",
         parent_id: null,
-        position: 0,
+        sort_order: 0,
       },
     ]);
     renderPage();
@@ -370,7 +370,7 @@ describe("WorkspaceGatePage", () => {
   it("페이지 목록 하단에서는 페이지 메뉴를 위쪽으로 연다", async () => {
     useAuth.mockReturnValue({ status: "authenticated", user: { id: "1" } });
     listWorkspacePages.mockResolvedValue([
-      { id: "10", title: "마지막 페이지", content: "", parent_id: null, position: 0 },
+      { id: "10", owner_id: "1", title: "마지막 페이지", parent_id: null, sort_order: 0 },
     ]);
     const user = userEvent.setup();
     renderPage();
@@ -388,15 +388,15 @@ describe("WorkspaceGatePage", () => {
   it("페이지 제목 바깥의 행을 클릭해도 해당 페이지를 선택한다", async () => {
     useAuth.mockReturnValue({ status: "authenticated", user: { id: "1" } });
     listWorkspacePages.mockResolvedValue([
-      { id: "10", title: "첫 페이지", content: "첫 내용", parent_id: null, position: 0 },
-      { id: "20", title: "둘째 페이지", content: "둘째 내용", parent_id: null, position: 1 },
+      { id: "10", owner_id: "1", title: "첫 페이지", parent_id: null, sort_order: 0 },
+      { id: "20", owner_id: "1", title: "둘째 페이지", parent_id: null, sort_order: 1 },
     ]);
     getWorkspacePage.mockImplementation(async (pageId: string) => ({
       id: pageId,
       title: pageId === "10" ? "첫 페이지" : "둘째 페이지",
-      content: pageId === "10" ? "첫 내용" : "둘째 내용",
+      contents: pageId === "10" ? "첫 내용" : "둘째 내용",
       parent_id: null,
-      position: pageId === "10" ? 0 : 1,
+      sort_order: pageId === "10" ? 0 : 1,
     }));
     renderPage();
 
@@ -413,8 +413,8 @@ describe("WorkspaceGatePage", () => {
   it("삭제 확인 문구는 실제 하위 페이지 존재 여부를 반영한다", async () => {
     useAuth.mockReturnValue({ status: "authenticated", user: { id: "1" } });
     listWorkspacePages.mockResolvedValue([
-      { id: "10", title: "개발 노트", content: "", parent_id: null, position: 0 },
-      { id: "20", title: "API 설계", content: "", parent_id: "10", position: 0 },
+      { id: "10", owner_id: "1", title: "개발 노트", parent_id: null, sort_order: 0 },
+      { id: "20", owner_id: "1", title: "API 설계", parent_id: "10", sort_order: 0 },
     ]);
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
     const user = userEvent.setup();
@@ -430,4 +430,5 @@ describe("WorkspaceGatePage", () => {
       "'개발 노트' 페이지와 모든 하위 페이지를 삭제할까요?",
     );
   });
+
 });

@@ -4,13 +4,13 @@ export type DropPlacement = "before" | "inside" | "after";
 
 export type PageMoveDestination = {
   parentId: string | null;
-  position: number;
+  sortOrder: number;
 };
 
 function sortedSiblings(pages: WorkspacePageListItem[], parentId: string | null, excludedId: string) {
   return pages
     .filter((page) => page.parent_id === parentId && page.id !== excludedId)
-    .sort((left, right) => left.position - right.position || left.id.localeCompare(right.id));
+    .sort((left, right) => left.sort_order - right.sort_order || left.id.localeCompare(right.id));
 }
 
 export function resolvePageMoveDestination(
@@ -25,7 +25,7 @@ export function resolvePageMoveDestination(
   if (placement === "inside") {
     return {
       parentId: target.id,
-      position: sortedSiblings(pages, target.id, draggedId).length,
+      sortOrder: sortedSiblings(pages, target.id, draggedId).length,
     };
   }
 
@@ -34,7 +34,7 @@ export function resolvePageMoveDestination(
   if (targetIndex < 0) return null;
   return {
     parentId: target.parent_id,
-    position: targetIndex + (placement === "after" ? 1 : 0),
+    sortOrder: targetIndex + (placement === "after" ? 1 : 0),
   };
 }
 
@@ -52,18 +52,18 @@ export function applyPageMove(
   const targetSiblings = oldParentId === destination.parentId
     ? oldSiblings
     : sortedSiblings(withoutMoving, destination.parentId, pageId);
-  const targetPosition = Math.min(destination.position, targetSiblings.length);
-  const movedPage = { ...movingPage, parent_id: destination.parentId, position: targetPosition };
+  const targetPosition = Math.min(destination.sortOrder, targetSiblings.length);
+  const movedPage = { ...movingPage, parent_id: destination.parentId, sort_order: targetPosition };
   targetSiblings.splice(targetPosition, 0, movedPage);
 
   const reordered = new Map<string, WorkspacePageListItem>();
   if (oldParentId !== destination.parentId) {
-    oldSiblings.forEach((page, index) => reordered.set(page.id, { ...page, position: index }));
+    oldSiblings.forEach((page, index) => reordered.set(page.id, { ...page, sort_order: index }));
   }
   targetSiblings.forEach((page, index) => reordered.set(page.id, {
     ...page,
     parent_id: destination.parentId,
-    position: index,
+    sort_order: index,
   }));
 
   return pages.map((page) => reordered.get(page.id) ?? page);

@@ -238,7 +238,7 @@ export function MarkdownPastePage() {
           const targetPage = workspacePages.find((page) => page.id === workspaceSaveTarget);
           if (!targetPage) throw new Error("저장 대상을 찾을 수 없습니다.");
           const existingMarkdown = saveMode === "append"
-            ? (await getWorkspacePage(targetPage.id)).content.trimEnd()
+            ? (await getWorkspacePage(targetPage.id)).contents.trimEnd()
             : "";
           const nextMarkdown = saveMode === "append" && existingMarkdown
             ? `${existingMarkdown}\n\n${markdownText}`

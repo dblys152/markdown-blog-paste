@@ -6,7 +6,9 @@ from md2blog.shared.infrastructure.persistence import Base, TimestampMixin, TSID
 
 class PageModel(TSIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "pages"
-    __table_args__ = (Index("ix_pages_owner_parent_position", "owner_id", "parent_id", "position"),)
+    __table_args__ = (
+        Index("ix_pages_owner_parent_sort_order", "owner_id", "parent_id", "sort_order"),
+    )
 
     owner_id: Mapped[int] = mapped_column(
         BigInteger,
@@ -20,7 +22,7 @@ class PageModel(TSIDPrimaryKeyMixin, TimestampMixin, Base):
         index=True,
     )
     title: Mapped[str] = mapped_column(String(200), nullable=False)
-    position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
 
 class PageContentModel(TimestampMixin, Base):

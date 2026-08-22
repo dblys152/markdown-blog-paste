@@ -1,6 +1,7 @@
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from md2blog.modules.workspace.application.factory.pages import CreatePageCommandFactory
 from md2blog.modules.workspace.application.service.pages import (
     CreatePage,
     DeletePage,
@@ -9,7 +10,10 @@ from md2blog.modules.workspace.application.service.pages import (
     MovePage,
     UpdatePage,
 )
-from md2blog.modules.workspace.infrastructure.repositories import SqlAlchemyPageRepository
+from md2blog.modules.workspace.infrastructure.repositories import (
+    SqlAlchemyPageQueryRepository,
+    SqlAlchemyPageRepository,
+)
 from md2blog.shared.infrastructure.database import get_session
 
 
@@ -17,12 +21,18 @@ def get_create_page(session: AsyncSession = Depends(get_session)) -> CreatePage:
     return CreatePage(SqlAlchemyPageRepository(session))
 
 
+def get_create_page_command_factory(
+    session: AsyncSession = Depends(get_session),
+) -> CreatePageCommandFactory:
+    return CreatePageCommandFactory(SqlAlchemyPageRepository(session))
+
+
 def get_list_pages(session: AsyncSession = Depends(get_session)) -> ListPages:
-    return ListPages(SqlAlchemyPageRepository(session))
+    return ListPages(SqlAlchemyPageQueryRepository(session))
 
 
 def get_page(session: AsyncSession = Depends(get_session)) -> GetPage:
-    return GetPage(SqlAlchemyPageRepository(session))
+    return GetPage(SqlAlchemyPageQueryRepository(session))
 
 
 def get_update_page(session: AsyncSession = Depends(get_session)) -> UpdatePage:

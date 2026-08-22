@@ -49,7 +49,7 @@ describe("workspace api", () => {
     await createWorkspacePage({ title: "새 페이지", parent_id: null });
     await updateWorkspacePage("10", { content: "# 본문" });
     await deleteWorkspacePage("10");
-    await moveWorkspacePage("10", { parent_id: "20", position: 1 });
+    await moveWorkspacePage("10", { parent_id: "20", sort_order: 1 });
 
     expect(authenticatedRequest).toHaveBeenNthCalledWith(1, "/workspace/pages", {
       method: "POST",
@@ -64,7 +64,8 @@ describe("workspace api", () => {
     });
     expect(authenticatedRequest).toHaveBeenNthCalledWith(4, "/workspace/pages/10/move", {
       method: "PATCH",
-      body: JSON.stringify({ parent_id: "20", position: 1 }),
+      body: JSON.stringify({ parent_id: "20", sort_order: 1 }),
     });
   });
+
 });

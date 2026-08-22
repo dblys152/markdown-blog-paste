@@ -1,78 +1,158 @@
 from dataclasses import dataclass, replace
-from datetime import datetime
+from datetime import UTC, datetime
 
+from md2blog.modules.workspace.domain.commands import (
+    CreatePageCommand,
+    MovePageCommand,
+    UpdatePageCommand,
+)
 from md2blog.shared.domain.tsid import TSID
 
 
 @dataclass(frozen=True, slots=True)
-class PageListItem:
-    id: TSID
-    owner_id: TSID
-    title: str
-    parent_id: TSID | None = None
-    position: int = 0
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
+class PageContent:
+    page_id: TSID
+    content: str
+
+    def revise(self, content: str) -> "PageContent":
+        return replace(self, content=content)
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, kw_only=True)
 class Page:
     id: TSID
     owner_id: TSID
+    parent_id: TSID | None
     title: str
-    content: str
-    parent_id: TSID | None = None
-    position: int = 0
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
+    content: PageContent
+    sort_order: int
+    created_at: datetime
+    updated_at: datetime
 
     def __post_init__(self) -> None:
         normalized_title = self.title.strip()
         if not normalized_title:
-            raise ValueError("page title must not be blank")
+            raise BlankPageTitleError
         if len(normalized_title) > 200:
-            raise ValueError("page title must not exceed 200 characters")
-        if self.position < 0:
-            raise ValueError("page position must not be negative")
+            raise PageTitleTooLongError
+        if self.sort_order < 0:
+            raise InvalidPageSortOrderError
+        if self.parent_id == self.id:
+            raise InvalidPageParentError
+        if self.content.page_id != self.id:
+            raise InvalidPageContentError
         object.__setattr__(self, "title", normalized_title)
 
     @classmethod
     def create(
         cls,
+        command: CreatePageCommand,
         *,
-        owner_id: TSID,
-        title: str,
-        content: str = "",
-        parent_id: TSID | None = None,
-        position: int = 0,
+        created_at: datetime | None = None,
     ) -> "Page":
+        page_id = TSID.generate()
+        now = created_at or datetime.now(UTC)
         return cls(
-            id=TSID.generate(),
-            owner_id=owner_id,
-            title=title,
-            content=content,
-            parent_id=parent_id,
-            position=position,
+            id=page_id,
+            owner_id=command.owner_id,
+            title=command.title,
+            content=PageContent(page_id=page_id, content=command.content),
+            parent_id=command.parent_id,
+            sort_order=command.sort_order,
+            created_at=now,
+            updated_at=now,
         )
 
-    def revise(self, *, title: str | None = None, content: str | None = None) -> "Page":
+    def update(
+        self,
+        command: UpdatePageCommand,
+        *,
+        changed_at: datetime | None = None,
+    ) -> "Page":
+        if command.page_id != self.id or command.owner_id != self.owner_id:
+            raise InvalidPageCommandTargetError
+        page = self
+        now = changed_at or datetime.now(UTC)
+        if command.title is not None:
+            page = replace(page, title=command.title, updated_at=now)
+        if command.content is not None:
+            page = replace(
+                page,
+                content=page.content.revise(command.content),
+                updated_at=now,
+            )
+        return page
+
+    def rename(self, title: str, *, changed_at: datetime | None = None) -> "Page":
         return replace(
             self,
-            title=self.title if title is None else title,
-            content=self.content if content is None else content,
+            title=title,
+            updated_at=changed_at or datetime.now(UTC),
         )
 
-    def move_to(self, *, parent_id: TSID | None, position: int) -> "Page":
-        if parent_id == self.id:
+    def revise_content(
+        self,
+        content: str,
+        *,
+        changed_at: datetime | None = None,
+    ) -> "Page":
+        return replace(
+            self,
+            content=self.content.revise(content),
+            updated_at=changed_at or datetime.now(UTC),
+        )
+
+    def move_to(
+        self,
+        command: MovePageCommand,
+        *,
+        changed_at: datetime | None = None,
+    ) -> "Page":
+        if command.page_id != self.id or command.owner_id != self.owner_id:
+            raise InvalidPageCommandTargetError
+        if command.parent_id == self.id:
             raise InvalidPageMoveError
-        return replace(self, parent_id=parent_id, position=position)
+        return replace(
+            self,
+            parent_id=command.parent_id,
+            sort_order=command.sort_order,
+            updated_at=changed_at or datetime.now(UTC),
+        )
 
 
 class PageNotFoundError(Exception):
     pass
 
 
-class InvalidPageMoveError(Exception):
+class PageDomainError(Exception):
+    pass
+
+
+class BlankPageTitleError(PageDomainError):
+    pass
+
+
+class PageTitleTooLongError(PageDomainError):
+    pass
+
+
+class InvalidPageSortOrderError(PageDomainError):
+    pass
+
+
+class InvalidPageParentError(PageDomainError):
+    pass
+
+
+class InvalidPageContentError(PageDomainError):
+    pass
+
+
+class InvalidPageMoveError(PageDomainError):
+    pass
+
+
+class InvalidPageCommandTargetError(PageDomainError):
     pass
 
 

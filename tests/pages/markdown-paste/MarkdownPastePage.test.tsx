@@ -77,7 +77,7 @@ describe("MarkdownPastePage", () => {
       title: "개발 노트",
       content: "기존 내용",
       parent_id: null,
-      position: 0,
+      sort_order: 0,
     });
     createWorkspacePage.mockResolvedValue(undefined);
     updateWorkspacePage.mockResolvedValue(undefined);
@@ -297,7 +297,7 @@ describe("MarkdownPastePage", () => {
   it("로그인 사용자는 임시 페이지 대신 서버 기록장 저장 대상을 선택한다", async () => {
     useAuth.mockReturnValue({ status: "authenticated", user: { id: "1" } });
     listWorkspacePages.mockResolvedValue([
-      { id: "10", title: "개발 노트", content: "기존 내용", parent_id: null, position: 0 },
+      { id: "10", owner_id: "1", title: "개발 노트", parent_id: null, sort_order: 0 },
     ]);
     const user = userEvent.setup();
     renderPage();
