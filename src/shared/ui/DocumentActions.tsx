@@ -2,16 +2,18 @@ import { useEffect, useRef, useState } from "react";
 import type { ConversionResult } from "../markdown/types";
 import { copyPreviewHtml } from "../export/clipboard";
 import { downloadHtml } from "../export/html-export";
+import { downloadMarkdown } from "../export/markdown-export";
 import { downloadPdf } from "../export/pdf-export";
 
 interface DocumentActionsProps {
   result: ConversionResult | null;
+  markdown: string;
   title: string;
   onMessage: (message: string) => void;
   onSave?: () => void | Promise<void>;
 }
 
-export function DocumentActions({ result, title, onMessage, onSave }: DocumentActionsProps) {
+export function DocumentActions({ result, markdown, title, onMessage, onSave }: DocumentActionsProps) {
   const [isExportOpen, setIsExportOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -69,6 +71,11 @@ export function DocumentActions({ result, title, onMessage, onSave }: DocumentAc
               onMessage("HTML 파일 다운로드를 시작했습니다.");
             }}><span aria-hidden="true">&lt;/&gt;</span><span><strong>HTML 다운로드</strong><small>브라우저에서 열 수 있는 문서</small></span></button>
             <button type="button" role="menuitem" onClick={() => void handlePdf()}><span aria-hidden="true">▤</span><span><strong>PDF 다운로드</strong><small>공유하기 좋은 문서 파일</small></span></button>
+            <button type="button" role="menuitem" onClick={() => {
+              setIsExportOpen(false);
+              downloadMarkdown(markdown, title);
+              onMessage("Markdown 파일 다운로드를 시작했습니다.");
+            }}><span aria-hidden="true">#</span><span><strong>Markdown 다운로드</strong><small>원본 Markdown 문서</small></span></button>
           </div>
         )}
       </div>

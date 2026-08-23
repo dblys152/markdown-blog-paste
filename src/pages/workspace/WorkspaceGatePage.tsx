@@ -917,7 +917,7 @@ export function WorkspaceGatePage() {
       <section className="workspace-preview" aria-labelledby="workspace-preview-title">
         <div className="workspace-preview-heading">
           <strong id="workspace-preview-title">미리보기</strong>
-          <DocumentActions result={isConverting ? null : result} title={title} onMessage={showToast} />
+          <DocumentActions result={isConverting ? null : result} markdown={markdown} title={title} onMessage={showToast} />
         </div>
         <iframe title={`${title} 미리보기`} srcDoc={result?.fullHtml ?? ""} />
         <footer className="workspace-statusbar is-preview"><span>{markdown.length.toLocaleString("ko-KR")}자</span><span>미리보기</span></footer>

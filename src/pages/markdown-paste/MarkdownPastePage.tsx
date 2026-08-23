@@ -371,7 +371,7 @@ export function MarkdownPastePage() {
                   <button type="button" role="tab" aria-selected={activeTab === "preview"} onClick={() => setActiveTab("preview")}>미리보기</button>
                   <button type="button" role="tab" aria-selected={activeTab === "source"} onClick={() => setActiveTab("source")}>원본 Markdown</button>
                 </div>
-                <DocumentActions result={isConverting ? null : result} title={outputTitle} onMessage={showToast} onSave={openSaveDialog} />
+                <DocumentActions result={isConverting ? null : result} markdown={markdownText} title={outputTitle} onMessage={showToast} onSave={openSaveDialog} />
               </div>
               <div className="preview-wrap">
                 {activeTab === "source" ? (

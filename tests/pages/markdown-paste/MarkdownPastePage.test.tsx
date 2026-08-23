@@ -7,6 +7,7 @@ const {
   convertMarkdown,
   copyPreviewHtml,
   downloadHtml,
+  downloadMarkdown,
   downloadPdf,
   loadGuestDraft,
   saveGuestDraft,
@@ -19,6 +20,7 @@ const {
   convertMarkdown: vi.fn(),
   copyPreviewHtml: vi.fn(),
   downloadHtml: vi.fn(),
+  downloadMarkdown: vi.fn(),
   downloadPdf: vi.fn(),
   loadGuestDraft: vi.fn(),
   saveGuestDraft: vi.fn(),
@@ -35,6 +37,7 @@ vi.mock("../../../src/shared/export/clipboard", () => ({
   copyPreviewHtml,
 }));
 vi.mock("../../../src/shared/export/html-export", () => ({ downloadHtml }));
+vi.mock("../../../src/shared/export/markdown-export", () => ({ downloadMarkdown }));
 vi.mock("../../../src/shared/export/pdf-export", () => ({ downloadPdf }));
 vi.mock("../../../src/pages/workspace/guest-draft-store", () => ({ loadGuestDraft, saveGuestDraft }));
 vi.mock("../../../src/features/auth/AuthProvider", () => ({ useAuth }));
@@ -146,6 +149,17 @@ describe("MarkdownPastePage", () => {
     await user.click(screen.getByRole("menuitem", { name: /HTML 다운로드/ }));
 
     expect(downloadHtml).toHaveBeenCalledWith(conversionResult.fullHtml, "sample-post");
+  });
+
+  it("내보내기 메뉴에서 원본 Markdown을 다운로드한다", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByTitle("변환 결과");
+
+    await user.click(screen.getByRole("button", { name: /내보내기/ }));
+    await user.click(screen.getByRole("menuitem", { name: /Markdown 다운로드/ }));
+
+    expect(downloadMarkdown).toHaveBeenCalledWith(expect.stringContaining("# "), "sample-post");
   });
 
   it("미리보기 복사 결과를 토스트로 안내한다", async () => {
