@@ -220,6 +220,7 @@ pages
 - sort_order
 - created_at
 - updated_at
+- deleted_at (nullable)
 
 page_contents
 - page_id (PK, FK -> pages.id, ON DELETE CASCADE)
@@ -230,6 +231,9 @@ page_contents
 
 - `pages.parent_id`는 같은 테이블의 `id`를 참조하여 페이지 계층을 표현합니다.
 - `page_contents.page_id`는 페이지와 일대일 관계이며 페이지 삭제 시 함께 삭제됩니다.
+- `pages.deleted_at`이 없으면 활성 페이지, 값이 있으면 휴지통 페이지입니다.
+- 페이지를 삭제하면 해당 페이지와 모든 하위 페이지에 같은 삭제 시각을 기록합니다.
+- 삭제일로부터 30일이 지난 페이지는 정기 정리 작업에서 하드 삭제하며 본문도 함께 삭제됩니다.
 - 페이지 생성 시 메타데이터와 본문을 같은 트랜잭션에서 저장합니다.
 - 목록 조회는 `pages`에서 필요한 컬럼만 선택하고 본문 테이블을 조인하지 않습니다.
 - 상세 조회와 본문 수정에서만 `page_contents`에 접근합니다.
@@ -246,6 +250,10 @@ GET    /workspace/pages/{page_id}
 PATCH  /workspace/pages/{page_id}
 DELETE /workspace/pages/{page_id}
 PATCH  /workspace/pages/{page_id}/move
+GET    /workspace/trash
+GET    /workspace/trash/{page_id}
+POST   /workspace/trash/{page_id}/restore
+DELETE /workspace/trash/{page_id}
 ```
 
 - 목록 API는 `id`, `owner_id`, `title`, `parent_id`, `sort_order`만 반환합니다.
@@ -253,6 +261,11 @@ PATCH  /workspace/pages/{page_id}/move
 - 프론트엔드는 목록 응답을 먼저 표시하고 선택한 페이지의 상세를 지연 조회합니다.
 - 조회한 본문은 현재 애플리케이션 세션의 메모리에 캐시하여 같은 페이지 재선택 시 재사용합니다.
 - 모든 조회와 변경은 인증 사용자의 소유권을 검증합니다.
+- 일반 페이지 API는 휴지통 페이지를 반환하지 않습니다.
+- 휴지통 목록은 `parent_id`, `sort_order`를 포함해 삭제된 페이지 계층 전체를 반환합니다.
+- 삭제된 페이지 상세 API는 Markdown 본문을 반환하며 프론트엔드는 읽기 전용 편집기와 미리보기로 표시합니다.
+- 복원과 영구 삭제는 삭제 묶음의 최상위 페이지에서 실행하며 하위 페이지에도 함께 적용합니다.
+- 30일 경과 페이지 정리 작업은 `python -m md2blog.jobs.purge_expired_pages`로 실행합니다.
 
 ## 6. 인증 설계
 
@@ -467,7 +480,6 @@ SQLite로 PostgreSQL 동작을 대신하지 않고 테스트용 PostgreSQL을 �
 - 이메일 발송 서비스
 - Access Token 전달 방식의 최종 선택
 - CORS와 쿠키를 단순화할 커스텀 도메인 구조
-- 페이지 삭제 및 복구 정책
 - 전문 검색 도입 여부
 - 첨부 파일 저장소
 - 협업 및 공유 기능의 범위

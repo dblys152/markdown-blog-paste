@@ -23,6 +23,7 @@ dependencies = [
 
 [project.scripts]
 md2blog-api = "md2blog.main:run"
+md2blog-purge-expired-pages = "md2blog.jobs.purge_expired_pages:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

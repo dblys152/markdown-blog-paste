@@ -1,8 +1,14 @@
+from datetime import datetime, timedelta
+
 from sqlalchemy import delete, func, insert, literal, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from md2blog.modules.workspace.application.model.pages import PageDetail, PageListItem
+from md2blog.modules.workspace.application.model.pages import (
+    PageDetail,
+    PageListItem,
+    TrashedPageListItem,
+)
 from md2blog.modules.workspace.domain.page import Page, PageContent
 from md2blog.modules.workspace.infrastructure.models import PageContentModel, PageModel
 from md2blog.shared.domain.tsid import TSID
@@ -23,6 +29,7 @@ class SqlAlchemyPageRepository:
                 sort_order=page.sort_order,
                 created_at=page.created_at,
                 updated_at=page.updated_at,
+                deleted_at=page.deleted_at,
             )
             .returning(PageModel.id)
             .cte("inserted_page")
@@ -45,6 +52,7 @@ class SqlAlchemyPageRepository:
                 parent_id=page.parent_id.value if page.parent_id else None,
                 sort_order=page.sort_order,
                 updated_at=page.updated_at,
+                deleted_at=page.deleted_at,
             )
         )
         await self._session.execute(statement)
@@ -83,6 +91,7 @@ class SqlAlchemyPageRepository:
         filters = [
             PageModel.owner_id == owner_id.value,
             parent_filter,
+            PageModel.deleted_at.is_(None),
         ]
         if exclude_id is not None:
             filters.append(PageModel.id != exclude_id.value)
@@ -105,10 +114,42 @@ class SqlAlchemyPageRepository:
             .where(
                 PageModel.id == page_id.value,
                 PageModel.owner_id == owner_id.value,
+                PageModel.deleted_at.is_(None),
             )
         )
         row = (await self._session.execute(statement)).one_or_none()
         return None if row is None else self._to_domain(row[0], row[1])
+
+    async def find_trashed_by_id(self, page_id: TSID, owner_id: TSID) -> Page | None:
+        statement = (
+            select(PageModel, PageContentModel.content)
+            .join(PageContentModel, PageContentModel.page_id == PageModel.id)
+            .where(
+                PageModel.id == page_id.value,
+                PageModel.owner_id == owner_id.value,
+                PageModel.deleted_at.is_not(None),
+            )
+        )
+        row = (await self._session.execute(statement)).one_or_none()
+        return None if row is None else self._to_domain(row[0], row[1])
+
+    async def find_all_trashed_by_parent_id(
+        self,
+        owner_id: TSID,
+        parent_id: TSID,
+    ) -> list[Page]:
+        statement = (
+            select(PageModel, PageContentModel.content)
+            .join(PageContentModel, PageContentModel.page_id == PageModel.id)
+            .where(
+                PageModel.owner_id == owner_id.value,
+                PageModel.parent_id == parent_id.value,
+                PageModel.deleted_at.is_not(None),
+            )
+            .order_by(PageModel.sort_order, PageModel.id)
+        )
+        rows = (await self._session.execute(statement)).all()
+        return [self._to_domain(model, content) for model, content in rows]
 
     async def next_sort_order(
         self,
@@ -121,6 +162,7 @@ class SqlAlchemyPageRepository:
             ).where(
                 PageModel.owner_id == owner_id.value,
                 PageModel.parent_id.is_(None),
+                PageModel.deleted_at.is_(None),
             )
             return int(await self._session.scalar(statement))
 
@@ -132,11 +174,13 @@ class SqlAlchemyPageRepository:
             .outerjoin(
                 sibling,
                 (sibling.owner_id == owner_id.value)
-                & (sibling.parent_id == parent.id),
+                & (sibling.parent_id == parent.id)
+                & sibling.deleted_at.is_(None),
             )
             .where(
                 parent.id == parent_id.value,
                 parent.owner_id == owner_id.value,
+                parent.deleted_at.is_(None),
             )
             .group_by(parent.id)
         )
@@ -154,7 +198,20 @@ class SqlAlchemyPageRepository:
             sort_order=model.sort_order,
             created_at=model.created_at,
             updated_at=model.updated_at,
+            deleted_at=model.deleted_at,
         )
+
+    async def delete_expired(self, threshold: datetime) -> int:
+        page_ids = list(
+            await self._session.scalars(
+                select(PageModel.id).where(PageModel.deleted_at <= threshold)
+            )
+        )
+        if not page_ids:
+            return 0
+        await self._session.execute(delete(PageModel).where(PageModel.id.in_(page_ids)))
+        await self._session.flush()
+        return len(page_ids)
 
 
 class SqlAlchemyPageQueryRepository:
@@ -172,6 +229,7 @@ class SqlAlchemyPageQueryRepository:
             )
             .where(
                 PageModel.owner_id == owner_id.value,
+                PageModel.deleted_at.is_(None),
             )
             .order_by(PageModel.parent_id.nullsfirst(), PageModel.sort_order, PageModel.id)
         )
@@ -194,6 +252,66 @@ class SqlAlchemyPageQueryRepository:
             .where(
                 PageModel.id == page_id.value,
                 PageModel.owner_id == owner_id.value,
+                PageModel.deleted_at.is_(None),
+            )
+        )
+        row = (await self._session.execute(statement)).one_or_none()
+        if row is None:
+            return None
+        model, contents = row
+        return PageDetail(
+            id=TSID(model.id),
+            owner_id=TSID(model.owner_id),
+            parent_id=TSID(model.parent_id) if model.parent_id is not None else None,
+            title=model.title,
+            contents=contents,
+            sort_order=model.sort_order,
+        )
+
+    async def find_all_trashed_by_owner_id(
+        self,
+        owner_id: TSID,
+    ) -> list[TrashedPageListItem]:
+        statement = (
+            select(
+                PageModel.id,
+                PageModel.parent_id,
+                PageModel.title,
+                PageModel.sort_order,
+                PageModel.deleted_at,
+            )
+            .where(
+                PageModel.owner_id == owner_id.value,
+                PageModel.deleted_at.is_not(None),
+            )
+            .order_by(PageModel.deleted_at.desc(), PageModel.sort_order, PageModel.id)
+        )
+        rows = (await self._session.execute(statement)).all()
+        return [
+            TrashedPageListItem(
+                id=TSID(row.id),
+                parent_id=TSID(row.parent_id) if row.parent_id is not None else None,
+                title=row.title,
+                sort_order=row.sort_order,
+                deleted_at=row.deleted_at,
+                expires_at=row.deleted_at + timedelta(days=30),
+            )
+            for row in rows
+            if row.deleted_at is not None
+        ]
+
+    async def find_trashed_detail_by_id(
+        self,
+        page_id: TSID,
+        owner_id: TSID,
+    ) -> PageDetail | None:
+        statement = (
+            select(PageModel, PageContentModel.content)
+            .join(PageContentModel, PageContentModel.page_id == PageModel.id)
+            .where(
+                PageModel.id == page_id.value,
+                PageModel.owner_id == owner_id.value,
+                PageModel.deleted_at.is_not(None),
             )
         )
         row = (await self._session.execute(statement)).one_or_none()

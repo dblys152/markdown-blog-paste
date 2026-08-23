@@ -1,10 +1,16 @@
 from typing import Protocol
 
-from md2blog.modules.workspace.application.model.pages import PageDetail, PageListItem
+from md2blog.modules.workspace.application.model.pages import (
+    PageDetail,
+    PageListItem,
+    TrashedPageListItem,
+)
 from md2blog.modules.workspace.domain.commands import (
     CreatePageCommand,
     DeletePageCommand,
     MovePageCommand,
+    PermanentlyDeletePageCommand,
+    RestorePageCommand,
     UpdatePageCommand,
 )
 from md2blog.shared.domain.tsid import TSID
@@ -32,3 +38,19 @@ class DeletePageUseCase(Protocol):
 
 class MovePageUseCase(Protocol):
     async def execute(self, command: MovePageCommand) -> PageDetail: ...
+
+
+class ListTrashedPagesUseCase(Protocol):
+    async def execute(self, owner_id: TSID) -> list[TrashedPageListItem]: ...
+
+
+class GetTrashedPageUseCase(Protocol):
+    async def execute(self, *, page_id: TSID, owner_id: TSID) -> PageDetail: ...
+
+
+class RestorePageUseCase(Protocol):
+    async def execute(self, command: RestorePageCommand) -> None: ...
+
+
+class PermanentlyDeletePageUseCase(Protocol):
+    async def execute(self, command: PermanentlyDeletePageCommand) -> None: ...

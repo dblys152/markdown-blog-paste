@@ -1,6 +1,12 @@
+from datetime import datetime
+
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from md2blog.modules.workspace.application.model.pages import PageDetail, PageListItem
+from md2blog.modules.workspace.application.model.pages import (
+    PageDetail,
+    PageListItem,
+    TrashedPageListItem,
+)
 from md2blog.shared.domain.tsid import TSID
 
 
@@ -75,4 +81,24 @@ class PageListItemResponse(BaseModel):
             title=page.title,
             parent_id=str(page.parent_id) if page.parent_id else None,
             sort_order=page.sort_order,
+        )
+
+
+class TrashedPageListItemResponse(BaseModel):
+    id: str
+    parent_id: str | None
+    title: str
+    sort_order: int
+    deleted_at: datetime
+    expires_at: datetime
+
+    @classmethod
+    def from_model(cls, page: TrashedPageListItem) -> "TrashedPageListItemResponse":
+        return cls(
+            id=str(page.id),
+            parent_id=str(page.parent_id) if page.parent_id else None,
+            title=page.title,
+            sort_order=page.sort_order,
+            deleted_at=page.deleted_at,
+            expires_at=page.expires_at,
         )

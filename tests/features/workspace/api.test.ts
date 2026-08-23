@@ -8,8 +8,12 @@ import {
   createWorkspacePage,
   deleteWorkspacePage,
   getWorkspacePage,
+  getTrashedWorkspacePage,
   listWorkspacePages,
+  listTrashedWorkspacePages,
   moveWorkspacePage,
+  permanentlyDeleteWorkspacePage,
+  restoreWorkspacePage,
   updateWorkspacePage,
 } from "../../../src/features/workspace/api";
 
@@ -65,6 +69,24 @@ describe("workspace api", () => {
     expect(authenticatedRequest).toHaveBeenNthCalledWith(4, "/workspace/pages/10/move", {
       method: "PATCH",
       body: JSON.stringify({ parent_id: "20", sort_order: 1 }),
+    });
+  });
+
+  it("휴지통 조회·복원·영구 삭제 요청을 전달한다", async () => {
+    authenticatedRequest.mockResolvedValue(undefined);
+
+    await listTrashedWorkspacePages();
+    await getTrashedWorkspacePage("10");
+    await restoreWorkspacePage("10");
+    await permanentlyDeleteWorkspacePage("10");
+
+    expect(authenticatedRequest).toHaveBeenNthCalledWith(1, "/workspace/trash");
+    expect(authenticatedRequest).toHaveBeenNthCalledWith(2, "/workspace/trash/10");
+    expect(authenticatedRequest).toHaveBeenNthCalledWith(3, "/workspace/trash/10/restore", {
+      method: "POST",
+    });
+    expect(authenticatedRequest).toHaveBeenNthCalledWith(4, "/workspace/trash/10", {
+      method: "DELETE",
     });
   });
 

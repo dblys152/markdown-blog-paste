@@ -12,6 +12,15 @@ export type WorkspacePage = WorkspacePageListItem & {
   contents: string;
 };
 
+export type TrashedWorkspacePage = {
+  id: string;
+  parent_id: string | null;
+  title: string;
+  sort_order: number;
+  deleted_at: string;
+  expires_at: string;
+};
+
 export type CreateWorkspacePageInput = {
   title: string;
   content?: string;
@@ -72,5 +81,25 @@ export function moveWorkspacePage(
   return authenticatedRequest<WorkspacePage>(`/workspace/pages/${pageId}/move`, {
     method: "PATCH",
     body: JSON.stringify(input),
+  });
+}
+
+export function listTrashedWorkspacePages(): Promise<TrashedWorkspacePage[]> {
+  return authenticatedRequest<TrashedWorkspacePage[]>("/workspace/trash");
+}
+
+export function getTrashedWorkspacePage(pageId: string): Promise<WorkspacePage> {
+  return authenticatedRequest<WorkspacePage>(`/workspace/trash/${pageId}`);
+}
+
+export function restoreWorkspacePage(pageId: string): Promise<void> {
+  return authenticatedRequest<void>(`/workspace/trash/${pageId}/restore`, {
+    method: "POST",
+  });
+}
+
+export function permanentlyDeleteWorkspacePage(pageId: string): Promise<void> {
+  return authenticatedRequest<void>(`/workspace/trash/${pageId}`, {
+    method: "DELETE",
   });
 }

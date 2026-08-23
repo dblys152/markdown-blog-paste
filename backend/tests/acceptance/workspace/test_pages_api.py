@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock
 
 import httpx
@@ -6,11 +7,17 @@ from md2blog.main import create_app
 from md2blog.modules.identity.domain.user import User
 from md2blog.modules.identity.domain.value_objects import DisplayName, Email, PasswordHash
 from md2blog.modules.identity.presentation.dependencies import get_current_user
-from md2blog.modules.workspace.application.model.pages import PageDetail, PageListItem
+from md2blog.modules.workspace.application.model.pages import (
+    PageDetail,
+    PageListItem,
+    TrashedPageListItem,
+)
 from md2blog.modules.workspace.domain.commands import (
     CreatePageCommand,
     DeletePageCommand,
     MovePageCommand,
+    PermanentlyDeletePageCommand,
+    RestorePageCommand,
     UpdatePageCommand,
 )
 from md2blog.modules.workspace.presentation.dependencies import (
@@ -18,8 +25,12 @@ from md2blog.modules.workspace.presentation.dependencies import (
     get_create_page_command_factory,
     get_delete_page,
     get_list_pages,
+    get_list_trashed_pages,
     get_move_page,
     get_page,
+    get_permanently_delete_page,
+    get_restore_page,
+    get_trashed_page,
     get_update_page,
 )
 from md2blog.shared.domain.tsid import TSID
@@ -304,3 +315,92 @@ async def test_move_page_requires_destination_parent_field() -> None:
 
     assert response.status_code == 422
     assert response.json()["code"] == "VALIDATION_ERROR"
+
+
+async def test_list_trash_returns_expiration_date() -> None:
+    deleted_at = datetime(2026, 1, 1, tzinfo=UTC)
+    expires_at = datetime(2026, 1, 31, tzinfo=UTC)
+    use_case = AsyncMock()
+    use_case.execute.return_value = [
+        TrashedPageListItem(
+            id=TSID(2),
+            parent_id=None,
+            title="삭제한 페이지",
+            sort_order=0,
+            deleted_at=deleted_at,
+            expires_at=expires_at,
+        )
+    ]
+    app = create_app()
+    app.dependency_overrides[get_current_user] = authenticated_user
+    app.dependency_overrides[get_list_trashed_pages] = lambda: use_case
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        response = await client.get("/workspace/trash")
+
+    assert response.status_code == 200
+    assert response.json()[0]["title"] == "삭제한 페이지"
+    assert response.json()[0]["parent_id"] is None
+    assert response.json()[0]["sort_order"] == 0
+    assert response.json()[0]["expires_at"] == "2026-01-31T00:00:00Z"
+    use_case.execute.assert_awaited_once_with(TSID(1))
+
+
+async def test_get_trashed_page_returns_markdown_content() -> None:
+    use_case = AsyncMock()
+    use_case.execute.return_value = PageDetail(
+        id=TSID(2),
+        owner_id=TSID(1),
+        parent_id=None,
+        title="삭제한 페이지",
+        contents="# 삭제한 페이지",
+        sort_order=0,
+    )
+    app = create_app()
+    app.dependency_overrides[get_current_user] = authenticated_user
+    app.dependency_overrides[get_trashed_page] = lambda: use_case
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        response = await client.get("/workspace/trash/2")
+
+    assert response.status_code == 200
+    assert response.json()["contents"] == "# 삭제한 페이지"
+    use_case.execute.assert_awaited_once_with(page_id=TSID(2), owner_id=TSID(1))
+
+
+async def test_restore_trashed_page_returns_no_content() -> None:
+    use_case = AsyncMock()
+    app = create_app()
+    app.dependency_overrides[get_current_user] = authenticated_user
+    app.dependency_overrides[get_restore_page] = lambda: use_case
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        response = await client.post("/workspace/trash/2/restore")
+
+    assert response.status_code == 204
+    use_case.execute.assert_awaited_once_with(
+        RestorePageCommand(page_id=TSID(2), owner_id=TSID(1))
+    )
+
+
+async def test_permanently_delete_trashed_page_returns_no_content() -> None:
+    use_case = AsyncMock()
+    app = create_app()
+    app.dependency_overrides[get_current_user] = authenticated_user
+    app.dependency_overrides[get_permanently_delete_page] = lambda: use_case
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        response = await client.delete("/workspace/trash/2")
+
+    assert response.status_code == 204
+    use_case.execute.assert_awaited_once_with(
+        PermanentlyDeletePageCommand(page_id=TSID(2), owner_id=TSID(1))
+    )

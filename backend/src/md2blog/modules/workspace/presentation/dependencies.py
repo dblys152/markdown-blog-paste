@@ -6,8 +6,12 @@ from md2blog.modules.workspace.application.service.pages import (
     CreatePage,
     DeletePage,
     GetPage,
+    GetTrashedPage,
     ListPages,
+    ListTrashedPages,
     MovePage,
+    PermanentlyDeletePage,
+    RestorePage,
     UpdatePage,
 )
 from md2blog.modules.workspace.infrastructure.repositories import (
@@ -45,3 +49,23 @@ def get_delete_page(session: AsyncSession = Depends(get_session)) -> DeletePage:
 
 def get_move_page(session: AsyncSession = Depends(get_session)) -> MovePage:
     return MovePage(SqlAlchemyPageRepository(session))
+
+
+def get_list_trashed_pages(
+    session: AsyncSession = Depends(get_session),
+) -> ListTrashedPages:
+    return ListTrashedPages(SqlAlchemyPageQueryRepository(session))
+
+
+def get_trashed_page(session: AsyncSession = Depends(get_session)) -> GetTrashedPage:
+    return GetTrashedPage(SqlAlchemyPageQueryRepository(session))
+
+
+def get_restore_page(session: AsyncSession = Depends(get_session)) -> RestorePage:
+    return RestorePage(SqlAlchemyPageRepository(session))
+
+
+def get_permanently_delete_page(
+    session: AsyncSession = Depends(get_session),
+) -> PermanentlyDeletePage:
+    return PermanentlyDeletePage(SqlAlchemyPageRepository(session))

@@ -27,6 +27,18 @@ class DeletePageCommand:
 
 
 @dataclass(frozen=True, slots=True)
+class RestorePageCommand:
+    page_id: TSID
+    owner_id: TSID
+
+
+@dataclass(frozen=True, slots=True)
+class PermanentlyDeletePageCommand:
+    page_id: TSID
+    owner_id: TSID
+
+
+@dataclass(frozen=True, slots=True)
 class MovePageCommand:
     page_id: TSID
     owner_id: TSID

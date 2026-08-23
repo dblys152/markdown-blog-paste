@@ -2,7 +2,11 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from md2blog.modules.workspace.domain.commands import CreatePageCommand
+from md2blog.modules.workspace.domain.commands import (
+    CreatePageCommand,
+    DeletePageCommand,
+    RestorePageCommand,
+)
 from md2blog.modules.workspace.domain.page import (
     BlankPageTitleError,
     InvalidPageContentError,
@@ -107,3 +111,31 @@ def test_page_change_preserves_creation_time_and_updates_modified_time() -> None
 
     assert renamed.created_at == NOW
     assert renamed.updated_at == changed_at
+
+
+def test_page_trash_and_restore_change_deletion_state() -> None:
+    page = Page.create(
+        CreatePageCommand(
+            owner_id=TSID(1),
+            title="페이지",
+            content="",
+            parent_id=None,
+            sort_order=0,
+        ),
+        created_at=NOW,
+    )
+    deleted_at = NOW + timedelta(days=1)
+
+    trashed = page.trash(
+        DeletePageCommand(page_id=page.id, owner_id=page.owner_id),
+        deleted_at=deleted_at,
+    )
+    restored = trashed.restore(
+        RestorePageCommand(page_id=page.id, owner_id=page.owner_id),
+        restored_at=deleted_at + timedelta(days=1),
+    )
+
+    assert trashed.is_trashed
+    assert not trashed.is_expired(deleted_at + timedelta(days=29))
+    assert trashed.is_expired(deleted_at + timedelta(days=30))
+    assert not restored.is_trashed

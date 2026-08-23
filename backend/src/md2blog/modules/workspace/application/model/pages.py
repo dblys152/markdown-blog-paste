@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from datetime import datetime
 
 from md2blog.modules.workspace.domain.page import Page
 from md2blog.shared.domain.tsid import TSID
@@ -32,3 +33,13 @@ class PageDetail:
             contents=page.content.content,
             sort_order=page.sort_order,
         )
+
+
+@dataclass(frozen=True, slots=True)
+class TrashedPageListItem:
+    id: TSID
+    parent_id: TSID | None
+    title: str
+    sort_order: int
+    deleted_at: datetime
+    expires_at: datetime

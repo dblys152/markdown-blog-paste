@@ -1,9 +1,11 @@
 from dataclasses import dataclass, replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from md2blog.modules.workspace.domain.commands import (
     CreatePageCommand,
+    DeletePageCommand,
     MovePageCommand,
+    RestorePageCommand,
     UpdatePageCommand,
 )
 from md2blog.shared.domain.tsid import TSID
@@ -28,6 +30,7 @@ class Page:
     sort_order: int
     created_at: datetime
     updated_at: datetime
+    deleted_at: datetime | None = None
 
     def __post_init__(self) -> None:
         normalized_title = self.title.strip()
@@ -61,6 +64,7 @@ class Page:
             sort_order=command.sort_order,
             created_at=now,
             updated_at=now,
+            deleted_at=None,
         )
 
     def update(
@@ -118,6 +122,38 @@ class Page:
             sort_order=command.sort_order,
             updated_at=changed_at or datetime.now(UTC),
         )
+
+    def trash(
+        self,
+        command: DeletePageCommand,
+        *,
+        deleted_at: datetime | None = None,
+    ) -> "Page":
+        if command.page_id != self.id or command.owner_id != self.owner_id:
+            raise InvalidPageCommandTargetError
+        now = deleted_at or datetime.now(UTC)
+        return replace(self, updated_at=now, deleted_at=now)
+
+    def restore(
+        self,
+        command: RestorePageCommand,
+        *,
+        restored_at: datetime | None = None,
+    ) -> "Page":
+        if command.page_id != self.id or command.owner_id != self.owner_id:
+            raise InvalidPageCommandTargetError
+        return replace(
+            self,
+            updated_at=restored_at or datetime.now(UTC),
+            deleted_at=None,
+        )
+
+    @property
+    def is_trashed(self) -> bool:
+        return self.deleted_at is not None
+
+    def is_expired(self, now: datetime) -> bool:
+        return self.deleted_at is not None and self.deleted_at + timedelta(days=30) <= now
 
 
 class PageNotFoundError(Exception):

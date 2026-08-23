@@ -5,9 +5,14 @@ import {
   createWorkspacePage,
   deleteWorkspacePage,
   getWorkspacePage,
+  getTrashedWorkspacePage,
+  listTrashedWorkspacePages,
   listWorkspacePages,
   moveWorkspacePage,
+  permanentlyDeleteWorkspacePage,
+  restoreWorkspacePage,
   updateWorkspacePage,
+  type TrashedWorkspacePage,
   type WorkspacePageListItem,
 } from "../../features/workspace/api";
 import {
@@ -63,16 +68,37 @@ function saveEditorRatio(ratio: number): void {
   }
 }
 
+function collectTrashSubtreeIds(pages: TrashedWorkspacePage[], rootId: string): Set<string> {
+  const subtreeIds = new Set([rootId]);
+  let foundDescendant = true;
+  while (foundDescendant) {
+    foundDescendant = false;
+    pages.forEach((page) => {
+      if (page.parent_id !== null && subtreeIds.has(page.parent_id) && !subtreeIds.has(page.id)) {
+        subtreeIds.add(page.id);
+        foundDescendant = true;
+      }
+    });
+  }
+  return subtreeIds;
+}
+
 export function WorkspaceGatePage() {
-  const { status: authStatus } = useAuth();
+  const { status: authStatus, user: authUser } = useAuth();
   const isAuthenticated = authStatus === "authenticated";
   const [pages, setPages] = useState<WorkspacePageListItem[]>([]);
+  const [trashedPages, setTrashedPages] = useState<TrashedWorkspacePage[]>([]);
+  const [selectedTrashedPageId, setSelectedTrashedPageId] = useState<string | null>(null);
+  const [sidebarView, setSidebarView] = useState<"pages" | "trash">("pages");
+  const [trashLoadState, setTrashLoadState] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const pageContentCache = useRef(new Map<string, string>());
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
   const [draggedPageId, setDraggedPageId] = useState<string | null>(null);
   const [dropHint, setDropHint] = useState<{ pageId: string; placement: DropPlacement } | null>(null);
   const [openPageMenuId, setOpenPageMenuId] = useState<string | null>(null);
   const [openPageMenuUpward, setOpenPageMenuUpward] = useState(false);
+  const [openTrashMenuId, setOpenTrashMenuId] = useState<string | null>(null);
+  const [openTrashMenuUpward, setOpenTrashMenuUpward] = useState(false);
   const [renamingPageId, setRenamingPageId] = useState<string | null>(null);
   const [renameTitle, setRenameTitle] = useState("");
   const [markdown, setMarkdown] = useState(SAMPLE_MARKDOWN);
@@ -95,7 +121,12 @@ export function WorkspaceGatePage() {
   const pageRequestId = useRef(0);
   const toastTimer = useRef<number | undefined>(undefined);
   const selectedPage = pages.find((page) => page.id === selectedPageId) ?? null;
-  const title = isAuthenticated ? (selectedPage?.title ?? "페이지를 선택하세요") : "임시 페이지";
+  const selectedTrashedPage = trashedPages.find((page) => page.id === selectedTrashedPageId) ?? null;
+  const title = isAuthenticated
+    ? sidebarView === "trash"
+      ? (selectedTrashedPage?.title ?? "삭제된 페이지를 선택하세요")
+      : (selectedPage?.title ?? "페이지를 선택하세요")
+    : "임시 페이지";
 
   const showToast = useCallback((message: string) => {
     window.clearTimeout(toastTimer.current);
@@ -104,6 +135,17 @@ export function WorkspaceGatePage() {
   }, []);
 
   useEffect(() => () => window.clearTimeout(toastTimer.current), []);
+
+  useEffect(() => {
+    if (openTrashMenuId === null) return;
+    const closeTrashMenu = (event: Event) => {
+      const target = event.target;
+      if (target instanceof Element && target.closest(".workspace-page-actions")) return;
+      setOpenTrashMenuId(null);
+    };
+    document.addEventListener("pointerdown", closeTrashMenu);
+    return () => document.removeEventListener("pointerdown", closeTrashMenu);
+  }, [openTrashMenuId]);
 
   useEffect(() => {
     if (authStatus !== "guest") return;
@@ -199,7 +241,7 @@ export function WorkspaceGatePage() {
   }, [authStatus, markdown, title]);
 
   useEffect(() => {
-    if (!isAuthenticated || !serverHydrated.current || !selectedPageId) return;
+    if (!isAuthenticated || sidebarView !== "pages" || !serverHydrated.current || !selectedPageId) return;
     if (skipNextServerSave.current) {
       skipNextServerSave.current = false;
       return;
@@ -219,7 +261,7 @@ export function WorkspaceGatePage() {
         .catch(() => setSaveState("error"));
     }, 600);
     return () => window.clearTimeout(timer);
-  }, [isAuthenticated, markdown, selectedPageId, title]);
+  }, [isAuthenticated, markdown, selectedPageId, sidebarView, title]);
 
   const selectPage = useCallback(async (page: WorkspacePageListItem) => {
     setOpenPageMenuId(null);
@@ -270,8 +312,8 @@ export function WorkspaceGatePage() {
   const removePage = useCallback(async (page: WorkspacePageListItem) => {
     const hasChildren = pages.some((candidate) => candidate.parent_id === page.id);
     const confirmationMessage = hasChildren
-      ? `'${page.title}' 페이지와 모든 하위 페이지를 삭제할까요?`
-      : `'${page.title}' 페이지를 삭제할까요?`;
+      ? `'${page.title}' 페이지와 모든 하위 페이지를 휴지통으로 이동할까요?`
+      : `'${page.title}' 페이지를 휴지통으로 이동할까요?`;
     if (!window.confirm(confirmationMessage)) return;
     try {
       await deleteWorkspacePage(page.id);
@@ -302,6 +344,107 @@ export function WorkspaceGatePage() {
       showToast("페이지를 삭제하지 못했습니다.");
     }
   }, [pages, selectPage, selectedPageId, showToast]);
+
+  const openTrash = useCallback(async () => {
+    setSidebarView("trash");
+    setOpenTrashMenuId(null);
+    setSelectedTrashedPageId(null);
+    setTrashLoadState("loading");
+    try {
+      const loadedPages = await listTrashedWorkspacePages();
+      setTrashedPages(loadedPages);
+      setTrashLoadState("ready");
+      const loadedPageIds = new Set(loadedPages.map((page) => page.id));
+      const firstPage = loadedPages
+        .filter((page) => page.parent_id === null || !loadedPageIds.has(page.parent_id))
+        .sort((left, right) => left.sort_order - right.sort_order)[0];
+      if (firstPage) {
+        setSelectedTrashedPageId(firstPage.id);
+        setSaveState("loading");
+        serverHydrated.current = false;
+        const detail = await getTrashedWorkspacePage(firstPage.id);
+        setMarkdown(detail.contents);
+        setSaveState("saved");
+      } else {
+        setMarkdown("");
+      }
+    } catch {
+      setTrashLoadState("error");
+      setSaveState("error");
+      showToast("휴지통을 불러오지 못했습니다.");
+    }
+  }, [showToast]);
+
+  const selectTrashedPage = useCallback(async (page: TrashedWorkspacePage) => {
+    setOpenTrashMenuId(null);
+    setSelectedTrashedPageId(page.id);
+    setMobilePane("editor");
+    setSaveState("loading");
+    serverHydrated.current = false;
+    try {
+      const detail = await getTrashedWorkspacePage(page.id);
+      setMarkdown(detail.contents);
+      setSaveState("saved");
+    } catch {
+      setSaveState("error");
+      showToast("삭제된 페이지 내용을 불러오지 못했습니다.");
+    }
+  }, [showToast]);
+
+  const restorePage = useCallback(async (page: TrashedWorkspacePage) => {
+    setOpenTrashMenuId(null);
+    const hasChildren = trashedPages.some((candidate) => candidate.parent_id === page.id);
+    const confirmationMessage = hasChildren
+      ? `'${page.title}' 페이지와 모든 하위 페이지를 복원할까요?`
+      : `'${page.title}' 페이지를 복원할까요?`;
+    if (!window.confirm(confirmationMessage)) return;
+    try {
+      await restoreWorkspacePage(page.id);
+      const restoredIds = collectTrashSubtreeIds(trashedPages, page.id);
+      const restoredPages = trashedPages
+        .filter((candidate) => restoredIds.has(candidate.id))
+        .map<WorkspacePageListItem>((candidate) => ({
+          id: candidate.id,
+          owner_id: authUser?.id ?? "",
+          parent_id: candidate.parent_id,
+          title: candidate.title,
+          sort_order: candidate.sort_order,
+        }));
+      setPages((current) => [
+        ...current.filter((candidate) => !restoredIds.has(candidate.id)),
+        ...restoredPages,
+      ]);
+      setTrashedPages((current) => {
+        return current.filter((candidate) => !restoredIds.has(candidate.id));
+      });
+      setSelectedTrashedPageId(null);
+      setMarkdown("");
+      showToast("페이지를 복원했습니다.");
+    } catch {
+      showToast("페이지를 복원하지 못했습니다.");
+    }
+  }, [authUser?.id, showToast, trashedPages]);
+
+  const permanentlyDeletePage = useCallback(async (page: TrashedWorkspacePage) => {
+    setOpenTrashMenuId(null);
+    const hasChildren = trashedPages.some((candidate) => candidate.parent_id === page.id);
+    const confirmationMessage = hasChildren
+      ? `'${page.title}' 페이지와 모든 하위 페이지를 영구 삭제할까요?\n이 작업은 되돌릴 수 없습니다.`
+      : `'${page.title}' 페이지를 영구 삭제할까요?\n이 작업은 되돌릴 수 없습니다.`;
+    if (!window.confirm(confirmationMessage)) return;
+    try {
+      await permanentlyDeleteWorkspacePage(page.id);
+      const deletedIds = collectTrashSubtreeIds(trashedPages, page.id);
+      setTrashedPages((current) => current.filter((candidate) => !deletedIds.has(candidate.id)));
+      if (selectedTrashedPageId !== null && deletedIds.has(selectedTrashedPageId)) {
+        setSelectedTrashedPageId(null);
+        setMarkdown("");
+      }
+      showToast("페이지를 영구 삭제했습니다.");
+    } catch {
+      showToast("페이지를 영구 삭제하지 못했습니다.");
+    }
+  }, [selectedTrashedPageId, showToast, trashedPages]);
 
   const beginRenamePage = (page: WorkspacePageListItem) => {
     setOpenPageMenuId(null);
@@ -447,7 +590,7 @@ export function WorkspaceGatePage() {
                   <button type="button" role="menuitem" className="is-danger" onClick={() => {
                     setOpenPageMenuId(null);
                     void removePage(page);
-                  }}>삭제</button>
+                  }}>휴지통</button>
                 </div>
               )}
             </div>
@@ -455,6 +598,69 @@ export function WorkspaceGatePage() {
           {renderPageTree(page.id, depth + 1)}
         </div>
       ));
+  };
+
+  const trashedPageIds = useMemo(() => new Set(trashedPages.map((page) => page.id)), [trashedPages]);
+  const renderTrashTree = (parentId: string | null, depth = 0): ReactNode => {
+    return trashedPages
+      .filter((page) => {
+        if (parentId !== null) return page.parent_id === parentId;
+        return page.parent_id === null || !trashedPageIds.has(page.parent_id);
+      })
+      .sort((left, right) => left.sort_order - right.sort_order)
+      .map((page) => {
+        const isRoot = page.parent_id === null || !trashedPageIds.has(page.parent_id);
+        return (
+          <div className="workspace-page-node" key={page.id}>
+            <div
+              className={`workspace-page-item ${page.id === selectedTrashedPageId ? "is-active" : ""}`}
+              style={{ marginLeft: `${Math.min(depth, 6) * 14}px` }}
+              onClick={() => void selectTrashedPage(page)}
+            >
+              <button type="button" className="workspace-page-select">
+                <span aria-hidden="true">▤</span><span>{page.title}</span>
+              </button>
+              {isRoot && (
+                <div
+                  className={`workspace-page-actions ${openTrashMenuId === page.id ? "is-menu-open" : ""}`}
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <button
+                    type="button"
+                    aria-label={`${page.title} 메뉴`}
+                    onClick={(event) => {
+                      if (openTrashMenuId === page.id) {
+                        setOpenTrashMenuId(null);
+                        return;
+                      }
+
+                      const list = event.currentTarget.closest<HTMLElement>(".workspace-page-list");
+                      const buttonRect = event.currentTarget.getBoundingClientRect();
+                      const listRect = list?.getBoundingClientRect();
+                      const spaceBelow = listRect ? listRect.bottom - buttonRect.bottom : window.innerHeight - buttonRect.bottom;
+                      const spaceAbove = listRect ? buttonRect.top - listRect.top : buttonRect.top;
+                      setOpenTrashMenuUpward(spaceBelow < 78 && spaceAbove > spaceBelow);
+                      setOpenTrashMenuId(page.id);
+                    }}
+                  >⋮</button>
+                  {openTrashMenuId === page.id && (
+                    <div className={`workspace-page-menu ${openTrashMenuUpward ? "is-upward" : ""}`} role="menu">
+                      <button type="button" role="menuitem" onClick={() => void restorePage(page)}>복원</button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="is-danger"
+                        onClick={() => void permanentlyDeletePage(page)}
+                      >영구 삭제</button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            {renderTrashTree(page.id, depth + 1)}
+          </div>
+        );
+      });
   };
 
   const lineCount = useMemo(() => markdown.split("\n").length, [markdown]);
@@ -573,8 +779,14 @@ export function WorkspaceGatePage() {
         </div>
 
         <div className="workspace-pages-heading">
-          <span>페이지</span>
-          {isAuthenticated ? (
+          <span>{sidebarView === "trash" ? "휴지통" : "페이지"}</span>
+          {sidebarView === "trash" ? (
+            <button type="button" aria-label="페이지 목록으로 돌아가기" onClick={() => {
+              setSidebarView("pages");
+              setSelectedTrashedPageId(null);
+              if (selectedPage) void selectPage(selectedPage);
+            }}>←</button>
+          ) : isAuthenticated ? (
             <button
               type="button"
               className="workspace-root-page-add"
@@ -598,7 +810,17 @@ export function WorkspaceGatePage() {
           )}
         </div>
 
-        {isAuthenticated ? (
+        {isAuthenticated && sidebarView === "trash" ? (
+          <div className="workspace-page-list workspace-trash-list" role="region" aria-label="휴지통 목록">
+            <p className="workspace-trash-notice">휴지통의 페이지는 30일 후 영구 삭제됩니다.</p>
+            {trashLoadState === "loading" && <p className="workspace-empty-pages">휴지통을 불러오는 중…</p>}
+            {trashLoadState === "error" && <button type="button" onClick={() => void openTrash()}>다시 시도</button>}
+            {trashLoadState === "ready" && trashedPages.length === 0 && (
+              <p className="workspace-empty-pages">휴지통이 비어 있습니다.</p>
+            )}
+            {renderTrashTree(null)}
+          </div>
+        ) : isAuthenticated ? (
           <div className="workspace-page-list" role="region" aria-label="페이지 목록">
             {pages.length > 0 ? renderPageTree(null) : (
               <p className="workspace-empty-pages">아직 페이지가 없습니다.<br />+ 버튼으로 첫 페이지를 만들어보세요.</p>
@@ -620,6 +842,12 @@ export function WorkspaceGatePage() {
           </section>
         )}
 
+        {isAuthenticated && sidebarView === "pages" && (
+          <button type="button" className="workspace-trash-button" onClick={() => void openTrash()}>
+            <span aria-hidden="true">♲</span> 휴지통
+          </button>
+        )}
+
         {!isAuthenticated && <div className="workspace-sidebar-footer">
           <span aria-hidden="true">ⓘ</span>
           브라우저 데이터를 삭제하면 임시 페이지도 사라집니다.
@@ -630,7 +858,7 @@ export function WorkspaceGatePage() {
         <div className="workspace-editor-heading">
           <div><span aria-hidden="true">✎</span><strong>Markdown</strong></div>
           <div className="workspace-document-state">
-            {isAuthenticated && selectedPage ? (
+            {isAuthenticated && sidebarView === "pages" && selectedPage ? (
               <input
                 className="workspace-document-title-input"
                 aria-label="페이지 제목"
@@ -659,7 +887,8 @@ export function WorkspaceGatePage() {
             spellCheck={false}
             value={markdown}
             onChange={(event) => setMarkdown(event.target.value)}
-            disabled={isAuthenticated && !selectedPage}
+            readOnly={isAuthenticated && sidebarView === "trash"}
+            disabled={isAuthenticated && sidebarView === "pages" && !selectedPage}
           />
         </div>
         <footer className="workspace-statusbar">

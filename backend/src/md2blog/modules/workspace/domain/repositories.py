@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Protocol
 
 from md2blog.modules.workspace.domain.page import Page
@@ -15,6 +16,8 @@ class PageRepository(Protocol):
 
     async def find_by_id(self, page_id: TSID, owner_id: TSID) -> Page | None: ...
 
+    async def find_trashed_by_id(self, page_id: TSID, owner_id: TSID) -> Page | None: ...
+
     async def find_all_by_parent_id(
         self,
         owner_id: TSID,
@@ -23,8 +26,16 @@ class PageRepository(Protocol):
         exclude_id: TSID | None = None,
     ) -> list[Page]: ...
 
+    async def find_all_trashed_by_parent_id(
+        self,
+        owner_id: TSID,
+        parent_id: TSID,
+    ) -> list[Page]: ...
+
     async def next_sort_order(
         self,
         owner_id: TSID,
         parent_id: TSID | None,
     ) -> int | None: ...
+
+    async def delete_expired(self, threshold: datetime) -> int: ...

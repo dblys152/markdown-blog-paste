@@ -186,6 +186,7 @@ export const APP_LAYOUT_CSS = `
 .workspace-page-select span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .workspace-page-actions { position: relative; display: flex; opacity: 0; }
 .workspace-page-item:hover .workspace-page-actions, .workspace-page-item:focus-within .workspace-page-actions { opacity: 1; }
+.workspace-page-actions.is-menu-open { opacity: 1; }
 .workspace-page-actions button { display: grid; width: 22px; height: 24px; place-items: center; border: 0; border-radius: 4px; background: transparent; color: #667085; font-size: 14px; line-height: 1; cursor: pointer; }
 .workspace-page-actions button:hover { background: #dfe5ff; color: #2949df; }
 .workspace-page-add-button::after { position: absolute; z-index: 30; top: calc(100% + 6px); right: 0; width: max-content; padding: 6px 8px; border-radius: 5px; background: #202938; color: #fff; content: attr(data-tooltip); font-size: 11px; font-weight: 600; line-height: 1.35; opacity: 0; pointer-events: none; white-space: nowrap; box-shadow: 0 6px 18px rgba(15, 23, 42, .2); transform: translateY(-2px); transition: opacity .1s ease .12s, transform .1s ease .12s; }
@@ -196,6 +197,10 @@ export const APP_LAYOUT_CSS = `
 .workspace-page-actions .workspace-page-menu button { display: block; width: 100%; height: 30px; padding: 0 9px; color: #344054; font-size: 12px; line-height: 30px; text-align: left; white-space: nowrap; }
 .workspace-page-actions .workspace-page-menu button.is-danger { color: #dc2626; }
 .workspace-empty-pages { margin: 12px 22px; color: #98a2b3; font-size: 12px; line-height: 1.7; }
+.workspace-trash-button { display: flex; min-height: 38px; margin: auto 12px 14px; padding: 0 12px; align-items: center; gap: 8px; border: 1px solid #e1e5ec; border-radius: 7px; background: #fff; color: #667085; font-size: 12px; font-weight: 700; cursor: pointer; }
+.workspace-trash-button:hover { border-color: #cbd3e2; background: #f7f8fb; color: #344054; }
+.workspace-trash-list { padding-bottom: 14px; }
+.workspace-trash-notice { margin: 4px 20px 10px; color: #8a94a4; font-size: 10px; line-height: 1.5; }
 
 .workspace-guest-card { position: relative; margin: 18px 12px 0; padding: 15px; border: 1px solid #d9def8; border-radius: 9px; background: #f7f8ff; }
 .workspace-guest-card > button { position: absolute; top: 7px; right: 8px; border: 0; background: transparent; color: #7a8496; cursor: pointer; }

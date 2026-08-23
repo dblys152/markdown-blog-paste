@@ -1,5 +1,7 @@
-from sqlalchemy import BigInteger, ForeignKey, Index, Integer, String, Text
-from sqlalchemy.orm import Mapped, mapped_column
+from datetime import datetime
+
+from sqlalchemy import BigInteger, DateTime, ForeignKey, Index, Integer, String, Text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from md2blog.shared.infrastructure.persistence import Base, TimestampMixin, TSIDPrimaryKeyMixin
 
@@ -23,6 +25,14 @@ class PageModel(TSIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    content_record: Mapped["PageContentModel"] = relationship(
+        back_populates="page",
+        cascade="all, delete-orphan",
+        lazy="raise",
+        single_parent=True,
+        uselist=False,
+    )
 
 
 class PageContentModel(TimestampMixin, Base):
@@ -35,3 +45,4 @@ class PageContentModel(TimestampMixin, Base):
         autoincrement=False,
     )
     content: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    page: Mapped[PageModel] = relationship(back_populates="content_record", lazy="raise")

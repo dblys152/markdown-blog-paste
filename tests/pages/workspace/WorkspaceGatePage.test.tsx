@@ -10,10 +10,14 @@ const {
   useAuth,
   listWorkspacePages,
   getWorkspacePage,
+  getTrashedWorkspacePage,
   createWorkspacePage,
   updateWorkspacePage,
   deleteWorkspacePage,
   moveWorkspacePage,
+  listTrashedWorkspacePages,
+  restoreWorkspacePage,
+  permanentlyDeleteWorkspacePage,
 } = vi.hoisted(() => ({
   convertMarkdown: vi.fn(),
   loadGuestDraft: vi.fn(),
@@ -21,10 +25,14 @@ const {
   useAuth: vi.fn(),
   listWorkspacePages: vi.fn(),
   getWorkspacePage: vi.fn(),
+  getTrashedWorkspacePage: vi.fn(),
   createWorkspacePage: vi.fn(),
   updateWorkspacePage: vi.fn(),
   deleteWorkspacePage: vi.fn(),
   moveWorkspacePage: vi.fn(),
+  listTrashedWorkspacePages: vi.fn(),
+  restoreWorkspacePage: vi.fn(),
+  permanentlyDeleteWorkspacePage: vi.fn(),
 }));
 
 vi.mock("../../../src/shared/markdown/converter-core", () => ({ convertMarkdown }));
@@ -33,10 +41,14 @@ vi.mock("../../../src/features/auth/AuthProvider", () => ({ useAuth }));
 vi.mock("../../../src/features/workspace/api", () => ({
   listWorkspacePages,
   getWorkspacePage,
+  getTrashedWorkspacePage,
   createWorkspacePage,
   updateWorkspacePage,
   deleteWorkspacePage,
   moveWorkspacePage,
+  listTrashedWorkspacePages,
+  restoreWorkspacePage,
+  permanentlyDeleteWorkspacePage,
 }));
 
 import { WorkspaceGatePage } from "../../../src/pages/workspace/WorkspaceGatePage";
@@ -80,6 +92,14 @@ describe("WorkspaceGatePage", () => {
       parent_id: null,
       sort_order: 0,
     }));
+    getTrashedWorkspacePage.mockImplementation(async (pageId: string) => ({
+      id: pageId,
+      owner_id: "1",
+      title: "삭제한 페이지",
+      contents: "# 삭제한 페이지",
+      parent_id: null,
+      sort_order: 0,
+    }));
     createWorkspacePage.mockResolvedValue({
       id: "10",
       title: "새 페이지",
@@ -102,6 +122,9 @@ describe("WorkspaceGatePage", () => {
       parent_id: input.parent_id,
       sort_order: input.sort_order,
     }));
+    listTrashedWorkspacePages.mockResolvedValue([]);
+    restoreWorkspacePage.mockResolvedValue(undefined);
+    permanentlyDeleteWorkspacePage.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -421,14 +444,71 @@ describe("WorkspaceGatePage", () => {
     renderPage();
 
     await user.click(await screen.findByRole("button", { name: "API 설계 메뉴" }));
-    await user.click(screen.getByRole("menuitem", { name: "삭제" }));
-    expect(confirm).toHaveBeenLastCalledWith("'API 설계' 페이지를 삭제할까요?");
+    await user.click(screen.getByRole("menuitem", { name: "휴지통" }));
+    expect(confirm).toHaveBeenLastCalledWith("'API 설계' 페이지를 휴지통으로 이동할까요?");
 
     await user.click(screen.getByRole("button", { name: "개발 노트 메뉴" }));
-    await user.click(screen.getByRole("menuitem", { name: "삭제" }));
+    await user.click(screen.getByRole("menuitem", { name: "휴지통" }));
     expect(confirm).toHaveBeenLastCalledWith(
-      "'개발 노트' 페이지와 모든 하위 페이지를 삭제할까요?",
+      "'개발 노트' 페이지와 모든 하위 페이지를 휴지통으로 이동할까요?",
     );
+  });
+
+  it("휴지통에서 삭제한 페이지를 조회하고 복원한다", async () => {
+    useAuth.mockReturnValue({ status: "authenticated", user: { id: "1" } });
+    listWorkspacePages.mockResolvedValue([]);
+    listTrashedWorkspacePages.mockResolvedValue([
+      {
+        id: "10",
+        parent_id: null,
+        title: "삭제한 페이지",
+        sort_order: 0,
+        deleted_at: "2026-08-01T00:00:00Z",
+        expires_at: "2026-08-31T00:00:00Z",
+      },
+      {
+        id: "20",
+        parent_id: "10",
+        title: "삭제한 하위 페이지",
+        sort_order: 0,
+        deleted_at: "2026-08-01T00:00:00Z",
+        expires_at: "2026-08-31T00:00:00Z",
+      },
+    ]);
+    const confirm = vi.spyOn(window, "confirm")
+      .mockReturnValueOnce(false)
+      .mockReturnValueOnce(true);
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "휴지통" }));
+    expect(screen.getByText("휴지통의 페이지는 30일 후 영구 삭제됩니다.")).toBeTruthy();
+    await waitFor(() => {
+      expect(getTrashedWorkspacePage).toHaveBeenCalledWith("10");
+      expect((screen.getByRole("textbox", { name: "Markdown 내용" }) as HTMLTextAreaElement).value)
+        .toBe("# 삭제한 페이지");
+    });
+    expect((screen.getByRole("textbox", { name: "Markdown 내용" }) as HTMLTextAreaElement).readOnly).toBe(true);
+
+    await user.click(screen.getByRole("button", { name: "삭제한 페이지 메뉴" }));
+    await user.click(screen.getByRole("menuitem", { name: "영구 삭제" }));
+    expect(confirm).toHaveBeenLastCalledWith(
+      "'삭제한 페이지' 페이지와 모든 하위 페이지를 영구 삭제할까요?\n이 작업은 되돌릴 수 없습니다.",
+    );
+    expect(permanentlyDeleteWorkspacePage).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "삭제한 페이지 메뉴" }));
+    await user.click(screen.getByRole("menuitem", { name: "복원" }));
+    expect(confirm).toHaveBeenLastCalledWith("'삭제한 페이지' 페이지와 모든 하위 페이지를 복원할까요?");
+    await waitFor(() => {
+      expect(restoreWorkspacePage).toHaveBeenCalledWith("10");
+    });
+    expect(screen.queryByText("삭제한 페이지")).toBeNull();
+    expect(screen.getByRole("region", { name: "휴지통 목록" })).toBeTruthy();
+    expect(listWorkspacePages).toHaveBeenCalledTimes(1);
+
+    await user.click(screen.getByRole("button", { name: "페이지 목록으로 돌아가기" }));
+    expect(await screen.findByText("삭제한 페이지")).toBeTruthy();
   });
 
 });
