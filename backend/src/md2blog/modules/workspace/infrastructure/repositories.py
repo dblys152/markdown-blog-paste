@@ -1,5 +1,6 @@
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import delete, func, insert, literal, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from md2blog.modules.workspace.application.model.pages import PageDetail, PageListItem
 from md2blog.modules.workspace.domain.page import Page, PageContent
@@ -12,23 +13,25 @@ class SqlAlchemyPageRepository:
         self._session = session
 
     async def add(self, page: Page) -> None:
-        model = PageModel(
-            id=page.id.value,
-            owner_id=page.owner_id.value,
-            parent_id=page.parent_id.value if page.parent_id else None,
-            title=page.title,
-            sort_order=page.sort_order,
-            created_at=page.created_at,
-            updated_at=page.updated_at,
-        )
-        self._session.add(model)
-        self._session.add(
-            PageContentModel(
-                page_id=page.content.page_id.value,
-                content=page.content.content,
+        inserted_page = (
+            insert(PageModel)
+            .values(
+                id=page.id.value,
+                owner_id=page.owner_id.value,
+                parent_id=page.parent_id.value if page.parent_id else None,
+                title=page.title,
+                sort_order=page.sort_order,
+                created_at=page.created_at,
+                updated_at=page.updated_at,
             )
+            .returning(PageModel.id)
+            .cte("inserted_page")
         )
-        await self._session.flush()
+        statement = insert(PageContentModel).from_select(
+            [PageContentModel.page_id, PageContentModel.content],
+            select(inserted_page.c.id, literal(page.content.content)),
+        )
+        await self._session.execute(statement)
 
     async def update(self, page: Page) -> None:
         statement = (
@@ -107,17 +110,38 @@ class SqlAlchemyPageRepository:
         row = (await self._session.execute(statement)).one_or_none()
         return None if row is None else self._to_domain(row[0], row[1])
 
-    async def next_sort_order(self, owner_id: TSID, parent_id: TSID | None) -> int:
-        parent_filter = (
-            PageModel.parent_id == parent_id.value
-            if parent_id is not None
-            else PageModel.parent_id.is_(None)
+    async def next_sort_order(
+        self,
+        owner_id: TSID,
+        parent_id: TSID | None,
+    ) -> int | None:
+        if parent_id is None:
+            statement = select(
+                func.coalesce(func.max(PageModel.sort_order), -1) + 1
+            ).where(
+                PageModel.owner_id == owner_id.value,
+                PageModel.parent_id.is_(None),
+            )
+            return int(await self._session.scalar(statement))
+
+        parent = aliased(PageModel)
+        sibling = aliased(PageModel)
+        statement = (
+            select(func.coalesce(func.max(sibling.sort_order), -1) + 1)
+            .select_from(parent)
+            .outerjoin(
+                sibling,
+                (sibling.owner_id == owner_id.value)
+                & (sibling.parent_id == parent.id),
+            )
+            .where(
+                parent.id == parent_id.value,
+                parent.owner_id == owner_id.value,
+            )
+            .group_by(parent.id)
         )
-        statement = select(func.coalesce(func.max(PageModel.sort_order), -1) + 1).where(
-            PageModel.owner_id == owner_id.value,
-            parent_filter,
-        )
-        return int(await self._session.scalar(statement))
+        value = await self._session.scalar(statement)
+        return None if value is None else int(value)
 
     @staticmethod
     def _to_domain(model: PageModel, content: str) -> Page:

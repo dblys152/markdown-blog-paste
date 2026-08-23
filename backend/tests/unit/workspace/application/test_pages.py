@@ -125,7 +125,16 @@ class InMemoryPages:
         page = await self.find_by_id(page_id, owner_id)
         return None if page is None else PageDetail.from_domain(page)
 
-    async def next_sort_order(self, owner_id: TSID, parent_id: TSID | None) -> int:
+    async def next_sort_order(
+        self,
+        owner_id: TSID,
+        parent_id: TSID | None,
+    ) -> int | None:
+        if parent_id is not None and not any(
+            page.id == parent_id and page.owner_id == owner_id
+            for page in self.pages
+        ):
+            return None
         siblings = [
             page for page in self.pages if page.owner_id == owner_id and page.parent_id == parent_id
         ]

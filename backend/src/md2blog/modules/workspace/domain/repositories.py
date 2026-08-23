@@ -23,4 +23,8 @@ class PageRepository(Protocol):
         exclude_id: TSID | None = None,
     ) -> list[Page]: ...
 
-    async def next_sort_order(self, owner_id: TSID, parent_id: TSID | None) -> int: ...
+    async def next_sort_order(
+        self,
+        owner_id: TSID,
+        parent_id: TSID | None,
+    ) -> int | None: ...
