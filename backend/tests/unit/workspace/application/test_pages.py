@@ -18,6 +18,7 @@ from md2blog.modules.workspace.application.service.pages import (
     PermanentlyDeletePage,
     PurgeExpiredPages,
     RestorePage,
+    SearchPages,
     UpdatePage,
 )
 from md2blog.modules.workspace.domain.commands import (
@@ -155,6 +156,25 @@ class InMemoryPages:
             for page in self.pages
             if page.owner_id == owner_id
             and not page.is_trashed
+        ]
+
+    async def search_by_owner_id(self, owner_id: TSID, query: str) -> list[PageListItem]:
+        normalized_query = query.casefold()
+        return [
+            PageListItem(
+                id=page.id,
+                owner_id=page.owner_id,
+                parent_id=page.parent_id,
+                title=page.title,
+                sort_order=page.sort_order,
+            )
+            for page in self.pages
+            if page.owner_id == owner_id
+            and not page.is_trashed
+            and (
+                normalized_query in page.title.casefold()
+                or normalized_query in page.content.content.casefold()
+            )
         ]
 
     async def find_detail_by_id(self, page_id: TSID, owner_id: TSID) -> PageDetail | None:
@@ -371,6 +391,31 @@ async def test_list_trashed_pages_returns_deleted_pages() -> None:
 
     assert [item.id for item in result] == [page.id]
     assert result[0].expires_at == deleted_at + timedelta(days=30)
+
+
+async def test_search_pages_finds_title_and_content_and_excludes_trash() -> None:
+    owner_id = TSID(1)
+    deleted_at = datetime(2026, 1, 1, tzinfo=UTC)
+    pages = InMemoryPages(
+        [
+            Page(id=TSID(2), owner_id=owner_id, title="PostgreSQL", content=""),
+            Page(id=TSID(3), owner_id=owner_id, title="성능 기록", content="VACUUM 점검"),
+            Page(
+                id=TSID(4),
+                owner_id=owner_id,
+                title="삭제됨",
+                content="VACUUM",
+                deleted_at=deleted_at,
+            ),
+            Page(id=TSID(5), owner_id=TSID(99), title="다른 사용자", content="VACUUM"),
+        ]
+    )
+
+    title_result = await SearchPages(pages).execute(owner_id=owner_id, query="postgres")
+    content_result = await SearchPages(pages).execute(owner_id=owner_id, query=" vacuum ")
+
+    assert [page.id for page in title_result] == [TSID(2)]
+    assert [page.id for page in content_result] == [TSID(3)]
 
 
 async def test_permanently_delete_page_removes_trashed_tree() -> None:

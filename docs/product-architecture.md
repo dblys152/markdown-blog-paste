@@ -246,6 +246,7 @@ page_contents
 ```text
 POST   /workspace/pages
 GET    /workspace/pages
+GET    /workspace/pages/search?q={query}
 GET    /workspace/pages/{page_id}
 PATCH  /workspace/pages/{page_id}
 DELETE /workspace/pages/{page_id}
@@ -258,6 +259,8 @@ DELETE /workspace/trash/{page_id}
 
 - 목록 API는 `id`, `owner_id`, `title`, `parent_id`, `sort_order`만 반환합니다.
 - 상세 API는 목록 필드와 Markdown `contents`를 반환합니다.
+- 검색 API는 활성 페이지의 제목과 Markdown 본문을 검색하고 최대 50개의 목록 필드만 반환합니다.
+- 검색 결과는 평면 목록으로 표시하되 프론트엔드의 페이지 목록을 이용해 상위 페이지 경로를 함께 표시합니다.
 - 프론트엔드는 목록 응답을 먼저 표시하고 선택한 페이지의 상세를 지연 조회합니다.
 - 조회한 본문은 현재 애플리케이션 세션의 메모리에 캐시하여 같은 페이지 재선택 시 재사용합니다.
 - 모든 조회와 변경은 인증 사용자의 소유권을 검증합니다.

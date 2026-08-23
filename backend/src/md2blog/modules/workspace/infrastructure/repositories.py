@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 
-from sqlalchemy import delete, func, insert, literal, select, update
+from sqlalchemy import case, delete, func, insert, literal, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -232,6 +232,48 @@ class SqlAlchemyPageQueryRepository:
                 PageModel.deleted_at.is_(None),
             )
             .order_by(PageModel.parent_id.nullsfirst(), PageModel.sort_order, PageModel.id)
+        )
+        rows = (await self._session.execute(statement)).all()
+        return [
+            PageListItem(
+                id=TSID(row.id),
+                owner_id=TSID(row.owner_id),
+                parent_id=TSID(row.parent_id) if row.parent_id is not None else None,
+                title=row.title,
+                sort_order=row.sort_order,
+            )
+            for row in rows
+        ]
+
+    async def search_by_owner_id(
+        self,
+        owner_id: TSID,
+        query: str,
+    ) -> list[PageListItem]:
+        escaped_query = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        pattern = f"%{escaped_query}%"
+        title_matches = PageModel.title.ilike(pattern, escape="\\")
+        content_matches = PageContentModel.content.ilike(pattern, escape="\\")
+        statement = (
+            select(
+                PageModel.id,
+                PageModel.owner_id,
+                PageModel.parent_id,
+                PageModel.title,
+                PageModel.sort_order,
+            )
+            .join(PageContentModel, PageContentModel.page_id == PageModel.id)
+            .where(
+                PageModel.owner_id == owner_id.value,
+                PageModel.deleted_at.is_(None),
+                or_(title_matches, content_matches),
+            )
+            .order_by(
+                case((title_matches, 0), else_=1),
+                PageModel.updated_at.desc(),
+                PageModel.id,
+            )
+            .limit(50)
         )
         rows = (await self._session.execute(statement)).all()
         return [

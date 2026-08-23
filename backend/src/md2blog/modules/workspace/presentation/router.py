@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Path, status
+from fastapi import APIRouter, Depends, Path, Query, status
 
 from md2blog.modules.identity.domain.user import User
 from md2blog.modules.identity.presentation.dependencies import get_current_user
@@ -11,6 +11,7 @@ from md2blog.modules.workspace.application.port.inbound.pages import (
     GetPageUseCase,
     ListPagesUseCase,
     MovePageUseCase,
+    SearchPagesUseCase,
     UpdatePageUseCase,
 )
 from md2blog.modules.workspace.domain.commands import (
@@ -25,6 +26,7 @@ from md2blog.modules.workspace.presentation.dependencies import (
     get_list_pages,
     get_move_page,
     get_page,
+    get_search_pages,
     get_update_page,
 )
 from md2blog.modules.workspace.presentation.schemas.pages import (
@@ -65,6 +67,18 @@ async def list_pages(
     return [
         PageListItemResponse.from_model(page)
         for page in await use_case.execute(current_user.id)
+    ]
+
+
+@router.get("/search", response_model=list[PageListItemResponse])
+async def search_pages(
+    q: Annotated[str, Query(min_length=1, max_length=100)],
+    current_user: User = Depends(get_current_user),
+    use_case: SearchPagesUseCase = Depends(get_search_pages),
+) -> list[PageListItemResponse]:
+    return [
+        PageListItemResponse.from_model(page)
+        for page in await use_case.execute(owner_id=current_user.id, query=q)
     ]
 
 

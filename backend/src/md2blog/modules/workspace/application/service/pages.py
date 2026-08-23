@@ -42,6 +42,17 @@ class ListPages:
         return await self._page_queries.find_all_by_owner_id(owner_id)
 
 
+class SearchPages:
+    def __init__(self, page_queries: PageQueryRepository) -> None:
+        self._page_queries = page_queries
+
+    async def execute(self, *, owner_id: TSID, query: str) -> list[PageListItem]:
+        normalized_query = query.strip()
+        if not normalized_query:
+            return []
+        return await self._page_queries.search_by_owner_id(owner_id, normalized_query)
+
+
 class GetPage:
     def __init__(self, page_queries: PageQueryRepository) -> None:
         self._page_queries = page_queries

@@ -30,6 +30,7 @@ from md2blog.modules.workspace.presentation.dependencies import (
     get_page,
     get_permanently_delete_page,
     get_restore_page,
+    get_search_pages,
     get_trashed_page,
     get_update_page,
 )
@@ -264,6 +265,39 @@ async def test_delete_page_requires_authentication() -> None:
 
     assert response.status_code == 401
     assert response.json()["code"] == "AUTH_REQUIRED"
+
+
+async def test_search_pages_uses_authenticated_user_and_query() -> None:
+    use_case = AsyncMock()
+    use_case.execute.return_value = [
+        PageListItem(
+            id=TSID(2),
+            owner_id=TSID(1),
+            parent_id=TSID(3),
+            title="API 설계",
+            sort_order=0,
+        )
+    ]
+    app = create_app()
+    app.dependency_overrides[get_current_user] = authenticated_user
+    app.dependency_overrides[get_search_pages] = lambda: use_case
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        response = await client.get("/workspace/pages/search", params={"q": "API"})
+
+    assert response.status_code == 200
+    assert response.json() == [
+        {
+            "id": "2",
+            "owner_id": "1",
+            "parent_id": "3",
+            "title": "API 설계",
+            "sort_order": 0,
+        }
+    ]
+    use_case.execute.assert_awaited_once_with(owner_id=TSID(1), query="API")
 
 
 async def test_move_page_accepts_root_destination() -> None:

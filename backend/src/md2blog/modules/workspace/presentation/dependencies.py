@@ -12,6 +12,7 @@ from md2blog.modules.workspace.application.service.pages import (
     MovePage,
     PermanentlyDeletePage,
     RestorePage,
+    SearchPages,
     UpdatePage,
 )
 from md2blog.modules.workspace.infrastructure.repositories import (
@@ -33,6 +34,10 @@ def get_create_page_command_factory(
 
 def get_list_pages(session: AsyncSession = Depends(get_session)) -> ListPages:
     return ListPages(SqlAlchemyPageQueryRepository(session))
+
+
+def get_search_pages(session: AsyncSession = Depends(get_session)) -> SearchPages:
+    return SearchPages(SqlAlchemyPageQueryRepository(session))
 
 
 def get_page(session: AsyncSession = Depends(get_session)) -> GetPage:

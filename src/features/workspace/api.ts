@@ -49,6 +49,11 @@ export function listWorkspacePages(): Promise<WorkspacePageListItem[]> {
   return listPagesPromise;
 }
 
+export function searchWorkspacePages(query: string): Promise<WorkspacePageListItem[]> {
+  const params = new URLSearchParams({ q: query });
+  return authenticatedRequest<WorkspacePageListItem[]>(`/workspace/pages/search?${params}`);
+}
+
 export function getWorkspacePage(pageId: string): Promise<WorkspacePage> {
   return authenticatedRequest<WorkspacePage>(`/workspace/pages/${pageId}`);
 }

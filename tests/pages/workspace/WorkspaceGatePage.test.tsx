@@ -17,6 +17,7 @@ const {
   moveWorkspacePage,
   listTrashedWorkspacePages,
   restoreWorkspacePage,
+  searchWorkspacePages,
   permanentlyDeleteWorkspacePage,
 } = vi.hoisted(() => ({
   convertMarkdown: vi.fn(),
@@ -32,6 +33,7 @@ const {
   moveWorkspacePage: vi.fn(),
   listTrashedWorkspacePages: vi.fn(),
   restoreWorkspacePage: vi.fn(),
+  searchWorkspacePages: vi.fn(),
   permanentlyDeleteWorkspacePage: vi.fn(),
 }));
 
@@ -48,6 +50,7 @@ vi.mock("../../../src/features/workspace/api", () => ({
   moveWorkspacePage,
   listTrashedWorkspacePages,
   restoreWorkspacePage,
+  searchWorkspacePages,
   permanentlyDeleteWorkspacePage,
 }));
 
@@ -124,6 +127,7 @@ describe("WorkspaceGatePage", () => {
     }));
     listTrashedWorkspacePages.mockResolvedValue([]);
     restoreWorkspacePage.mockResolvedValue(undefined);
+    searchWorkspacePages.mockResolvedValue([]);
     permanentlyDeleteWorkspacePage.mockResolvedValue(undefined);
   });
 
@@ -509,6 +513,28 @@ describe("WorkspaceGatePage", () => {
 
     await user.click(screen.getByRole("button", { name: "페이지 목록으로 돌아가기" }));
     expect(await screen.findByText("삭제한 페이지")).toBeTruthy();
+  });
+
+  it("페이지 검색 API 결과에 계층 경로를 표시하고 페이지를 선택한다", async () => {
+    useAuth.mockReturnValue({ status: "authenticated", user: { id: "1" } });
+    listWorkspacePages.mockResolvedValue([
+      { id: "10", owner_id: "1", title: "개발 노트", parent_id: null, sort_order: 0 },
+      { id: "20", owner_id: "1", title: "블로그 초안", parent_id: "10", sort_order: 0 },
+    ]);
+    searchWorkspacePages.mockResolvedValue([
+      { id: "20", owner_id: "1", title: "블로그 초안", parent_id: "10", sort_order: 0 },
+    ]);
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "페이지 검색" }));
+    await user.type(screen.getByRole("searchbox", { name: "페이지 검색어" }), "블로그");
+
+    await waitFor(() => expect(searchWorkspacePages).toHaveBeenCalledWith("블로그"));
+    expect(screen.queryByText("개발 노트")).toBeNull();
+    expect(screen.getByText("개발 노트 › 블로그 초안")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: /블로그 초안/ }));
+    expect(getWorkspacePage).toHaveBeenCalledWith("20");
   });
 
 });

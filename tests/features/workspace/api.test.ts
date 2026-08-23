@@ -14,6 +14,7 @@ import {
   moveWorkspacePage,
   permanentlyDeleteWorkspacePage,
   restoreWorkspacePage,
+  searchWorkspacePages,
   updateWorkspacePage,
 } from "../../../src/features/workspace/api";
 
@@ -88,6 +89,16 @@ describe("workspace api", () => {
     expect(authenticatedRequest).toHaveBeenNthCalledWith(4, "/workspace/trash/10", {
       method: "DELETE",
     });
+  });
+
+  it("페이지 검색어를 인코딩해 검색 API를 호출한다", async () => {
+    authenticatedRequest.mockResolvedValue([]);
+
+    await searchWorkspacePages("API 설계");
+
+    expect(authenticatedRequest).toHaveBeenCalledWith(
+      "/workspace/pages/search?q=API+%EC%84%A4%EA%B3%84",
+    );
   });
 
 });

@@ -11,6 +11,7 @@ import {
   moveWorkspacePage,
   permanentlyDeleteWorkspacePage,
   restoreWorkspacePage,
+  searchWorkspacePages,
   updateWorkspacePage,
   type TrashedWorkspacePage,
   type WorkspacePageListItem,
@@ -90,6 +91,10 @@ export function WorkspaceGatePage() {
   const [trashedPages, setTrashedPages] = useState<TrashedWorkspacePage[]>([]);
   const [selectedTrashedPageId, setSelectedTrashedPageId] = useState<string | null>(null);
   const [sidebarView, setSidebarView] = useState<"pages" | "trash">("pages");
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<WorkspacePageListItem[]>([]);
+  const [searchState, setSearchState] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [trashLoadState, setTrashLoadState] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const pageContentCache = useRef(new Map<string, string>());
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
@@ -122,6 +127,20 @@ export function WorkspaceGatePage() {
   const toastTimer = useRef<number | undefined>(undefined);
   const selectedPage = pages.find((page) => page.id === selectedPageId) ?? null;
   const selectedTrashedPage = trashedPages.find((page) => page.id === selectedTrashedPageId) ?? null;
+  const pageById = useMemo(() => new Map(pages.map((page) => [page.id, page])), [pages]);
+  const getPagePath = useCallback((page: WorkspacePageListItem) => {
+    const path = [page.title];
+    const visitedIds = new Set([page.id]);
+    let parentId = page.parent_id;
+    while (parentId !== null && !visitedIds.has(parentId)) {
+      visitedIds.add(parentId);
+      const parent = pageById.get(parentId);
+      if (!parent) break;
+      path.unshift(parent.title);
+      parentId = parent.parent_id;
+    }
+    return path.join(" › ");
+  }, [pageById]);
   const title = isAuthenticated
     ? sidebarView === "trash"
       ? (selectedTrashedPage?.title ?? "삭제된 페이지를 선택하세요")
@@ -146,6 +165,37 @@ export function WorkspaceGatePage() {
     document.addEventListener("pointerdown", closeTrashMenu);
     return () => document.removeEventListener("pointerdown", closeTrashMenu);
   }, [openTrashMenuId]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !isSearchOpen) return;
+    const query = searchQuery.trim();
+    if (!query) {
+      setSearchResults([]);
+      setSearchState("idle");
+      return;
+    }
+
+    let cancelled = false;
+    setSearchState("loading");
+    const timer = window.setTimeout(() => {
+      searchWorkspacePages(query)
+        .then((results) => {
+          if (cancelled) return;
+          setSearchResults(results);
+          setSearchState("ready");
+        })
+        .catch(() => {
+          if (cancelled) return;
+          setSearchResults([]);
+          setSearchState("error");
+        });
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [isAuthenticated, isSearchOpen, searchQuery]);
 
   useEffect(() => {
     if (authStatus !== "guest") return;
@@ -346,6 +396,9 @@ export function WorkspaceGatePage() {
   }, [pages, selectPage, selectedPageId, showToast]);
 
   const openTrash = useCallback(async () => {
+    setIsSearchOpen(false);
+    setSearchQuery("");
+    setSearchResults([]);
     setSidebarView("trash");
     setOpenTrashMenuId(null);
     setSelectedTrashedPageId(null);
@@ -774,13 +827,48 @@ export function WorkspaceGatePage() {
         <button type="button" role="tab" aria-selected={mobilePane === "preview"} onClick={() => setMobilePane("preview")}>미리보기</button>
       </div>
       <aside className="workspace-sidebar" aria-label="기록장 페이지">
-        <div className="workspace-sidebar-title">
-          <strong>내 기록장</strong>
+        <div className={`workspace-sidebar-title ${isSearchOpen ? "is-searching" : ""}`}>
+          {isSearchOpen ? (
+            <>
+              <span className="workspace-search-icon" aria-hidden="true">⌕</span>
+              <input
+                type="search"
+                aria-label="페이지 검색어"
+                placeholder="페이지 검색"
+                value={searchQuery}
+                autoFocus
+                onChange={(event) => setSearchQuery(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key !== "Escape") return;
+                  setIsSearchOpen(false);
+                  setSearchQuery("");
+                  setSearchResults([]);
+                }}
+              />
+              <button type="button" aria-label="검색 닫기" onClick={() => {
+                setIsSearchOpen(false);
+                setSearchQuery("");
+                setSearchResults([]);
+              }}>×</button>
+            </>
+          ) : (
+            <>
+              <strong>내 기록장</strong>
+              {isAuthenticated && sidebarView === "pages" && (
+                <button type="button" aria-label="페이지 검색" onClick={() => setIsSearchOpen(true)}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                    <circle cx="11" cy="11" r="7" />
+                    <path d="m16 16 4 4" />
+                  </svg>
+                </button>
+              )}
+            </>
+          )}
         </div>
 
         <div className="workspace-pages-heading">
-          <span>{sidebarView === "trash" ? "휴지통" : "페이지"}</span>
-          {sidebarView === "trash" ? (
+          <span>{sidebarView === "trash" ? "휴지통" : isSearchOpen ? `검색 결과 ${searchResults.length}` : "페이지"}</span>
+          {isSearchOpen ? null : sidebarView === "trash" ? (
             <button type="button" aria-label="페이지 목록으로 돌아가기" onClick={() => {
               setSidebarView("pages");
               setSelectedTrashedPageId(null);
@@ -810,7 +898,29 @@ export function WorkspaceGatePage() {
           )}
         </div>
 
-        {isAuthenticated && sidebarView === "trash" ? (
+        {isAuthenticated && isSearchOpen ? (
+          <div className="workspace-page-list workspace-search-results" role="region" aria-label="페이지 검색 결과">
+            {!searchQuery.trim() ? (
+              <p className="workspace-empty-pages">검색할 페이지 제목을 입력하세요.</p>
+            ) : searchState === "loading" ? (
+              <p className="workspace-empty-pages">페이지를 검색하는 중…</p>
+            ) : searchState === "error" ? (
+              <p className="workspace-empty-pages">페이지를 검색하지 못했습니다.</p>
+            ) : searchResults.length === 0 ? (
+              <p className="workspace-empty-pages">일치하는 페이지가 없습니다.</p>
+            ) : searchResults.map((page) => (
+              <button
+                className={`workspace-page-item workspace-search-result ${page.id === selectedPageId ? "is-active" : ""}`}
+                type="button"
+                key={page.id}
+                onClick={() => void selectPage(page)}
+              >
+                <span aria-hidden="true">▤</span>
+                <span><strong>{page.title}</strong><small>{getPagePath(page)}</small></span>
+              </button>
+            ))}
+          </div>
+        ) : isAuthenticated && sidebarView === "trash" ? (
           <div className="workspace-page-list workspace-trash-list" role="region" aria-label="휴지통 목록">
             <p className="workspace-trash-notice">휴지통의 페이지는 30일 후 영구 삭제됩니다.</p>
             {trashLoadState === "loading" && <p className="workspace-empty-pages">휴지통을 불러오는 중…</p>}

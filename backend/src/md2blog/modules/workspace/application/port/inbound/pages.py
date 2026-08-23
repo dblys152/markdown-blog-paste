@@ -24,6 +24,10 @@ class ListPagesUseCase(Protocol):
     async def execute(self, owner_id: TSID) -> list[PageListItem]: ...
 
 
+class SearchPagesUseCase(Protocol):
+    async def execute(self, *, owner_id: TSID, query: str) -> list[PageListItem]: ...
+
+
 class GetPageUseCase(Protocol):
     async def execute(self, *, page_id: TSID, owner_id: TSID) -> PageDetail: ...
 

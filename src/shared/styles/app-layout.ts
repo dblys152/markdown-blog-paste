@@ -159,8 +159,21 @@ export const APP_LAYOUT_CSS = `
 }
 
 .workspace-sidebar button { font-family: inherit; }
-.workspace-sidebar-title { display: flex; height: 54px; align-items: center; padding: 0 22px; border-bottom: 1px solid #e4e7ed; }
+.workspace-sidebar-title { display: flex; height: 54px; align-items: center; justify-content: space-between; padding: 0 16px 0 22px; border-bottom: 1px solid #e4e7ed; }
 .workspace-sidebar-title strong { color: #1f2937; font-size: 14px; font-weight: 800; }
+.workspace-sidebar-title button { display: grid; width: 28px; height: 28px; padding: 0; place-items: center; border: 0; border-radius: 6px; background: transparent; color: #667085; cursor: pointer; }
+.workspace-sidebar-title button:hover { background: #e9edff; color: #2949df; }
+.workspace-sidebar-title button svg { width: 16px; height: 16px; }
+.workspace-sidebar-title.is-searching { gap: 7px; padding-left: 15px; }
+.workspace-sidebar-title.is-searching input { min-width: 0; height: 32px; flex: 1; border: 0; outline: none; background: transparent; color: #253047; font: inherit; font-size: 12px; }
+.workspace-sidebar-title.is-searching input::-webkit-search-cancel-button { display: none; }
+.workspace-search-icon { color: #7a8495; font-size: 18px; line-height: 1; }
+.workspace-search-result { width: calc(100% - 20px); height: 50px; box-sizing: border-box; }
+.workspace-search-result > span:last-child { display: grid; min-width: 0; gap: 2px; }
+.workspace-search-result strong, .workspace-search-result small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.workspace-search-result strong { font-size: 12px; }
+.workspace-search-result small { color: #8a94a4; font-size: 10px; font-weight: 500; }
+.workspace-search-result.is-active small { color: #6578d8; }
 
 .workspace-pages-heading { display: flex; align-items: center; justify-content: space-between; padding: 17px 15px 8px 22px; color: #667085; font-size: 11px; font-weight: 800; }
 .workspace-pages-heading a, .workspace-pages-heading button { position: relative; display: grid; width: 28px; height: 28px; place-items: center; border: 0; border-radius: 6px; background: transparent; color: #344054; font-size: 21px; line-height: 1; text-decoration: none; cursor: pointer; }
