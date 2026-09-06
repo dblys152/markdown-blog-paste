@@ -4,6 +4,7 @@ export type AuthUser = {
   id: string;
   email: string;
   display_name: string;
+  email_verified: boolean;
 };
 
 export type AuthSession = {
@@ -53,6 +54,17 @@ export async function signup(input: SignupInput): Promise<AuthSession> {
       body: JSON.stringify(input),
     }),
   );
+}
+
+export async function requestEmailVerification(): Promise<void> {
+  await authenticatedRequest<void>("/auth/email-verification/request", { method: "POST" });
+}
+
+export async function confirmEmailVerification(token: string): Promise<AuthUser> {
+  return apiRequest<AuthUser>("/auth/email-verification/confirm", {
+    method: "POST",
+    body: JSON.stringify({ token }),
+  });
 }
 
 export function restoreSession(): Promise<AuthSession | null> {

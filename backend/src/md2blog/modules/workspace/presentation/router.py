@@ -3,7 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Path, Query, status
 
 from md2blog.modules.identity.domain.user import User
-from md2blog.modules.identity.presentation.dependencies import get_current_user
+from md2blog.modules.identity.presentation.dependencies import get_email_verified_user
 from md2blog.modules.workspace.application.factory.pages import CreatePageCommandFactory
 from md2blog.modules.workspace.application.port.inbound.pages import (
     CreatePageUseCase,
@@ -44,7 +44,7 @@ router = APIRouter(prefix="/workspace/pages", tags=["workspace"])
 @router.post("", response_model=PageDetailResponse, status_code=status.HTTP_201_CREATED)
 async def create_page(
     request: CreatePageRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_email_verified_user),
     command_factory: CreatePageCommandFactory = Depends(get_create_page_command_factory),
     use_case: CreatePageUseCase = Depends(get_create_page),
 ) -> PageDetailResponse:
@@ -61,7 +61,7 @@ async def create_page(
 
 @router.get("", response_model=list[PageListItemResponse])
 async def list_pages(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_email_verified_user),
     use_case: ListPagesUseCase = Depends(get_list_pages),
 ) -> list[PageListItemResponse]:
     return [
@@ -73,7 +73,7 @@ async def list_pages(
 @router.get("/search", response_model=list[PageListItemResponse])
 async def search_pages(
     q: Annotated[str, Query(min_length=1, max_length=100)],
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_email_verified_user),
     use_case: SearchPagesUseCase = Depends(get_search_pages),
 ) -> list[PageListItemResponse]:
     return [
@@ -85,7 +85,7 @@ async def search_pages(
 @router.get("/{page_id}", response_model=PageDetailResponse)
 async def get_page_detail(
     page_id: Annotated[int, Path(ge=0, le=2**63 - 1)],
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_email_verified_user),
     use_case: GetPageUseCase = Depends(get_page),
 ) -> PageDetailResponse:
     page = await use_case.execute(page_id=TSID(page_id), owner_id=current_user.id)
@@ -96,7 +96,7 @@ async def get_page_detail(
 async def update_page(
     page_id: Annotated[int, Path(ge=0, le=2**63 - 1)],
     request: UpdatePageRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_email_verified_user),
     use_case: UpdatePageUseCase = Depends(get_update_page),
 ) -> PageDetailResponse:
     page = await use_case.execute(
@@ -113,7 +113,7 @@ async def update_page(
 @router.delete("/{page_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_page(
     page_id: Annotated[int, Path(ge=0, le=2**63 - 1)],
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_email_verified_user),
     use_case: DeletePageUseCase = Depends(get_delete_page),
 ) -> None:
     await use_case.execute(
@@ -125,7 +125,7 @@ async def delete_page(
 async def move_page(
     page_id: Annotated[int, Path(ge=0, le=2**63 - 1)],
     request: MovePageRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_email_verified_user),
     use_case: MovePageUseCase = Depends(get_move_page),
 ) -> PageDetailResponse:
     parent_id = TSID.from_string(request.parent_id) if request.parent_id else None

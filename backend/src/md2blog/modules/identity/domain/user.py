@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from enum import StrEnum
 
@@ -39,10 +39,27 @@ class User:
         if self.status is not UserStatus.ACTIVE:
             raise AccessNotAllowedError
 
+    def ensure_email_verified(self) -> None:
+        if not self.is_email_verified:
+            raise EmailVerificationRequiredError
+
+    def verify_email(self, verified_at: datetime) -> "User":
+        if self.email_verified_at is not None:
+            return self
+        return replace(self, email_verified_at=verified_at)
+
+    @property
+    def is_email_verified(self) -> bool:
+        return self.email_verified_at is not None
+
 
 class AuthenticationFailedError(Exception):
     pass
 
 
 class AccessNotAllowedError(Exception):
+    pass
+
+
+class EmailVerificationRequiredError(Exception):
     pass

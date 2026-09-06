@@ -28,6 +28,14 @@ class SqlAlchemyUserRepository:
         )
         await self._session.flush()
 
+    async def save(self, user: User) -> None:
+        model = await self._session.get(UserModel, user.id.value)
+        if model is None:
+            raise LookupError("user not found")
+        model.email_verified_at = user.email_verified_at
+        model.status = user.status.value
+        await self._session.flush()
+
     async def find_by_id(self, user_id: int) -> User | None:
         model = await self._session.get(UserModel, user_id)
         return None if model is None else self._to_domain(model)

@@ -1,6 +1,6 @@
 from sqlalchemy import BigInteger
 
-from md2blog.modules.identity.infrastructure.models import UserModel
+from md2blog.modules.identity.infrastructure.models import EmailVerificationTokenModel, UserModel
 
 
 def test_user_uses_tsid_compatible_primary_key() -> None:
@@ -15,3 +15,12 @@ def test_user_email_constraint_has_stable_name() -> None:
     constraint_names = {constraint.name for constraint in UserModel.__table__.constraints}
 
     assert "uq_users_email" in constraint_names
+
+
+def test_email_verification_token_has_stable_constraints_and_indexes() -> None:
+    table = EmailVerificationTokenModel.__table__
+
+    assert "uq_email_verification_tokens_token_hash" in {
+        constraint.name for constraint in table.constraints
+    }
+    assert "ix_email_verification_tokens_user_id" in {index.name for index in table.indexes}

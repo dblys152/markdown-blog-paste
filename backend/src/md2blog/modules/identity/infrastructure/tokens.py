@@ -4,6 +4,9 @@ from hashlib import sha256
 
 import jwt
 
+from md2blog.modules.identity.application.port.outbound.email import (
+    GeneratedEmailVerificationToken,
+)
 from md2blog.modules.identity.application.port.outbound.security import (
     InvalidAccessTokenError,
     RefreshToken,
@@ -15,6 +18,7 @@ JWT_ALGORITHM = "HS256"
 ACCESS_TOKEN_TYPE = "access"
 REQUIRED_ACCESS_TOKEN_CLAIMS = ("sub", "type", "iat", "exp")
 REFRESH_TOKEN_BYTES = 48
+EMAIL_VERIFICATION_TOKEN_BYTES = 32
 
 
 class JwtAccessTokenIssuer:
@@ -59,6 +63,15 @@ class SecureRefreshTokenManager:
     def generate(self) -> RefreshToken:
         raw = secrets.token_urlsafe(REFRESH_TOKEN_BYTES)
         return RefreshToken(raw=raw, token_hash=self.hash(raw))
+
+    def hash(self, raw_token: str) -> str:
+        return sha256(raw_token.encode("utf-8")).hexdigest()
+
+
+class SecureEmailVerificationTokenManager:
+    def generate(self) -> GeneratedEmailVerificationToken:
+        raw = secrets.token_urlsafe(EMAIL_VERIFICATION_TOKEN_BYTES)
+        return GeneratedEmailVerificationToken(raw=raw, token_hash=self.hash(raw))
 
     def hash(self, raw_token: str) -> str:
         return sha256(raw_token.encode("utf-8")).hexdigest()

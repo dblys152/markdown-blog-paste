@@ -33,10 +33,19 @@ class StubTokenIssuer:
         return f"token:{user.id}"
 
 
+class RecordingEmailVerification:
+    def __init__(self) -> None:
+        self.user: User | None = None
+
+    async def execute(self, user: User) -> None:
+        self.user = user
+
+
 async def test_signup_factory_builds_domain_command_and_service_stores_user() -> None:
     users = InMemoryUsers()
     factory = SignUpCommandFactory(users, StubPasswordHasher())
-    service = SignUp(users, StubTokenIssuer())
+    email_verification = RecordingEmailVerification()
+    service = SignUp(users, StubTokenIssuer(), email_verification)
 
     command = await factory.create(
         SignUpRequest(
@@ -52,6 +61,7 @@ async def test_signup_factory_builds_domain_command_and_service_stores_user() ->
     assert result.user.password_hash == PasswordHash("hashed:strong-password")
     assert result.user.display_name == DisplayName("Youngseok")
     assert result.access_token == f"token:{result.user.id}"
+    assert email_verification.user == result.user
 
 
 def test_user_signs_up_from_domain_command() -> None:

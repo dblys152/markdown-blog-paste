@@ -2,8 +2,16 @@ from fastapi import APIRouter, Cookie, Depends, Request, Response, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
 
+from md2blog.modules.identity.application.port.inbound.email_verification import (
+    ConfirmEmailVerificationUseCase,
+    IssueEmailVerificationUseCase,
+)
 from md2blog.modules.identity.application.port.inbound.login import LoginRequest, LoginUseCase
-from md2blog.modules.identity.application.port.inbound.models import TokenResponse, UserResponse
+from md2blog.modules.identity.application.port.inbound.models import (
+    EmailVerificationConfirmRequest,
+    TokenResponse,
+    UserResponse,
+)
 from md2blog.modules.identity.application.port.inbound.signup import SignUpRequest
 from md2blog.modules.identity.application.service.logout import LogoutSessionService
 from md2blog.modules.identity.application.service.refresh import (
@@ -20,7 +28,9 @@ from md2blog.modules.identity.domain.user import User
 from md2blog.modules.identity.domain.value_objects import Email, RawPassword
 from md2blog.modules.identity.presentation.dependencies import (
     SignUpDependencies,
+    get_confirm_email_verification,
     get_current_user,
+    get_issue_email_verification,
     get_login_use_case,
     get_logout_service,
     get_refresh_service,
@@ -32,6 +42,15 @@ from md2blog.shared.presentation.exception_handlers import error_response
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 REFRESH_TOKEN_COOKIE = "refresh_token"
+
+
+def to_user_response(user: User) -> UserResponse:
+    return UserResponse(
+        id=str(user.id),
+        email=user.email.value,
+        display_name=user.display_name.value,
+        email_verified=user.is_email_verified,
+    )
 
 
 def set_refresh_cookie(response: Response, refresh_token: str, settings: Settings) -> None:
@@ -82,11 +101,7 @@ async def signup(
     set_refresh_cookie(response, token_pair.refresh_token, settings)
     return TokenResponse(
         access_token=token_pair.access_token,
-        user=UserResponse(
-            id=str(result.user.id),
-            email=result.user.email.value,
-            display_name=result.user.display_name.value,
-        ),
+        user=to_user_response(result.user),
     )
 
 
@@ -114,11 +129,7 @@ async def refresh(
     set_refresh_cookie(response, result.refresh_token, settings)
     return TokenResponse(
         access_token=result.access_token,
-        user=UserResponse(
-            id=str(result.user.id),
-            email=result.user.email.value,
-            display_name=result.user.display_name.value,
-        ),
+        user=to_user_response(result.user),
     )
 
 
@@ -142,21 +153,29 @@ async def login(
     set_refresh_cookie(response, token_pair.refresh_token, settings)
     return TokenResponse(
         access_token=token_pair.access_token,
-        user=UserResponse(
-            id=str(result.user.id),
-            email=result.user.email.value,
-            display_name=result.user.display_name.value,
-        ),
+        user=to_user_response(result.user),
     )
 
 
 @router.get("/me", response_model=UserResponse)
 async def me(current_user: User = Depends(get_current_user)) -> UserResponse:
-    return UserResponse(
-        id=str(current_user.id),
-        email=current_user.email.value,
-        display_name=current_user.display_name.value,
-    )
+    return to_user_response(current_user)
+
+
+@router.post("/email-verification/request", status_code=status.HTTP_204_NO_CONTENT)
+async def request_email_verification(
+    current_user: User = Depends(get_current_user),
+    use_case: IssueEmailVerificationUseCase = Depends(get_issue_email_verification),
+) -> None:
+    await use_case.execute(current_user)
+
+
+@router.post("/email-verification/confirm", response_model=UserResponse)
+async def confirm_email_verification(
+    request: EmailVerificationConfirmRequest,
+    use_case: ConfirmEmailVerificationUseCase = Depends(get_confirm_email_verification),
+) -> UserResponse:
+    return to_user_response(await use_case.execute(request.token))
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)

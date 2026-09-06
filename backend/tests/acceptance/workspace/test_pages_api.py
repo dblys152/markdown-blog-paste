@@ -43,7 +43,33 @@ def authenticated_user() -> User:
         email=Email("user@example.com"),
         password_hash=PasswordHash("hidden"),
         display_name=DisplayName("User"),
+        email_verified_at=datetime(2026, 8, 27, tzinfo=UTC),
     )
+
+
+def unverified_user() -> User:
+    return User(
+        id=TSID(1),
+        email=Email("user@example.com"),
+        password_hash=PasswordHash("hidden"),
+        display_name=DisplayName("User"),
+    )
+
+
+async def test_workspace_requires_verified_email() -> None:
+    app = create_app()
+    app.dependency_overrides[get_current_user] = unverified_user
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        response = await client.get("/workspace/pages")
+
+    assert response.status_code == 403
+    assert response.json() == {
+        "code": "AUTH_EMAIL_NOT_VERIFIED",
+        "message": "이메일 인증이 필요합니다.",
+    }
 
 
 async def test_create_page_uses_authenticated_user() -> None:

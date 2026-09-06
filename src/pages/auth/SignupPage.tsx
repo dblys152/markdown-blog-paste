@@ -4,13 +4,13 @@ import { useAuth } from "../../features/auth/AuthProvider";
 import { ApiError } from "../../shared/api/http";
 
 export function SignupPage() {
-  const { status, signup } = useAuth();
+  const { status, user, signup } = useAuth();
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   if (status === "authenticated") {
-    return <Navigate replace to="/workspace" />;
+    return <Navigate replace to={user?.email_verified ? "/workspace" : "/verify-email"} />;
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -25,7 +25,7 @@ export function SignupPage() {
         email: String(form.get("email") ?? "").trim(),
         password: String(form.get("password") ?? ""),
       });
-      navigate("/workspace", { replace: true });
+      navigate("/verify-email", { replace: true });
     } catch (error) {
       setErrorMessage(error instanceof ApiError ? error.message : "회원가입 중 문제가 발생했습니다.");
     } finally {

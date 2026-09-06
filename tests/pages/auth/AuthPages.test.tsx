@@ -6,6 +6,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const auth = vi.hoisted(() => ({
   login: vi.fn(),
   signup: vi.fn(),
+  requestEmailVerification: vi.fn(),
+  confirmEmailVerification: vi.fn(),
+  refreshCurrentUser: vi.fn(),
 }));
 
 vi.mock("../../../src/features/auth/AuthProvider", () => ({
@@ -14,6 +17,9 @@ vi.mock("../../../src/features/auth/AuthProvider", () => ({
     user: null,
     login: auth.login,
     signup: auth.signup,
+    requestEmailVerification: auth.requestEmailVerification,
+    confirmEmailVerification: auth.confirmEmailVerification,
+    refreshCurrentUser: auth.refreshCurrentUser,
     logout: vi.fn(),
   }),
 }));
@@ -28,6 +34,7 @@ function renderPage(page: "login" | "signup") {
         <Route path="login" element={<LoginPage />} />
         <Route path="signup" element={<SignupPage />} />
         <Route path="workspace" element={<main>기록장 화면</main>} />
+        <Route path="verify-email" element={<main>이메일 인증 화면</main>} />
       </Routes>
     </MemoryRouter>,
   );
@@ -68,6 +75,6 @@ describe("인증 화면", () => {
       email: "user@example.com",
       password: "password123",
     });
-    expect(await screen.findByText("기록장 화면")).not.toBeNull();
+    expect(await screen.findByText("이메일 인증 화면")).not.toBeNull();
   });
 });

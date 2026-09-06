@@ -148,7 +148,7 @@ describe("WorkspaceGatePage", () => {
   });
 
   it("회원 페이지 API 응답 전에도 임시 페이지를 표시하지 않는다", () => {
-    useAuth.mockReturnValue({ status: "authenticated", user: { id: "1" } });
+    useAuth.mockReturnValue({ status: "authenticated", user: { id: "1", email_verified: true } });
     listWorkspacePages.mockReturnValue(new Promise(() => undefined));
 
     renderPage();
@@ -252,7 +252,7 @@ describe("WorkspaceGatePage", () => {
   });
 
   it("로그인 사용자는 서버 페이지를 불러오고 선택한 본문을 자동 저장한다", async () => {
-    useAuth.mockReturnValue({ status: "authenticated", user: { id: "1" } });
+    useAuth.mockReturnValue({ status: "authenticated", user: { id: "1", email_verified: true } });
     listWorkspacePages.mockResolvedValue([
       {
         id: "10",
@@ -288,7 +288,7 @@ describe("WorkspaceGatePage", () => {
   });
 
   it("로그인 사용자는 최상위 페이지를 추가할 수 있다", async () => {
-    useAuth.mockReturnValue({ status: "authenticated", user: { id: "1" } });
+    useAuth.mockReturnValue({ status: "authenticated", user: { id: "1", email_verified: true } });
     const user = userEvent.setup();
     renderPage();
     await waitFor(() => expect(listWorkspacePages).toHaveBeenCalled());
@@ -306,7 +306,7 @@ describe("WorkspaceGatePage", () => {
   });
 
   it("페이지 가운데에 드롭하면 하위 페이지로 이동한다", async () => {
-    useAuth.mockReturnValue({ status: "authenticated", user: { id: "1" } });
+    useAuth.mockReturnValue({ status: "authenticated", user: { id: "1", email_verified: true } });
     listWorkspacePages.mockResolvedValue([
       { id: "10", owner_id: "1", title: "개발 노트", parent_id: null, sort_order: 0 },
       { id: "20", owner_id: "1", title: "API 설계", parent_id: null, sort_order: 1 },
@@ -347,7 +347,7 @@ describe("WorkspaceGatePage", () => {
   });
 
   it("페이지 메뉴에서 이름을 변경한다", async () => {
-    useAuth.mockReturnValue({ status: "authenticated", user: { id: "1" } });
+    useAuth.mockReturnValue({ status: "authenticated", user: { id: "1", email_verified: true } });
     listWorkspacePages.mockResolvedValue([
       { id: "10", owner_id: "1", title: "개발 노트", parent_id: null, sort_order: 0 },
     ]);
@@ -373,7 +373,7 @@ describe("WorkspaceGatePage", () => {
   });
 
   it("페이지 이름 툴팁 없이 하위 페이지 추가 버튼에만 툴팁을 제공한다", async () => {
-    useAuth.mockReturnValue({ status: "authenticated", user: { id: "1" } });
+    useAuth.mockReturnValue({ status: "authenticated", user: { id: "1", email_verified: true } });
     listWorkspacePages.mockResolvedValue([
       {
         id: "10",
@@ -395,7 +395,7 @@ describe("WorkspaceGatePage", () => {
   });
 
   it("페이지 목록 하단에서는 페이지 메뉴를 위쪽으로 연다", async () => {
-    useAuth.mockReturnValue({ status: "authenticated", user: { id: "1" } });
+    useAuth.mockReturnValue({ status: "authenticated", user: { id: "1", email_verified: true } });
     listWorkspacePages.mockResolvedValue([
       { id: "10", owner_id: "1", title: "마지막 페이지", parent_id: null, sort_order: 0 },
     ]);
@@ -413,7 +413,7 @@ describe("WorkspaceGatePage", () => {
   });
 
   it("페이지 제목 바깥의 행을 클릭해도 해당 페이지를 선택한다", async () => {
-    useAuth.mockReturnValue({ status: "authenticated", user: { id: "1" } });
+    useAuth.mockReturnValue({ status: "authenticated", user: { id: "1", email_verified: true } });
     listWorkspacePages.mockResolvedValue([
       { id: "10", owner_id: "1", title: "첫 페이지", parent_id: null, sort_order: 0 },
       { id: "20", owner_id: "1", title: "둘째 페이지", parent_id: null, sort_order: 1 },
@@ -438,7 +438,7 @@ describe("WorkspaceGatePage", () => {
   });
 
   it("삭제 확인 문구는 실제 하위 페이지 존재 여부를 반영한다", async () => {
-    useAuth.mockReturnValue({ status: "authenticated", user: { id: "1" } });
+    useAuth.mockReturnValue({ status: "authenticated", user: { id: "1", email_verified: true } });
     listWorkspacePages.mockResolvedValue([
       { id: "10", owner_id: "1", title: "개발 노트", parent_id: null, sort_order: 0 },
       { id: "20", owner_id: "1", title: "API 설계", parent_id: "10", sort_order: 0 },
@@ -459,7 +459,7 @@ describe("WorkspaceGatePage", () => {
   });
 
   it("휴지통에서 삭제한 페이지를 조회하고 복원한다", async () => {
-    useAuth.mockReturnValue({ status: "authenticated", user: { id: "1" } });
+    useAuth.mockReturnValue({ status: "authenticated", user: { id: "1", email_verified: true } });
     listWorkspacePages.mockResolvedValue([]);
     listTrashedWorkspacePages.mockResolvedValue([
       {
@@ -516,7 +516,7 @@ describe("WorkspaceGatePage", () => {
   });
 
   it("페이지 검색 API 결과에 계층 경로를 표시하고 페이지를 선택한다", async () => {
-    useAuth.mockReturnValue({ status: "authenticated", user: { id: "1" } });
+    useAuth.mockReturnValue({ status: "authenticated", user: { id: "1", email_verified: true } });
     listWorkspacePages.mockResolvedValue([
       { id: "10", owner_id: "1", title: "개발 노트", parent_id: null, sort_order: 0 },
       { id: "20", owner_id: "1", title: "블로그 초안", parent_id: "10", sort_order: 0 },

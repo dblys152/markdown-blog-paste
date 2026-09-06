@@ -4,13 +4,26 @@ from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
+from md2blog.modules.identity.application.port.outbound.email import EmailDeliveryError
 from md2blog.modules.identity.application.port.outbound.security import InvalidAccessTokenError
 from md2blog.modules.identity.application.service.authenticate_access_token import (
     AuthenticationRequiredError,
 )
+from md2blog.modules.identity.application.service.email_verification import (
+    EmailVerificationCooldownError,
+    EmailVerificationDailyLimitError,
+    InvalidEmailVerificationTokenError,
+)
 from md2blog.modules.identity.application.service.signup import EmailAlreadyExistsError
 from md2blog.modules.identity.domain.auth_session import InvalidRefreshSessionError
-from md2blog.modules.identity.domain.user import AuthenticationFailedError
+from md2blog.modules.identity.domain.email_verification import (
+    EmailVerificationExpiredError,
+    EmailVerificationUnavailableError,
+)
+from md2blog.modules.identity.domain.user import (
+    AuthenticationFailedError,
+    EmailVerificationRequiredError,
+)
 from md2blog.modules.workspace.domain.page import (
     InvalidPageMoveError,
     PageNotFoundError,
@@ -65,6 +78,47 @@ async def handle_email_already_exists(_: Request, __: Exception) -> JSONResponse
         status.HTTP_409_CONFLICT,
         ErrorCode.USER_EMAIL_ALREADY_EXISTS,
         "이미 사용 중인 이메일입니다.",
+    )
+
+
+async def handle_invalid_email_verification(_: Request, __: Exception) -> JSONResponse:
+    return error_response(
+        status.HTTP_400_BAD_REQUEST,
+        ErrorCode.AUTH_EMAIL_VERIFICATION_INVALID,
+        "유효하지 않거나 만료된 이메일 인증 링크입니다.",
+    )
+
+
+async def handle_email_verification_rate_limit(
+    _: Request,
+    error: Exception,
+) -> JSONResponse:
+    retry_after = (
+        str(error.retry_after_seconds)
+        if isinstance(error, EmailVerificationCooldownError)
+        else "86400"
+    )
+    return error_response(
+        status.HTTP_429_TOO_MANY_REQUESTS,
+        ErrorCode.AUTH_EMAIL_VERIFICATION_RATE_LIMITED,
+        "인증 메일 재발송 횟수를 초과했습니다. 잠시 후 다시 시도해 주세요.",
+        headers={"Retry-After": retry_after},
+    )
+
+
+async def handle_email_delivery_error(_: Request, __: Exception) -> JSONResponse:
+    return error_response(
+        status.HTTP_503_SERVICE_UNAVAILABLE,
+        ErrorCode.SERVICE_UNAVAILABLE,
+        "인증 메일을 발송하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+    )
+
+
+async def handle_email_verification_required(_: Request, __: Exception) -> JSONResponse:
+    return error_response(
+        status.HTTP_403_FORBIDDEN,
+        ErrorCode.AUTH_EMAIL_NOT_VERIFIED,
+        "이메일 인증이 필요합니다.",
     )
 
 
@@ -133,6 +187,28 @@ def register_exception_handlers(app: FastAPI) -> None:
     app.add_exception_handler(InvalidAccessTokenError, handle_authentication_required)
     app.add_exception_handler(InvalidRefreshSessionError, handle_invalid_refresh_token)
     app.add_exception_handler(EmailAlreadyExistsError, handle_email_already_exists)
+    app.add_exception_handler(
+        InvalidEmailVerificationTokenError,
+        handle_invalid_email_verification,
+    )
+    app.add_exception_handler(EmailVerificationExpiredError, handle_invalid_email_verification)
+    app.add_exception_handler(
+        EmailVerificationUnavailableError,
+        handle_invalid_email_verification,
+    )
+    app.add_exception_handler(
+        EmailVerificationCooldownError,
+        handle_email_verification_rate_limit,
+    )
+    app.add_exception_handler(
+        EmailVerificationDailyLimitError,
+        handle_email_verification_rate_limit,
+    )
+    app.add_exception_handler(EmailDeliveryError, handle_email_delivery_error)
+    app.add_exception_handler(
+        EmailVerificationRequiredError,
+        handle_email_verification_required,
+    )
     app.add_exception_handler(ParentPageNotFoundError, handle_parent_page_not_found)
     app.add_exception_handler(PageNotFoundError, handle_page_not_found)
     app.add_exception_handler(InvalidPageMoveError, handle_invalid_page_move)

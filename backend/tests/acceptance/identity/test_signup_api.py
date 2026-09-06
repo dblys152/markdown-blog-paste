@@ -62,6 +62,7 @@ async def test_signup_returns_access_token_and_string_user_id() -> None:
             "id": "123456789",
             "email": "user@example.com",
             "display_name": "User",
+            "email_verified": False,
         },
     }
 

@@ -28,6 +28,15 @@ class Settings(BaseSettings):
     refresh_token_cookie_secure: bool = False
     refresh_token_cookie_samesite: Literal["lax", "strict", "none"] = "lax"
     cors_allowed_origins: CommaSeparatedList = ["http://localhost:5173"]
+    smtp_host: str = "smtp.gmail.com"
+    smtp_port: int = 587
+    smtp_username: str | None = None
+    smtp_password: SecretStr | None = None
+    email_from: str | None = None
+    frontend_url: str = "http://localhost:5173"
+    email_verification_token_ttl_hours: int = 24
+    email_verification_resend_cooldown_seconds: int = 60
+    email_verification_daily_limit: int = 5
 
     @property
     def async_database_url(self) -> URL:

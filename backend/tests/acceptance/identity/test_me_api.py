@@ -32,6 +32,7 @@ async def test_me_returns_authenticated_user() -> None:
         "id": "123456789",
         "email": "user@example.com",
         "display_name": "User",
+        "email_verified": False,
     }
 
 

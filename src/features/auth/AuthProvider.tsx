@@ -1,7 +1,9 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
+  confirmEmailVerification as confirmEmailVerificationRequest,
   login as loginRequest,
   logout as logoutRequest,
+  requestEmailVerification as requestEmailVerificationRequest,
   restoreSession,
   signup as signupRequest,
   type AuthUser,
@@ -16,6 +18,9 @@ type AuthContextValue = {
   user: AuthUser | null;
   login: (input: LoginInput) => Promise<void>;
   signup: (input: SignupInput) => Promise<void>;
+  requestEmailVerification: () => Promise<void>;
+  confirmEmailVerification: (token: string) => Promise<AuthUser>;
+  refreshCurrentUser: () => Promise<AuthUser | null>;
   logout: () => Promise<void>;
 };
 
@@ -49,6 +54,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const session = await signupRequest(input);
         setUser(session.user);
         setStatus("authenticated");
+      },
+      requestEmailVerification: requestEmailVerificationRequest,
+      confirmEmailVerification: async (token) => {
+        const verifiedUser = await confirmEmailVerificationRequest(token);
+        if (status === "authenticated") {
+          setUser(verifiedUser);
+        }
+        return verifiedUser;
+      },
+      refreshCurrentUser: async () => {
+        const session = await restoreSession();
+        setUser(session?.user ?? null);
+        setStatus(session ? "authenticated" : "guest");
+        return session?.user ?? null;
       },
       logout: async () => {
         try {

@@ -309,7 +309,7 @@ describe("MarkdownPastePage", () => {
   });
 
   it("로그인 사용자는 임시 페이지 대신 서버 기록장 저장 대상을 선택한다", async () => {
-    useAuth.mockReturnValue({ status: "authenticated", user: { id: "1" } });
+    useAuth.mockReturnValue({ status: "authenticated", user: { id: "1", email_verified: true } });
     listWorkspacePages.mockResolvedValue([
       { id: "10", owner_id: "1", title: "개발 노트", parent_id: null, sort_order: 0 },
     ]);

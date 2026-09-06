@@ -125,6 +125,11 @@ export const APP_LAYOUT_CSS = `
 .auth-submit:not(:disabled) { cursor: pointer; }
 .auth-submit:disabled { opacity: .62; }
 .auth-error { margin: -2px 0 0; padding: 10px 12px; border-radius: 7px; background: #fff1f2; color: #be123c; font-size: 12px; font-weight: 700; line-height: 1.5; }
+.auth-success { margin: 18px 0 0; padding: 10px 12px; border-radius: 7px; background: #ecfdf3; color: #15803d; font-size: 12px; font-weight: 700; line-height: 1.5; }
+.verification-card { text-align: center; }
+.verification-hint { margin: 18px 0 0; color: #667085; font-size: 13px; }
+.verification-actions { display: grid; margin-top: 24px; }
+.verification-actions .route-primary-link { margin-top: 0; justify-content: center; }
 .auth-footer { margin: 22px 0 0; color: #6b7280; font-size: 13px; text-align: center; }
 .auth-footer a { color: #2949df; font-weight: 800; }
 .not-found-card { text-align: center; }

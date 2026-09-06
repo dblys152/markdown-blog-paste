@@ -4,6 +4,8 @@ import {
   getAccessToken,
   login,
   logout,
+  confirmEmailVerification,
+  requestEmailVerification,
   restoreSession,
 } from "../../../src/features/auth/api";
 
@@ -14,6 +16,7 @@ const SESSION = {
     id: "123",
     email: "user@example.com",
     display_name: "User",
+    email_verified: true,
   },
 };
 
@@ -76,6 +79,33 @@ describe("auth api", () => {
     expect(fetchMock).toHaveBeenLastCalledWith(
       "http://localhost:8000/auth/logout",
       expect.objectContaining({ method: "POST", credentials: "include" }),
+    );
+  });
+
+  it("인증 메일을 요청할 때 액세스 토큰을 전달한다", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify(SESSION), { status: 200, headers: { "Content-Type": "application/json" } }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await login({ email: "user@example.com", password: "password123" });
+
+    await requestEmailVerification();
+
+    const headers = fetchMock.mock.calls[1][1]?.headers as Headers;
+    expect(headers.get("Authorization")).toBe("Bearer access-token");
+  });
+
+  it("이메일 인증 토큰을 확인한다", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(SESSION.user), { status: 200, headers: { "Content-Type": "application/json" } }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(confirmEmailVerification("verification-token")).resolves.toEqual(SESSION.user);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:8000/auth/email-verification/confirm",
+      expect.objectContaining({ method: "POST", body: JSON.stringify({ token: "verification-token" }) }),
     );
   });
 });

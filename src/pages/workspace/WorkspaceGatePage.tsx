@@ -1,5 +1,5 @@
 import { type CSSProperties, type DragEvent, type KeyboardEvent, type PointerEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import { useAuth } from "../../features/auth/AuthProvider";
 import {
   createWorkspacePage,
@@ -86,7 +86,8 @@ function collectTrashSubtreeIds(pages: TrashedWorkspacePage[], rootId: string): 
 
 export function WorkspaceGatePage() {
   const { status: authStatus, user: authUser } = useAuth();
-  const isAuthenticated = authStatus === "authenticated";
+  const isEmailVerificationRequired = authStatus === "authenticated" && authUser?.email_verified === false;
+  const isAuthenticated = authStatus === "authenticated" && authUser?.email_verified === true;
   const [pages, setPages] = useState<WorkspacePageListItem[]>([]);
   const [trashedPages, setTrashedPages] = useState<TrashedWorkspacePage[]>([]);
   const [selectedTrashedPageId, setSelectedTrashedPageId] = useState<string | null>(null);
@@ -800,6 +801,10 @@ export function WorkspaceGatePage() {
   const workspaceStyle = {
     "--workspace-editor-size": editorWidth === null ? `${editorRatio}fr` : `${editorWidth}px`,
   } as CSSProperties;
+
+  if (isEmailVerificationRequired) {
+    return <Navigate replace to="/verify-email" />;
+  }
 
   if (authStatus === "loading" || (isAuthenticated && workspaceLoadState !== "ready" && workspaceLoadState !== "error")) {
     return (
