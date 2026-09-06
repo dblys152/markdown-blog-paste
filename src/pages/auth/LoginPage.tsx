@@ -49,6 +49,7 @@ export function LoginPage() {
             비밀번호
             <input type="password" name="password" autoComplete="current-password" placeholder="비밀번호" minLength={8} maxLength={128} required />
           </label>
+          <Link className="auth-forgot-password" to="/forgot-password">비밀번호를 잊으셨나요?</Link>
           {errorMessage && <p className="auth-error" role="alert">{errorMessage}</p>}
           <button className="auth-submit" type="submit" disabled={isSubmitting || status === "loading"}>
             {isSubmitting ? "로그인 중..." : "로그인"}

@@ -12,6 +12,10 @@ from md2blog.modules.identity.application.port.inbound.email_verification import
     IssueEmailVerificationUseCase,
 )
 from md2blog.modules.identity.application.port.inbound.login import LoginUseCase
+from md2blog.modules.identity.application.port.inbound.password_reset import (
+    ConfirmPasswordResetUseCase,
+    RequestPasswordResetUseCase,
+)
 from md2blog.modules.identity.application.port.inbound.signup import SignUpUseCase
 from md2blog.modules.identity.application.port.outbound.email import EmailDeliveryError, EmailSender
 from md2blog.modules.identity.application.port.outbound.security import InvalidAccessTokenError
@@ -27,12 +31,20 @@ from md2blog.modules.identity.application.service.email_verification import (
 )
 from md2blog.modules.identity.application.service.login import Login
 from md2blog.modules.identity.application.service.logout import LogoutSessionService
+from md2blog.modules.identity.application.service.password_reset import (
+    ConfirmPasswordReset,
+    PasswordResetPolicy,
+    RequestPasswordReset,
+)
 from md2blog.modules.identity.application.service.refresh import RefreshSessionService
 from md2blog.modules.identity.application.service.signup import SignUp
 from md2blog.modules.identity.domain.user import User
 from md2blog.modules.identity.infrastructure.email import GmailSmtpEmailSender
 from md2blog.modules.identity.infrastructure.email_verification_repositories import (
     SqlAlchemyEmailVerificationTokenRepository,
+)
+from md2blog.modules.identity.infrastructure.password_reset_repositories import (
+    SqlAlchemyPasswordResetTokenRepository,
 )
 from md2blog.modules.identity.infrastructure.passwords import Argon2PasswordHasher
 from md2blog.modules.identity.infrastructure.repositories import SqlAlchemyUserRepository
@@ -43,6 +55,7 @@ from md2blog.modules.identity.infrastructure.tokens import (
     JwtAccessTokenDecoder,
     JwtAccessTokenIssuer,
     SecureEmailVerificationTokenManager,
+    SecurePasswordResetTokenManager,
     SecureRefreshTokenManager,
     SystemClock,
 )
@@ -150,6 +163,41 @@ def get_delete_account(
     return DeleteAccount(
         users=SqlAlchemyUserRepository(session),
         password_hasher=Argon2PasswordHasher(),
+    )
+
+
+def get_request_password_reset(
+    session: AsyncSession = Depends(get_session),
+    email_sender: EmailSender = Depends(get_email_sender),
+    settings: Settings = Depends(get_settings),
+) -> RequestPasswordResetUseCase:
+    return RequestPasswordReset(
+        users=SqlAlchemyUserRepository(session),
+        tokens=SqlAlchemyPasswordResetTokenRepository(session),
+        token_manager=SecurePasswordResetTokenManager(),
+        email_sender=email_sender,
+        clock=SystemClock(),
+        policy=PasswordResetPolicy(
+            token_ttl=timedelta(minutes=settings.password_reset_token_ttl_minutes),
+            resend_cooldown=timedelta(
+                seconds=settings.password_reset_resend_cooldown_seconds
+            ),
+            daily_limit=settings.password_reset_daily_limit,
+        ),
+        frontend_url=settings.frontend_url,
+    )
+
+
+def get_confirm_password_reset(
+    session: AsyncSession = Depends(get_session),
+) -> ConfirmPasswordResetUseCase:
+    return ConfirmPasswordReset(
+        users=SqlAlchemyUserRepository(session),
+        sessions=SqlAlchemyAuthSessionRepository(session),
+        tokens=SqlAlchemyPasswordResetTokenRepository(session),
+        token_manager=SecurePasswordResetTokenManager(),
+        password_hasher=Argon2PasswordHasher(),
+        clock=SystemClock(),
     )
 
 

@@ -47,3 +47,6 @@ def test_email_delivery_uses_safe_local_defaults() -> None:
     assert settings.email_verification_token_ttl_hours == 24
     assert settings.email_verification_resend_cooldown_seconds == 60
     assert settings.email_verification_daily_limit == 5
+    assert settings.password_reset_token_ttl_minutes == 60
+    assert settings.password_reset_resend_cooldown_seconds == 60
+    assert settings.password_reset_daily_limit == 5

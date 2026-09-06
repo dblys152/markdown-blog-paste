@@ -26,3 +26,14 @@ class LoginCommand:
 @dataclass(frozen=True, slots=True)
 class DeleteAccountCommand:
     password: RawPassword
+
+
+@dataclass(frozen=True, slots=True)
+class RequestPasswordResetCommand:
+    email: Email
+
+
+@dataclass(frozen=True, slots=True)
+class ConfirmPasswordResetCommand:
+    token: str
+    new_password: RawPassword

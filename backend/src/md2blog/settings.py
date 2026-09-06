@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     email_verification_token_ttl_hours: int = 24
     email_verification_resend_cooldown_seconds: int = 60
     email_verification_daily_limit: int = 5
+    password_reset_token_ttl_minutes: int = 60
+    password_reset_resend_cooldown_seconds: int = 60
+    password_reset_daily_limit: int = 5
 
     @property
     def async_database_url(self) -> URL:

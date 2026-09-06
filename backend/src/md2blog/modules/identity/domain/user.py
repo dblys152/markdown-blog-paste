@@ -53,6 +53,10 @@ class User:
             return self
         return replace(self, email_verified_at=verified_at)
 
+    def reset_password(self, password_hash: PasswordHash) -> "User":
+        self.ensure_access_allowed()
+        return replace(self, password_hash=password_hash)
+
     @property
     def is_email_verified(self) -> bool:
         return self.email_verified_at is not None

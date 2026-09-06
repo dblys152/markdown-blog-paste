@@ -6,7 +6,9 @@ import {
   login,
   logout,
   confirmEmailVerification,
+  confirmPasswordReset,
   requestEmailVerification,
+  requestPasswordReset,
   restoreSession,
 } from "../../../src/features/auth/api";
 
@@ -126,6 +128,36 @@ describe("auth api", () => {
     expect(fetchMock).toHaveBeenLastCalledWith(
       "http://localhost:8000/auth/account",
       expect.objectContaining({ method: "DELETE", body: JSON.stringify({ password: "password123" }) }),
+    );
+  });
+
+  it("비밀번호 재설정 메일을 요청한다", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await requestPasswordReset("user@example.com");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:8000/auth/password-reset/request",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ email: "user@example.com" }),
+      }),
+    );
+  });
+
+  it("새 비밀번호를 설정한다", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await confirmPasswordReset("reset-token", "new-password");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:8000/auth/password-reset/confirm",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ token: "reset-token", new_password: "new-password" }),
+      }),
     );
   });
 });

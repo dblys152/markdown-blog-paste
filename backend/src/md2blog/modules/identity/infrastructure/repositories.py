@@ -33,6 +33,7 @@ class SqlAlchemyUserRepository:
         if model is None:
             raise LookupError("user not found")
         model.email_verified_at = user.email_verified_at
+        model.password_hash = user.password_hash.value
         model.status = user.status.value
         await self._session.flush()
 

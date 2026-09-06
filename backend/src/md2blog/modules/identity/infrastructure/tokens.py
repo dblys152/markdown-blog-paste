@@ -6,6 +6,7 @@ import jwt
 
 from md2blog.modules.identity.application.port.outbound.email import (
     GeneratedEmailVerificationToken,
+    GeneratedPasswordResetToken,
 )
 from md2blog.modules.identity.application.port.outbound.security import (
     InvalidAccessTokenError,
@@ -19,6 +20,7 @@ ACCESS_TOKEN_TYPE = "access"
 REQUIRED_ACCESS_TOKEN_CLAIMS = ("sub", "type", "iat", "exp")
 REFRESH_TOKEN_BYTES = 48
 EMAIL_VERIFICATION_TOKEN_BYTES = 32
+PASSWORD_RESET_TOKEN_BYTES = 32
 
 
 class JwtAccessTokenIssuer:
@@ -72,6 +74,15 @@ class SecureEmailVerificationTokenManager:
     def generate(self) -> GeneratedEmailVerificationToken:
         raw = secrets.token_urlsafe(EMAIL_VERIFICATION_TOKEN_BYTES)
         return GeneratedEmailVerificationToken(raw=raw, token_hash=self.hash(raw))
+
+    def hash(self, raw_token: str) -> str:
+        return sha256(raw_token.encode("utf-8")).hexdigest()
+
+
+class SecurePasswordResetTokenManager:
+    def generate(self) -> GeneratedPasswordResetToken:
+        raw = secrets.token_urlsafe(PASSWORD_RESET_TOKEN_BYTES)
+        return GeneratedPasswordResetToken(raw=raw, token_hash=self.hash(raw))
 
     def hash(self, raw_token: str) -> str:
         return sha256(raw_token.encode("utf-8")).hexdigest()

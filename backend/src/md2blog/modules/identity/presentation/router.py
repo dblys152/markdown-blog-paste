@@ -16,6 +16,12 @@ from md2blog.modules.identity.application.port.inbound.models import (
     TokenResponse,
     UserResponse,
 )
+from md2blog.modules.identity.application.port.inbound.password_reset import (
+    ConfirmPasswordResetUseCase,
+    PasswordResetConfirmRequest,
+    PasswordResetRequest,
+    RequestPasswordResetUseCase,
+)
 from md2blog.modules.identity.application.port.inbound.signup import SignUpRequest
 from md2blog.modules.identity.application.service.logout import LogoutSessionService
 from md2blog.modules.identity.application.service.refresh import (
@@ -27,18 +33,25 @@ from md2blog.modules.identity.domain.auth_session import (
     InvalidRefreshSessionError,
     RefreshTokenReuseDetectedError,
 )
-from md2blog.modules.identity.domain.commands import DeleteAccountCommand, LoginCommand
+from md2blog.modules.identity.domain.commands import (
+    ConfirmPasswordResetCommand,
+    DeleteAccountCommand,
+    LoginCommand,
+    RequestPasswordResetCommand,
+)
 from md2blog.modules.identity.domain.user import User
 from md2blog.modules.identity.domain.value_objects import Email, RawPassword
 from md2blog.modules.identity.presentation.dependencies import (
     SignUpDependencies,
     get_confirm_email_verification,
+    get_confirm_password_reset,
     get_current_user,
     get_delete_account,
     get_issue_email_verification,
     get_login_use_case,
     get_logout_service,
     get_refresh_service,
+    get_request_password_reset,
     get_signup_dependencies,
 )
 from md2blog.settings import Settings, get_settings
@@ -181,6 +194,30 @@ async def confirm_email_verification(
     use_case: ConfirmEmailVerificationUseCase = Depends(get_confirm_email_verification),
 ) -> UserResponse:
     return to_user_response(await use_case.execute(request.token))
+
+
+@router.post("/password-reset/request", status_code=status.HTTP_204_NO_CONTENT)
+async def request_password_reset(
+    request: PasswordResetRequest,
+    use_case: RequestPasswordResetUseCase = Depends(get_request_password_reset),
+) -> None:
+    await use_case.execute(RequestPasswordResetCommand(email=Email(str(request.email))))
+
+
+@router.post("/password-reset/confirm", status_code=status.HTTP_204_NO_CONTENT)
+async def confirm_password_reset(
+    request: PasswordResetConfirmRequest,
+    response: Response,
+    use_case: ConfirmPasswordResetUseCase = Depends(get_confirm_password_reset),
+    settings: Settings = Depends(get_settings),
+) -> None:
+    await use_case.execute(
+        ConfirmPasswordResetCommand(
+            token=request.token,
+            new_password=RawPassword(request.new_password),
+        )
+    )
+    delete_refresh_cookie(response, settings)
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)

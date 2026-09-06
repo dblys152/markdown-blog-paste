@@ -14,11 +14,18 @@ from md2blog.modules.identity.application.service.email_verification import (
     EmailVerificationDailyLimitError,
     InvalidEmailVerificationTokenError,
 )
+from md2blog.modules.identity.application.service.password_reset import (
+    InvalidPasswordResetTokenError,
+)
 from md2blog.modules.identity.application.service.signup import EmailAlreadyExistsError
 from md2blog.modules.identity.domain.auth_session import InvalidRefreshSessionError
 from md2blog.modules.identity.domain.email_verification import (
     EmailVerificationExpiredError,
     EmailVerificationUnavailableError,
+)
+from md2blog.modules.identity.domain.password_reset import (
+    PasswordResetExpiredError,
+    PasswordResetUnavailableError,
 )
 from md2blog.modules.identity.domain.user import (
     AccountDeletionPasswordMismatchError,
@@ -134,6 +141,14 @@ async def handle_account_deletion_password_mismatch(
     )
 
 
+async def handle_invalid_password_reset(_: Request, __: Exception) -> JSONResponse:
+    return error_response(
+        status.HTTP_400_BAD_REQUEST,
+        ErrorCode.AUTH_PASSWORD_RESET_INVALID,
+        "유효하지 않거나 만료된 비밀번호 재설정 링크입니다.",
+    )
+
+
 async def handle_parent_page_not_found(_: Request, __: Exception) -> JSONResponse:
     return error_response(
         status.HTTP_404_NOT_FOUND,
@@ -225,6 +240,9 @@ def register_exception_handlers(app: FastAPI) -> None:
         AccountDeletionPasswordMismatchError,
         handle_account_deletion_password_mismatch,
     )
+    app.add_exception_handler(InvalidPasswordResetTokenError, handle_invalid_password_reset)
+    app.add_exception_handler(PasswordResetExpiredError, handle_invalid_password_reset)
+    app.add_exception_handler(PasswordResetUnavailableError, handle_invalid_password_reset)
     app.add_exception_handler(ParentPageNotFoundError, handle_parent_page_not_found)
     app.add_exception_handler(PageNotFoundError, handle_page_not_found)
     app.add_exception_handler(InvalidPageMoveError, handle_invalid_page_move)

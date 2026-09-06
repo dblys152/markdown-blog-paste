@@ -29,3 +29,15 @@ class EmailVerificationTokenManager(Protocol):
     def generate(self) -> GeneratedEmailVerificationToken: ...
 
     def hash(self, raw_token: str) -> str: ...
+
+
+@dataclass(frozen=True, slots=True)
+class GeneratedPasswordResetToken:
+    raw: str
+    token_hash: str
+
+
+class PasswordResetTokenManager(Protocol):
+    def generate(self) -> GeneratedPasswordResetToken: ...
+
+    def hash(self, raw_token: str) -> str: ...

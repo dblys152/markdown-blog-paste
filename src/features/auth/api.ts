@@ -67,6 +67,21 @@ export async function confirmEmailVerification(token: string): Promise<AuthUser>
   });
 }
 
+export async function requestPasswordReset(email: string): Promise<void> {
+  await apiRequest<void>("/auth/password-reset/request", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+}
+
+export async function confirmPasswordReset(token: string, newPassword: string): Promise<void> {
+  await apiRequest<void>("/auth/password-reset/confirm", {
+    method: "POST",
+    body: JSON.stringify({ token, new_password: newPassword }),
+  });
+  clearAccessToken();
+}
+
 export function restoreSession(): Promise<AuthSession | null> {
   if (!refreshPromise) {
     refreshPromise = apiRequest<AuthSession>("/auth/refresh", { method: "POST" })

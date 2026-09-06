@@ -151,6 +151,9 @@ export const APP_LAYOUT_CSS = `
 .route-page h1 { margin: 0; color: #111827; font-size: 28px; letter-spacing: -.03em; }
 .route-description { margin: 14px 0 0; color: #667085; line-height: 1.7; }
 .auth-form { display: grid; gap: 16px; margin-top: 28px; }
+.auth-forgot-password { margin-top: -7px; color: #5263b7; font-size: 13px; font-weight: 700; justify-self: end; text-decoration: none; }
+.auth-forgot-password:hover { color: #2949df; text-decoration: underline; }
+.password-recovery-card { width: min(100%, 520px); }
 .auth-form label { display: grid; gap: 8px; color: #374151; font-size: 13px; font-weight: 700; }
 .auth-form input { width: 100%; height: 44px; padding: 0 12px; border: 1px solid #d1d5db; border-radius: 8px; background: #fff; }
 .auth-form input:focus { border-color: #3f5bea; outline: 3px solid rgba(63,91,234,.12); }
@@ -165,6 +168,7 @@ export const APP_LAYOUT_CSS = `
 .verification-actions .route-primary-link { margin-top: 0; justify-content: center; }
 .auth-footer { margin: 22px 0 0; color: #6b7280; font-size: 13px; text-align: center; }
 .auth-footer a { color: #2949df; font-weight: 800; }
+.auth-centered-link { justify-content: center; }
 .not-found-card { text-align: center; }
 .route-primary-link { display: inline-flex; min-height: 42px; margin-top: 24px; padding: 0 18px; align-items: center; border-radius: 8px; background: #3f5bea; color: #fff; font-weight: 800; text-decoration: none; }
 
