@@ -21,3 +21,8 @@ class SignUpCommand:
 class LoginCommand:
     email: Email
     password: RawPassword
+
+
+@dataclass(frozen=True, slots=True)
+class DeleteAccountCommand:
+    password: RawPassword

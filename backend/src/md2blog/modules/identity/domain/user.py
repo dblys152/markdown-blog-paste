@@ -35,6 +35,11 @@ class User:
         if not password_matches or self.status is not UserStatus.ACTIVE:
             raise AuthenticationFailedError
 
+    def confirm_account_deletion(self, password_matches: bool) -> None:
+        if not password_matches:
+            raise AccountDeletionPasswordMismatchError
+        self.ensure_access_allowed()
+
     def ensure_access_allowed(self) -> None:
         if self.status is not UserStatus.ACTIVE:
             raise AccessNotAllowedError
@@ -62,4 +67,8 @@ class AccessNotAllowedError(Exception):
 
 
 class EmailVerificationRequiredError(Exception):
+    pass
+
+
+class AccountDeletionPasswordMismatchError(Exception):
     pass

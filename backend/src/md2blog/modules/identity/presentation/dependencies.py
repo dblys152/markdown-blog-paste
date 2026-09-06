@@ -6,6 +6,7 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from md2blog.modules.identity.application.factory.signup import SignUpCommandFactory
+from md2blog.modules.identity.application.port.inbound.account import DeleteAccountUseCase
 from md2blog.modules.identity.application.port.inbound.email_verification import (
     ConfirmEmailVerificationUseCase,
     IssueEmailVerificationUseCase,
@@ -18,6 +19,7 @@ from md2blog.modules.identity.application.service.authenticate_access_token impo
     AuthenticateAccessToken,
     AuthenticationRequiredError,
 )
+from md2blog.modules.identity.application.service.delete_account import DeleteAccount
 from md2blog.modules.identity.application.service.email_verification import (
     ConfirmEmailVerification,
     EmailVerificationPolicy,
@@ -137,6 +139,15 @@ def get_login_use_case(
     session: AsyncSession = Depends(get_session),
 ) -> LoginUseCase:
     return Login(
+        users=SqlAlchemyUserRepository(session),
+        password_hasher=Argon2PasswordHasher(),
+    )
+
+
+def get_delete_account(
+    session: AsyncSession = Depends(get_session),
+) -> DeleteAccountUseCase:
+    return DeleteAccount(
         users=SqlAlchemyUserRepository(session),
         password_hasher=Argon2PasswordHasher(),
     )

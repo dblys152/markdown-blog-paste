@@ -90,6 +90,14 @@ export async function logout(): Promise<void> {
   }
 }
 
+export async function deleteAccount(password: string): Promise<void> {
+  await authenticatedRequest<void>("/auth/account", {
+    method: "DELETE",
+    body: JSON.stringify({ password }),
+  });
+  clearAccessToken();
+}
+
 export async function authenticatedRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
   const request = async (): Promise<T> => {
     const headers = new Headers(init.headers);

@@ -86,11 +86,44 @@ export const APP_LAYOUT_CSS = `
 .app-login-link { padding: 0 16px; font-size: 13px; font-weight: 800; transition: background-color .15s, border-color .15s, color .15s, box-shadow .15s; }
 .app-login-link:hover { border-color: #2949df; background: #2949df; }
 .app-login-link:focus-visible { outline: 0; box-shadow: 0 0 0 3px rgba(63, 91, 234, .2); }
+.app-account-menu { position: relative; }
+.app-account-menu-trigger { display: flex; height: 38px; min-width: 0; align-items: center; gap: 7px; padding: 0 11px; border: 1px solid #d6dbe5; border-radius: 7px; background: #fff; color: #475467; font: inherit; cursor: pointer; }
+.app-account-menu-trigger:hover { border-color: #aeb7c6; background: #f8fafc; }
+.app-account-avatar { width: 26px; height: 26px; flex: 0 0 auto; border: 1px solid #dbe3ff; border-radius: 50%; background: #f2f5ff; object-fit: cover; }
 .app-user-name { max-width: 140px; overflow: hidden; color: #374151; font-size: 13px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
-.app-logout-button { height: 36px; padding: 0 12px; border: 1px solid #d6dbe5; border-radius: 7px; background: #fff; color: #4b5563; font: inherit; font-size: 12px; font-weight: 800; cursor: pointer; }
-.app-logout-button:hover { border-color: #aeb7c6; background: #f8fafc; }
+.app-account-menu-popover { position: absolute; top: calc(100% + 7px); right: 0; z-index: 60; display: grid; width: 132px; padding: 6px; border: 1px solid #dfe3eb; border-radius: 9px; background: #fff; box-shadow: 0 12px 30px rgba(15, 23, 42, .14); }
+.app-account-menu-popover button { min-height: 34px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; color: #475467; font: inherit; font-size: 12px; font-weight: 750; text-align: left; cursor: pointer; }
+.app-account-menu-popover button:hover { background: #f4f6f9; }
+.app-account-menu-popover button.is-danger { color: #dc2626; }
 .app-auth-loading { width: 18px; height: 18px; border: 2px solid #dbe1ea; border-top-color: #3f5bea; border-radius: 50%; animation: app-auth-spin .7s linear infinite; }
 @keyframes app-auth-spin { to { transform: rotate(360deg); } }
+
+.account-deletion-backdrop { position: fixed; z-index: 100; inset: 0; display: grid; padding: 20px; place-items: center; background: rgba(15, 23, 42, .48); }
+.account-deletion-dialog, .account-management-dialog { width: min(100%, 520px); padding: 26px; border-radius: 12px; background: #fff; box-shadow: 0 24px 70px rgba(15, 23, 42, .25); }
+.account-dialog-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.account-dialog-heading span { display: block; margin-bottom: 4px; color: #667085; font-size: 11px; font-weight: 800; }
+.account-dialog-heading h2 { margin: 0; color: #111827; font-size: 21px; }
+.account-dialog-heading > button { display: grid; width: 30px; height: 30px; padding: 0; place-items: center; border: 0; border-radius: 6px; background: transparent; color: #667085; font-size: 20px; cursor: pointer; }
+.account-dialog-heading > button:hover { background: #f2f4f7; color: #344054; }
+.account-deletion-dialog > p { margin: 12px 0 0; color: #5f6b7a; font-size: 13px; line-height: 1.65; }
+.account-deletion-dialog form { display: grid; gap: 16px; margin-top: 22px; }
+.account-deletion-dialog label { display: grid; gap: 8px; color: #374151; font-size: 13px; font-weight: 750; }
+.account-deletion-dialog input { height: 42px; padding: 0 12px; border: 1px solid #d1d5db; border-radius: 7px; font: inherit; }
+.account-deletion-dialog input:focus { border-color: #dc2626; outline: 3px solid rgba(220, 38, 38, .1); }
+.account-deletion-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.account-deletion-actions button { min-height: 38px; padding: 0 14px; border: 1px solid #d6dbe5; border-radius: 7px; background: #fff; color: #475467; font: inherit; font-size: 12px; font-weight: 800; cursor: pointer; }
+.account-deletion-actions button.is-danger { border-color: #dc2626; background: #dc2626; color: #fff; }
+.account-deletion-actions button:disabled { cursor: default; opacity: .6; }
+.account-profile-details { display: grid; margin: 22px 0 0; border-top: 1px solid #eaecf0; }
+.account-profile-details > div { display: grid; grid-template-columns: 104px minmax(0, 1fr); min-height: 48px; align-items: center; border-bottom: 1px solid #eaecf0; }
+.account-profile-details dt { color: #667085; font-size: 12px; font-weight: 750; }
+.account-profile-details dd { min-width: 0; margin: 0; overflow: hidden; color: #344054; font-size: 13px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.account-profile-details dd.is-verified { color: #16a34a; }
+.account-danger-zone { display: flex; margin-top: 24px; padding: 16px; align-items: center; justify-content: space-between; gap: 18px; border: 1px solid #fecaca; border-radius: 9px; background: #fffafa; }
+.account-danger-zone strong { color: #b42318; font-size: 13px; }
+.account-danger-zone p { margin: 5px 0 0; color: #7a4b48; font-size: 11px; line-height: 1.5; }
+.account-danger-zone button { min-height: 34px; flex: 0 0 auto; padding: 0 11px; border: 1px solid #dc2626; border-radius: 6px; background: #fff; color: #dc2626; font: inherit; font-size: 11px; font-weight: 800; cursor: pointer; }
+.account-danger-zone button:hover { background: #dc2626; color: #fff; }
 
 .app-route-content { min-width: 0; min-height: 0; overflow: hidden; }
 
@@ -319,21 +352,21 @@ export const APP_LAYOUT_CSS = `
   background: rgba(15, 23, 42, .42);
 }
 .save-dialog {
-  width: min(100%, 440px);
-  padding: 22px;
+  width: min(100%, 520px);
+  padding: 26px;
   border: 1px solid #e0e4eb;
   border-radius: 12px;
   background: #fff;
   box-shadow: 0 24px 64px rgba(15, 23, 42, .22);
 }
-.save-dialog h2 { margin: 0; color: #172033; font-size: 18px; letter-spacing: -.02em; }
-.save-dialog > p { margin: 8px 0 18px; color: #667085; font-size: 12px; }
+.save-dialog h2 { margin: 0; color: #172033; font-size: 21px; letter-spacing: -.02em; }
+.save-dialog > p { margin: 10px 0 20px; color: #667085; font-size: 13px; line-height: 1.6; }
 .save-dialog fieldset { display: grid; gap: 10px; margin: 0; padding: 0; border: 0; }
-.save-dialog label { display: flex; min-height: 44px; gap: 10px; align-items: center; padding: 0 13px; border: 1px solid #dfe3eb; border-radius: 8px; color: #344054; font-size: 12px; font-weight: 700; cursor: pointer; }
+.save-dialog label { display: flex; min-height: 44px; gap: 10px; align-items: center; padding: 0 13px; border: 1px solid #dfe3eb; border-radius: 8px; color: #344054; font-size: 13px; font-weight: 700; cursor: pointer; }
 .save-dialog label:has(input:checked) { border-color: #3f5bea; background: #f5f7ff; color: #2949df; }
 .save-dialog input { margin: 0; accent-color: #3f5bea; }
 .save-dialog fieldset small { margin: -3px 4px 2px 28px; color: #c2410c; font-size: 11px; }
-.save-dialog .save-dialog-select-label { display: block; min-height: 0; margin-bottom: 7px; padding: 0; border: 0; color: #475467; font-size: 12px; cursor: default; }
+.save-dialog .save-dialog-select-label { display: block; min-height: 0; margin-bottom: 7px; padding: 0; border: 0; color: #475467; font-size: 13px; cursor: default; }
 .save-dialog .save-dialog-select-label:hover { background: transparent; }
 .save-dialog-select { width: 100%; height: 40px; margin-bottom: 16px; padding: 0 11px; border: 1px solid #d8dde6; border-radius: 7px; background: #fff; color: #344054; font-family: inherit; font-size: 13px; }
 .save-dialog-select:focus { border-color: #637df2; outline: 2px solid #e5e9ff; }
@@ -408,7 +441,9 @@ export const APP_LAYOUT_CSS = `
   .app-top-nav a { padding-inline: 7px; font-size: 12px; }
   .app-login-link { height: 34px; padding: 0 10px; font-size: 11px; }
   .app-user-name { max-width: 74px; font-size: 11px; }
-  .app-logout-button { height: 34px; padding: 0 8px; font-size: 11px; }
+  .app-account-menu-trigger { height: 34px; padding-inline: 8px; }
+  .app-account-avatar { width: 24px; height: 24px; }
+  .account-deletion-dialog, .account-management-dialog { padding: 22px; }
   .route-page { padding: 20px; }
   .auth-card, .not-found-card { padding: 26px 22px; }
 }

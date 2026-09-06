@@ -21,6 +21,7 @@ from md2blog.modules.identity.domain.email_verification import (
     EmailVerificationUnavailableError,
 )
 from md2blog.modules.identity.domain.user import (
+    AccountDeletionPasswordMismatchError,
     AuthenticationFailedError,
     EmailVerificationRequiredError,
 )
@@ -122,6 +123,17 @@ async def handle_email_verification_required(_: Request, __: Exception) -> JSONR
     )
 
 
+async def handle_account_deletion_password_mismatch(
+    _: Request,
+    __: Exception,
+) -> JSONResponse:
+    return error_response(
+        status.HTTP_400_BAD_REQUEST,
+        ErrorCode.AUTH_ACCOUNT_PASSWORD_MISMATCH,
+        "현재 비밀번호가 올바르지 않습니다.",
+    )
+
+
 async def handle_parent_page_not_found(_: Request, __: Exception) -> JSONResponse:
     return error_response(
         status.HTTP_404_NOT_FOUND,
@@ -208,6 +220,10 @@ def register_exception_handlers(app: FastAPI) -> None:
     app.add_exception_handler(
         EmailVerificationRequiredError,
         handle_email_verification_required,
+    )
+    app.add_exception_handler(
+        AccountDeletionPasswordMismatchError,
+        handle_account_deletion_password_mismatch,
     )
     app.add_exception_handler(ParentPageNotFoundError, handle_parent_page_not_found)
     app.add_exception_handler(PageNotFoundError, handle_page_not_found)

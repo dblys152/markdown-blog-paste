@@ -36,6 +36,13 @@ class SqlAlchemyUserRepository:
         model.status = user.status.value
         await self._session.flush()
 
+    async def delete(self, user: User) -> None:
+        model = await self._session.get(UserModel, user.id.value)
+        if model is None:
+            raise LookupError("user not found")
+        await self._session.delete(model)
+        await self._session.flush()
+
     async def find_by_id(self, user_id: int) -> User | None:
         model = await self._session.get(UserModel, user_id)
         return None if model is None else self._to_domain(model)

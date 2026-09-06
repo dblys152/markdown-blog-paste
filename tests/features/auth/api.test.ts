@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   clearAccessToken,
+  deleteAccount,
   getAccessToken,
   login,
   logout,
@@ -106,6 +107,25 @@ describe("auth api", () => {
     expect(fetchMock).toHaveBeenCalledWith(
       "http://localhost:8000/auth/email-verification/confirm",
       expect.objectContaining({ method: "POST", body: JSON.stringify({ token: "verification-token" }) }),
+    );
+  });
+
+  it("회원탈퇴 후 메모리의 액세스 토큰을 제거한다", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(SESSION), { status: 200, headers: { "Content-Type": "application/json" } }),
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await login({ email: "user@example.com", password: "password123" });
+
+    await deleteAccount("password123");
+
+    expect(getAccessToken()).toBeNull();
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "http://localhost:8000/auth/account",
+      expect.objectContaining({ method: "DELETE", body: JSON.stringify({ password: "password123" }) }),
     );
   });
 });

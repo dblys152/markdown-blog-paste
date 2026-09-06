@@ -2,6 +2,10 @@ from fastapi import APIRouter, Cookie, Depends, Request, Response, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
 
+from md2blog.modules.identity.application.port.inbound.account import (
+    DeleteAccountRequest,
+    DeleteAccountUseCase,
+)
 from md2blog.modules.identity.application.port.inbound.email_verification import (
     ConfirmEmailVerificationUseCase,
     IssueEmailVerificationUseCase,
@@ -23,13 +27,14 @@ from md2blog.modules.identity.domain.auth_session import (
     InvalidRefreshSessionError,
     RefreshTokenReuseDetectedError,
 )
-from md2blog.modules.identity.domain.commands import LoginCommand
+from md2blog.modules.identity.domain.commands import DeleteAccountCommand, LoginCommand
 from md2blog.modules.identity.domain.user import User
 from md2blog.modules.identity.domain.value_objects import Email, RawPassword
 from md2blog.modules.identity.presentation.dependencies import (
     SignUpDependencies,
     get_confirm_email_verification,
     get_current_user,
+    get_delete_account,
     get_issue_email_verification,
     get_login_use_case,
     get_logout_service,
@@ -197,4 +202,19 @@ async def logout_all(
     settings: Settings = Depends(get_settings),
 ) -> None:
     await service.logout_all(current_user.id)
+    delete_refresh_cookie(response, settings)
+
+
+@router.delete("/account", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_account(
+    request: DeleteAccountRequest,
+    response: Response,
+    current_user: User = Depends(get_current_user),
+    use_case: DeleteAccountUseCase = Depends(get_delete_account),
+    settings: Settings = Depends(get_settings),
+) -> None:
+    await use_case.execute(
+        current_user,
+        DeleteAccountCommand(password=RawPassword(request.password)),
+    )
     delete_refresh_cookie(response, settings)

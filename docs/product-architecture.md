@@ -298,6 +298,7 @@ POST /auth/login
 POST /auth/refresh
 POST /auth/logout
 POST /auth/logout-all
+DELETE /auth/account
 GET  /auth/me
 
 POST /auth/email-verification/request
@@ -305,6 +306,11 @@ POST /auth/email-verification/confirm
 POST /auth/password-reset/request
 POST /auth/password-reset/confirm
 ```
+
+회원탈퇴는 현재 비밀번호를 다시 검증한 후 `users` 행을 영구 삭제합니다. 페이지,
+본문, 휴지통 데이터, 인증 토큰 및 모든 Refresh Token 세션은 외래키의
+`ON DELETE CASCADE`로 같은 트랜잭션에서 제거합니다. 이후 발급된 Access Token도
+사용자 조회에 실패하므로 사용할 수 없으며, 삭제된 이메일은 즉시 재가입할 수 있습니다.
 
 ### 6.3 인증 테이블 초안
 

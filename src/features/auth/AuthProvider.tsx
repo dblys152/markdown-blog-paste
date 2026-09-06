@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   confirmEmailVerification as confirmEmailVerificationRequest,
+  deleteAccount as deleteAccountRequest,
   login as loginRequest,
   logout as logoutRequest,
   requestEmailVerification as requestEmailVerificationRequest,
@@ -21,6 +22,7 @@ type AuthContextValue = {
   requestEmailVerification: () => Promise<void>;
   confirmEmailVerification: (token: string) => Promise<AuthUser>;
   refreshCurrentUser: () => Promise<AuthUser | null>;
+  deleteAccount: (password: string) => Promise<void>;
   logout: () => Promise<void>;
 };
 
@@ -68,6 +70,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(session?.user ?? null);
         setStatus(session ? "authenticated" : "guest");
         return session?.user ?? null;
+      },
+      deleteAccount: async (password) => {
+        await deleteAccountRequest(password);
+        setUser(null);
+        setStatus("guest");
       },
       logout: async () => {
         try {
