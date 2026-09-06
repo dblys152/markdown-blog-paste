@@ -6,12 +6,16 @@ import { ApiError } from "../shared/api/http";
 export function AppLayout() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { status, user, logout, deleteAccount } = useAuth();
+  const { status, user, logout, deleteAccount, updateDisplayName } = useAuth();
   const [isAccountDeletionOpen, setIsAccountDeletionOpen] = useState(false);
   const [isAccountManagementOpen, setIsAccountManagementOpen] = useState(false);
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const [accountDeletionError, setAccountDeletionError] = useState<string | null>(null);
+  const [isEditingDisplayName, setIsEditingDisplayName] = useState(false);
+  const [isSavingDisplayName, setIsSavingDisplayName] = useState(false);
+  const [displayNameDraft, setDisplayNameDraft] = useState("");
+  const [displayNameError, setDisplayNameError] = useState<string | null>(null);
   const isWorkspace = location.pathname.startsWith("/workspace");
 
   async function handleDeleteAccount(event: FormEvent<HTMLFormElement>) {
@@ -29,6 +33,32 @@ export function AppLayout() {
       );
     } finally {
       setIsDeletingAccount(false);
+    }
+  }
+
+  async function handleUpdateDisplayName(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const normalizedDisplayName = displayNameDraft.trim();
+    if (!normalizedDisplayName) {
+      setDisplayNameError("닉네임을 입력해 주세요.");
+      return;
+    }
+    if (normalizedDisplayName === user?.display_name) {
+      setIsEditingDisplayName(false);
+      setDisplayNameError(null);
+      return;
+    }
+    setDisplayNameError(null);
+    setIsSavingDisplayName(true);
+    try {
+      await updateDisplayName(normalizedDisplayName);
+      setIsEditingDisplayName(false);
+    } catch (error) {
+      setDisplayNameError(
+        error instanceof ApiError ? error.message : "닉네임을 변경하지 못했습니다.",
+      );
+    } finally {
+      setIsSavingDisplayName(false);
     }
   }
 
@@ -68,6 +98,9 @@ export function AppLayout() {
                     role="menuitem"
                     onClick={() => {
                       setIsAccountMenuOpen(false);
+                      setIsEditingDisplayName(false);
+                      setDisplayNameDraft(user.display_name);
+                      setDisplayNameError(null);
                       setIsAccountManagementOpen(true);
                     }}
                   >계정 관리</button>
@@ -109,7 +142,46 @@ export function AppLayout() {
               <button type="button" aria-label="계정 관리 닫기" onClick={() => setIsAccountManagementOpen(false)}>×</button>
             </div>
             <dl className="account-profile-details">
-              <div><dt>이름</dt><dd>{user.display_name}</dd></div>
+              <div className="account-display-name-row">
+                <dt>닉네임</dt>
+                <dd>
+                  {isEditingDisplayName ? (
+                    <form className="account-display-name-form" onSubmit={handleUpdateDisplayName}>
+                      <input
+                        aria-label="닉네임"
+                        value={displayNameDraft}
+                        onChange={(event) => setDisplayNameDraft(event.target.value)}
+                        minLength={1}
+                        maxLength={10}
+                        disabled={isSavingDisplayName}
+                        autoFocus
+                        required
+                      />
+                      <button type="submit" disabled={isSavingDisplayName}>저장</button>
+                      <button type="button" disabled={isSavingDisplayName} onClick={() => {
+                        setIsEditingDisplayName(false);
+                        setDisplayNameDraft(user.display_name);
+                        setDisplayNameError(null);
+                      }}>취소</button>
+                    </form>
+                  ) : (
+                    <span className="account-display-name-value">
+                      <span>{user.display_name}</span>
+                      <button type="button" aria-label="닉네임 변경" onClick={() => {
+                        setDisplayNameDraft(user.display_name);
+                        setDisplayNameError(null);
+                        setIsEditingDisplayName(true);
+                      }}>
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="M12 20h9" />
+                          <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                        </svg>
+                      </button>
+                    </span>
+                  )}
+                  {displayNameError && <span className="account-display-name-error" role="alert">{displayNameError}</span>}
+                </dd>
+              </div>
               <div><dt>이메일</dt><dd>{user.email}</dd></div>
               <div><dt>이메일 인증</dt><dd className={user.email_verified ? "is-verified" : ""}>{user.email_verified ? "인증 완료" : "인증 필요"}</dd></div>
             </dl>

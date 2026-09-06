@@ -16,6 +16,9 @@ from md2blog.modules.identity.application.port.inbound.password_reset import (
     ConfirmPasswordResetUseCase,
     RequestPasswordResetUseCase,
 )
+from md2blog.modules.identity.application.port.inbound.profile import (
+    UpdateDisplayNameUseCase,
+)
 from md2blog.modules.identity.application.port.inbound.signup import SignUpUseCase
 from md2blog.modules.identity.application.port.outbound.email import EmailDeliveryError, EmailSender
 from md2blog.modules.identity.application.port.outbound.security import InvalidAccessTokenError
@@ -38,6 +41,8 @@ from md2blog.modules.identity.application.service.password_reset import (
 )
 from md2blog.modules.identity.application.service.refresh import RefreshSessionService
 from md2blog.modules.identity.application.service.signup import SignUp
+from md2blog.modules.identity.application.service.update_display_name import UpdateDisplayName
+from md2blog.modules.identity.domain.nickname_policy import NicknameUniquenessPolicy
 from md2blog.modules.identity.domain.user import User
 from md2blog.modules.identity.infrastructure.email import GmailSmtpEmailSender
 from md2blog.modules.identity.infrastructure.email_verification_repositories import (
@@ -166,6 +171,15 @@ def get_delete_account(
     )
 
 
+def get_update_display_name(
+    session: AsyncSession = Depends(get_session),
+) -> UpdateDisplayNameUseCase:
+    return UpdateDisplayName(
+        users=SqlAlchemyUserRepository(session),
+        nickname_policy=NicknameUniquenessPolicy(),
+    )
+
+
 def get_request_password_reset(
     session: AsyncSession = Depends(get_session),
     email_sender: EmailSender = Depends(get_email_sender),
@@ -219,6 +233,7 @@ def get_signup_dependencies(
                 timedelta(minutes=settings.access_token_ttl_minutes),
             ),
             email_verification=email_verification,
+            nickname_policy=NicknameUniquenessPolicy(),
         ),
     )
 

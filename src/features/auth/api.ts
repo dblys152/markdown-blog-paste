@@ -113,6 +113,13 @@ export async function deleteAccount(password: string): Promise<void> {
   clearAccessToken();
 }
 
+export async function updateDisplayName(displayName: string): Promise<AuthUser> {
+  return authenticatedRequest<AuthUser>("/auth/me", {
+    method: "PATCH",
+    body: JSON.stringify({ display_name: displayName }),
+  });
+}
+
 export async function authenticatedRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
   const request = async (): Promise<T> => {
     const headers = new Headers(init.headers);

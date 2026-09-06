@@ -40,6 +40,8 @@ class DisplayName:
         normalized = self.value.strip()
         if not normalized:
             raise ValueError("display name must not be empty")
+        if len(normalized) > 10:
+            raise ValueError("display name must not exceed 10 characters")
         object.__setattr__(self, "value", normalized)
 
     def __str__(self) -> str:

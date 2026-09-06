@@ -119,6 +119,20 @@ export const APP_LAYOUT_CSS = `
 .account-profile-details dt { color: #667085; font-size: 12px; font-weight: 750; }
 .account-profile-details dd { min-width: 0; margin: 0; overflow: hidden; color: #344054; font-size: 13px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
 .account-profile-details dd.is-verified { color: #16a34a; }
+.account-display-name-row { padding-block: 6px; }
+.account-display-name-row dd { overflow: visible; white-space: normal; }
+.account-display-name-value { display: flex; min-width: 0; align-items: center; gap: 7px; }
+.account-display-name-value > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.account-display-name-value button { display: grid; width: 27px; height: 27px; flex: 0 0 auto; padding: 0; place-items: center; border: 0; border-radius: 6px; background: transparent; color: #667085; cursor: pointer; }
+.account-display-name-value button:hover { background: #f2f4f7; color: #2949df; }
+.account-display-name-value svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
+.account-display-name-form { display: flex; align-items: center; gap: 6px; }
+.account-display-name-form input { width: min(100%, 210px); height: 34px; padding: 0 9px; border: 1px solid #cbd5e1; border-radius: 6px; color: #344054; font: inherit; }
+.account-display-name-form input:focus { border-color: #3f5bea; outline: 3px solid rgba(63,91,234,.1); }
+.account-display-name-form button { height: 32px; padding: 0 9px; border: 1px solid #d6dbe5; border-radius: 6px; background: #fff; color: #475467; font: inherit; font-size: 11px; font-weight: 800; cursor: pointer; }
+.account-display-name-form button[type="submit"] { border-color: #3f5bea; background: #3f5bea; color: #fff; }
+.account-display-name-form button:disabled { cursor: default; opacity: .6; }
+.account-display-name-error { display: block; margin-top: 5px; color: #be123c; font-size: 11px; font-weight: 700; line-height: 1.4; }
 .account-danger-zone { display: flex; margin-top: 24px; padding: 16px; align-items: center; justify-content: space-between; gap: 18px; border: 1px solid #fecaca; border-radius: 9px; background: #fffafa; }
 .account-danger-zone strong { color: #b42318; font-size: 13px; }
 .account-danger-zone p { margin: 5px 0 0; color: #7a4b48; font-size: 11px; line-height: 1.5; }

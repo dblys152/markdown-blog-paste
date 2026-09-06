@@ -23,6 +23,7 @@ from md2blog.modules.identity.domain.email_verification import (
     EmailVerificationExpiredError,
     EmailVerificationUnavailableError,
 )
+from md2blog.modules.identity.domain.nickname_policy import NicknameAlreadyInUseError
 from md2blog.modules.identity.domain.password_reset import (
     PasswordResetExpiredError,
     PasswordResetUnavailableError,
@@ -86,6 +87,14 @@ async def handle_email_already_exists(_: Request, __: Exception) -> JSONResponse
         status.HTTP_409_CONFLICT,
         ErrorCode.USER_EMAIL_ALREADY_EXISTS,
         "이미 사용 중인 이메일입니다.",
+    )
+
+
+async def handle_display_name_already_exists(_: Request, __: Exception) -> JSONResponse:
+    return error_response(
+        status.HTTP_409_CONFLICT,
+        ErrorCode.USER_NICKNAME_ALREADY_EXISTS,
+        "이미 사용 중인 닉네임입니다.",
     )
 
 
@@ -214,6 +223,10 @@ def register_exception_handlers(app: FastAPI) -> None:
     app.add_exception_handler(InvalidAccessTokenError, handle_authentication_required)
     app.add_exception_handler(InvalidRefreshSessionError, handle_invalid_refresh_token)
     app.add_exception_handler(EmailAlreadyExistsError, handle_email_already_exists)
+    app.add_exception_handler(
+        NicknameAlreadyInUseError,
+        handle_display_name_already_exists,
+    )
     app.add_exception_handler(
         InvalidEmailVerificationTokenError,
         handle_invalid_email_verification,

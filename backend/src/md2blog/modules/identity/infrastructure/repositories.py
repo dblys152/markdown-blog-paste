@@ -1,4 +1,4 @@
-from sqlalchemy import exists, select
+from sqlalchemy import exists, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from md2blog.modules.identity.domain.user import User, UserStatus
@@ -13,6 +13,18 @@ class SqlAlchemyUserRepository:
 
     async def exists_by_email(self, email: Email) -> bool:
         statement = select(exists().where(UserModel.email == email.value))
+        return bool(await self._session.scalar(statement))
+
+    async def exists_by_display_name(
+        self,
+        display_name: DisplayName,
+        *,
+        exclude_user_id: TSID | None = None,
+    ) -> bool:
+        conditions = [func.lower(UserModel.display_name) == display_name.value.lower()]
+        if exclude_user_id is not None:
+            conditions.append(UserModel.id != exclude_user_id.value)
+        statement = select(exists().where(*conditions))
         return bool(await self._session.scalar(statement))
 
     async def add(self, user: User) -> None:
@@ -32,6 +44,7 @@ class SqlAlchemyUserRepository:
         model = await self._session.get(UserModel, user.id.value)
         if model is None:
             raise LookupError("user not found")
+        model.display_name = user.display_name.value
         model.email_verified_at = user.email_verified_at
         model.password_hash = user.password_hash.value
         model.status = user.status.value

@@ -29,6 +29,11 @@ class DeleteAccountCommand:
 
 
 @dataclass(frozen=True, slots=True)
+class UpdateDisplayNameCommand:
+    display_name: DisplayName
+
+
+@dataclass(frozen=True, slots=True)
 class RequestPasswordResetCommand:
     email: Email
 

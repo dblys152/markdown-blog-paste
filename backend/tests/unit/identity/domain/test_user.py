@@ -55,3 +55,15 @@ def test_user_verifies_email_once() -> None:
 def test_unverified_user_cannot_access_workspace() -> None:
     with pytest.raises(EmailVerificationRequiredError):
         make_user().ensure_email_verified()
+
+
+def test_active_user_changes_display_name() -> None:
+    updated_user = make_user().change_display_name(DisplayName("  새 이름  "))
+
+    assert updated_user.display_name == DisplayName("새 이름")
+    assert make_user().display_name == DisplayName("User")
+
+
+def test_display_name_cannot_exceed_10_characters() -> None:
+    with pytest.raises(ValueError, match="must not exceed"):
+        DisplayName("a" * 11)

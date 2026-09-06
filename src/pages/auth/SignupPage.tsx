@@ -41,8 +41,8 @@ export function SignupPage() {
         <p className="route-description">개인 Markdown 기록장을 만들고 나만의 페이지로 관리해보세요.</p>
         <form className="auth-form" onSubmit={handleSubmit}>
           <label>
-            이름
-            <input type="text" name="displayName" autoComplete="name" placeholder="표시 이름" maxLength={100} required />
+            닉네임
+            <input type="text" name="displayName" autoComplete="nickname" placeholder="사용할 닉네임" maxLength={10} required />
           </label>
           <label>
             이메일

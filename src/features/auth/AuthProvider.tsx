@@ -7,6 +7,7 @@ import {
   requestEmailVerification as requestEmailVerificationRequest,
   restoreSession,
   signup as signupRequest,
+  updateDisplayName as updateDisplayNameRequest,
   type AuthUser,
   type LoginInput,
   type SignupInput,
@@ -23,6 +24,7 @@ type AuthContextValue = {
   confirmEmailVerification: (token: string) => Promise<AuthUser>;
   refreshCurrentUser: () => Promise<AuthUser | null>;
   deleteAccount: (password: string) => Promise<void>;
+  updateDisplayName: (displayName: string) => Promise<AuthUser>;
   logout: () => Promise<void>;
 };
 
@@ -75,6 +77,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await deleteAccountRequest(password);
         setUser(null);
         setStatus("guest");
+      },
+      updateDisplayName: async (displayName) => {
+        const updatedUser = await updateDisplayNameRequest(displayName);
+        setUser(updatedUser);
+        return updatedUser;
       },
       logout: async () => {
         try {

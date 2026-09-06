@@ -10,6 +10,7 @@ import {
   requestEmailVerification,
   requestPasswordReset,
   restoreSession,
+  updateDisplayName,
 } from "../../../src/features/auth/api";
 
 const SESSION = {
@@ -128,6 +129,37 @@ describe("auth api", () => {
     expect(fetchMock).toHaveBeenLastCalledWith(
       "http://localhost:8000/auth/account",
       expect.objectContaining({ method: "DELETE", body: JSON.stringify({ password: "password123" }) }),
+    );
+  });
+
+  it("닉네임 변경 요청에 액세스 토큰을 전달한다", async () => {
+    const updatedUser = { ...SESSION.user, display_name: "새 닉네임" };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(SESSION), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(updatedUser), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    await login({ email: "user@example.com", password: "password123" });
+
+    await expect(updateDisplayName("새 닉네임")).resolves.toEqual(updatedUser);
+
+    const headers = fetchMock.mock.calls[1][1]?.headers as Headers;
+    expect(headers.get("Authorization")).toBe("Bearer access-token");
+    expect(fetchMock.mock.calls[1][1]).toEqual(
+      expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({ display_name: "새 닉네임" }),
+      }),
     );
   });
 

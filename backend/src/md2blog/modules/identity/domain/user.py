@@ -57,6 +57,10 @@ class User:
         self.ensure_access_allowed()
         return replace(self, password_hash=password_hash)
 
+    def change_display_name(self, display_name: DisplayName) -> "User":
+        self.ensure_access_allowed()
+        return replace(self, display_name=display_name)
+
     @property
     def is_email_verified(self) -> bool:
         return self.email_verified_at is not None

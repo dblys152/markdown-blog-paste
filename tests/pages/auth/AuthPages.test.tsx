@@ -65,7 +65,7 @@ describe("인증 화면", () => {
     const user = userEvent.setup();
     renderPage("signup");
 
-    await user.type(screen.getByLabelText("이름"), "사용자");
+    await user.type(screen.getByLabelText("닉네임"), "사용자");
     await user.type(screen.getByLabelText("이메일"), "user@example.com");
     await user.type(screen.getByLabelText("비밀번호"), "password123");
     await user.click(screen.getByRole("button", { name: "회원가입" }));

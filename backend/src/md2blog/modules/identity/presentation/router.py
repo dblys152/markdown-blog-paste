@@ -22,13 +22,19 @@ from md2blog.modules.identity.application.port.inbound.password_reset import (
     PasswordResetRequest,
     RequestPasswordResetUseCase,
 )
+from md2blog.modules.identity.application.port.inbound.profile import (
+    UpdateDisplayNameRequest,
+    UpdateDisplayNameUseCase,
+)
 from md2blog.modules.identity.application.port.inbound.signup import SignUpRequest
 from md2blog.modules.identity.application.service.logout import LogoutSessionService
 from md2blog.modules.identity.application.service.refresh import (
     RefreshSessionService,
     SessionMetadata,
 )
-from md2blog.modules.identity.application.service.signup import EmailAlreadyExistsError
+from md2blog.modules.identity.application.service.signup import (
+    EmailAlreadyExistsError,
+)
 from md2blog.modules.identity.domain.auth_session import (
     InvalidRefreshSessionError,
     RefreshTokenReuseDetectedError,
@@ -38,9 +44,11 @@ from md2blog.modules.identity.domain.commands import (
     DeleteAccountCommand,
     LoginCommand,
     RequestPasswordResetCommand,
+    UpdateDisplayNameCommand,
 )
+from md2blog.modules.identity.domain.nickname_policy import NicknameAlreadyInUseError
 from md2blog.modules.identity.domain.user import User
-from md2blog.modules.identity.domain.value_objects import Email, RawPassword
+from md2blog.modules.identity.domain.value_objects import DisplayName, Email, RawPassword
 from md2blog.modules.identity.presentation.dependencies import (
     SignUpDependencies,
     get_confirm_email_verification,
@@ -53,6 +61,7 @@ from md2blog.modules.identity.presentation.dependencies import (
     get_refresh_service,
     get_request_password_reset,
     get_signup_dependencies,
+    get_update_display_name,
 )
 from md2blog.settings import Settings, get_settings
 from md2blog.shared.presentation.errors import ErrorCode
@@ -113,6 +122,8 @@ async def signup(
     try:
         result = await dependencies.use_case.execute(command)
     except IntegrityError as error:
+        if "uq_users_display_name_lower" in str(error.orig):
+            raise NicknameAlreadyInUseError from error
         raise EmailAlreadyExistsError from error
 
     token_pair = await refresh_service.create(result.user, get_session_metadata(http_request))
@@ -178,6 +189,22 @@ async def login(
 @router.get("/me", response_model=UserResponse)
 async def me(current_user: User = Depends(get_current_user)) -> UserResponse:
     return to_user_response(current_user)
+
+
+@router.patch("/me", response_model=UserResponse)
+async def update_me(
+    request: UpdateDisplayNameRequest,
+    current_user: User = Depends(get_current_user),
+    use_case: UpdateDisplayNameUseCase = Depends(get_update_display_name),
+) -> UserResponse:
+    try:
+        user = await use_case.execute(
+            current_user,
+            UpdateDisplayNameCommand(display_name=DisplayName(request.display_name)),
+        )
+    except IntegrityError as error:
+        raise NicknameAlreadyInUseError from error
+    return to_user_response(user)
 
 
 @router.post("/email-verification/request", status_code=status.HTTP_204_NO_CONTENT)
