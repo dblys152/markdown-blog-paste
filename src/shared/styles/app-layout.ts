@@ -380,7 +380,10 @@ export const APP_LAYOUT_CSS = `
   cursor: pointer;
 }
 .document-actions button:disabled { cursor: not-allowed; opacity: .5; }
+.document-actions > button:hover,
+.document-export > button:hover { border-color: #aeb7c6; background: #f8fafc; }
 .document-actions .document-save-button { border-color: #3f5bea; background: #3f5bea; color: #fff; }
+.document-actions .document-save-button:hover { border-color: #2949df; background: #2949df; }
 .document-actions .document-save-button svg { width: 15px; height: 15px; }
 .document-export { position: relative; }
 .document-export-menu {

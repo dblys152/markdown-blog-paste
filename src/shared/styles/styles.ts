@@ -474,8 +474,8 @@ button {
 }
 
 button:hover {
-  border-color: #9aa3af;
-  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+  border-color: #aeb7c6;
+  box-shadow: none;
 }
 
 button:active {
