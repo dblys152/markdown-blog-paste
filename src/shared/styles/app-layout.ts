@@ -98,6 +98,17 @@ export const APP_LAYOUT_CSS = `
 .app-auth-loading { width: 18px; height: 18px; border: 2px solid #dbe1ea; border-top-color: #3f5bea; border-radius: 50%; animation: app-auth-spin .7s linear infinite; }
 @keyframes app-auth-spin { to { transform: rotate(360deg); } }
 
+.confirm-dialog-backdrop { position: fixed; z-index: 140; inset: 0; display: grid; padding: 20px; place-items: center; background: rgba(15, 23, 42, .48); }
+.confirm-dialog { display: grid; width: min(100%, 360px); padding: 22px; grid-template-columns: 32px minmax(0, 1fr); column-gap: 12px; row-gap: 16px; border-radius: 11px; background: #fff; box-shadow: 0 24px 70px rgba(15, 23, 42, .25); }
+.confirm-dialog-icon { display: grid; width: 32px; height: 32px; place-items: center; border-radius: 50%; background: #eef2ff; color: #3f5bea; font-size: 14px; font-weight: 900; }
+.confirm-dialog.is-danger .confirm-dialog-icon { background: #fee2e2; color: #dc2626; }
+.confirm-dialog-content h2 { margin: 1px 0 0; color: #111827; font-size: 16px; letter-spacing: -.02em; }
+.confirm-dialog-content p { margin: 6px 0 0; color: #667085; font-size: 12px; line-height: 1.55; white-space: pre-line; }
+.confirm-dialog-actions { display: flex; grid-column: 1 / -1; justify-content: flex-end; gap: 7px; }
+.confirm-dialog-actions button { min-height: 36px; padding: 0 12px; border: 1px solid #d6dbe5; border-radius: 7px; background: #fff; color: #475467; font: inherit; font-size: 11px; font-weight: 800; cursor: pointer; }
+.confirm-dialog-actions button.is-primary { border-color: #3f5bea; background: #3f5bea; color: #fff; }
+.confirm-dialog-actions button.is-danger { border-color: #dc2626; background: #dc2626; color: #fff; }
+
 .account-deletion-backdrop { position: fixed; z-index: 100; inset: 0; display: grid; padding: 20px; place-items: center; background: rgba(15, 23, 42, .48); }
 .account-deletion-dialog, .account-management-dialog { width: min(100%, 520px); padding: 26px; border-radius: 12px; background: #fff; box-shadow: 0 24px 70px rgba(15, 23, 42, .25); }
 .account-dialog-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }

@@ -216,16 +216,15 @@ describe("WorkspaceGatePage", () => {
   });
 
   it("비회원이 페이지 추가를 누르면 로그인 화면 이동 여부를 확인한다", async () => {
-    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
     const user = userEvent.setup();
     renderPage();
     await screen.findByRole("textbox", { name: "Markdown 내용" });
 
     await user.click(screen.getByRole("link", { name: "새 페이지 추가" }));
 
-    expect(confirm).toHaveBeenCalledWith(
-      "페이지를 추가하려면 로그인이 필요합니다.\n로그인 화면으로 이동하시겠습니까?",
-    );
+    expect(screen.getByRole("alertdialog")).not.toBeNull();
+    expect(screen.getByText(/로그인 화면으로 이동하시겠습니까/)).not.toBeNull();
+    await user.click(screen.getByRole("button", { name: "취소" }));
     expect(screen.getByRole("textbox", { name: "Markdown 내용" })).not.toBeNull();
   });
 
@@ -412,6 +411,24 @@ describe("WorkspaceGatePage", () => {
     expect(screen.getByRole("menu").classList.contains("is-upward")).toBe(true);
   });
 
+  it("페이지 메뉴를 바깥 클릭으로 닫은 뒤 호버해도 다시 열리지 않는다", async () => {
+    useAuth.mockReturnValue({ status: "authenticated", user: { id: "1", email_verified: true } });
+    listWorkspacePages.mockResolvedValue([
+      { id: "10", owner_id: "1", title: "개발 노트", parent_id: null, sort_order: 0 },
+    ]);
+    const user = userEvent.setup();
+    renderPage();
+
+    const menuButton = await screen.findByRole("button", { name: "개발 노트 메뉴" });
+    await user.click(menuButton);
+    expect(screen.getByRole("menu")).not.toBeNull();
+
+    fireEvent.pointerDown(document.body);
+    expect(screen.queryByRole("menu")).toBeNull();
+    fireEvent.mouseEnter(menuButton.closest(".workspace-page-item") as HTMLElement);
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
   it("페이지 제목 바깥의 행을 클릭해도 해당 페이지를 선택한다", async () => {
     useAuth.mockReturnValue({ status: "authenticated", user: { id: "1", email_verified: true } });
     listWorkspacePages.mockResolvedValue([
@@ -443,19 +460,18 @@ describe("WorkspaceGatePage", () => {
       { id: "10", owner_id: "1", title: "개발 노트", parent_id: null, sort_order: 0 },
       { id: "20", owner_id: "1", title: "API 설계", parent_id: "10", sort_order: 0 },
     ]);
-    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
     const user = userEvent.setup();
     renderPage();
 
     await user.click(await screen.findByRole("button", { name: "API 설계 메뉴" }));
     await user.click(screen.getByRole("menuitem", { name: "휴지통" }));
-    expect(confirm).toHaveBeenLastCalledWith("'API 설계' 페이지를 휴지통으로 이동할까요?");
+    expect(screen.getByText("'API 설계' 페이지를 휴지통으로 이동할까요?")).not.toBeNull();
+    await user.click(screen.getByRole("button", { name: "취소" }));
 
     await user.click(screen.getByRole("button", { name: "개발 노트 메뉴" }));
     await user.click(screen.getByRole("menuitem", { name: "휴지통" }));
-    expect(confirm).toHaveBeenLastCalledWith(
-      "'개발 노트' 페이지와 모든 하위 페이지를 휴지통으로 이동할까요?",
-    );
+    expect(screen.getByText("'개발 노트' 페이지와 모든 하위 페이지를 휴지통으로 이동할까요?")).not.toBeNull();
+    await user.click(screen.getByRole("button", { name: "취소" }));
   });
 
   it("휴지통에서 삭제한 페이지를 조회하고 복원한다", async () => {
@@ -479,9 +495,6 @@ describe("WorkspaceGatePage", () => {
         expires_at: "2026-08-31T00:00:00Z",
       },
     ]);
-    const confirm = vi.spyOn(window, "confirm")
-      .mockReturnValueOnce(false)
-      .mockReturnValueOnce(true);
     const user = userEvent.setup();
     renderPage();
 
@@ -496,14 +509,14 @@ describe("WorkspaceGatePage", () => {
 
     await user.click(screen.getByRole("button", { name: "삭제한 페이지 메뉴" }));
     await user.click(screen.getByRole("menuitem", { name: "영구 삭제" }));
-    expect(confirm).toHaveBeenLastCalledWith(
-      "'삭제한 페이지' 페이지와 모든 하위 페이지를 영구 삭제할까요?\n이 작업은 되돌릴 수 없습니다.",
-    );
+    expect(screen.getByText(/'삭제한 페이지' 페이지와 모든 하위 페이지를 영구 삭제할까요/)).not.toBeNull();
+    await user.click(screen.getByRole("button", { name: "취소" }));
     expect(permanentlyDeleteWorkspacePage).not.toHaveBeenCalled();
 
     await user.click(screen.getByRole("button", { name: "삭제한 페이지 메뉴" }));
     await user.click(screen.getByRole("menuitem", { name: "복원" }));
-    expect(confirm).toHaveBeenLastCalledWith("'삭제한 페이지' 페이지와 모든 하위 페이지를 복원할까요?");
+    expect(screen.getByText("'삭제한 페이지' 페이지와 모든 하위 페이지를 복원할까요?")).not.toBeNull();
+    await user.click(screen.getByRole("button", { name: "복원" }));
     await waitFor(() => {
       expect(restoreWorkspacePage).toHaveBeenCalledWith("10");
     });

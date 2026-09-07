@@ -162,6 +162,22 @@ describe("MarkdownPastePage", () => {
     expect(downloadMarkdown).toHaveBeenCalledWith(expect.stringContaining("# "), "sample-post");
   });
 
+  it("내보내기 메뉴는 바깥 클릭과 Escape로 닫힌다", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByTitle("변환 결과");
+
+    const trigger = screen.getByRole("button", { name: /내보내기/ });
+    await user.click(trigger);
+    expect(screen.getByRole("menu")).not.toBeNull();
+    await user.pointer({ keys: "[MouseLeft]", target: screen.getByRole("tab", { name: "변환 설정" }) });
+    expect(screen.queryByRole("menu")).toBeNull();
+
+    await user.click(trigger);
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
   it("미리보기 복사 결과를 토스트로 안내한다", async () => {
     const user = userEvent.setup();
     renderPage();

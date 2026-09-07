@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../features/auth/AuthProvider";
 import { GoogleIdentityButton } from "../features/auth/GoogleIdentityButton";
@@ -9,6 +9,7 @@ import {
   type GoogleConnection,
 } from "../features/auth/api";
 import { ApiError } from "../shared/api/http";
+import { useConfirmDialog } from "../shared/ui/ConfirmDialog";
 
 export function AppLayout() {
   const location = useLocation();
@@ -27,7 +28,31 @@ export function AppLayout() {
   const [googleConnection, setGoogleConnection] = useState<GoogleConnection | null>(null);
   const [googleConnectionError, setGoogleConnectionError] = useState<string | null>(null);
   const [isUpdatingGoogleConnection, setIsUpdatingGoogleConnection] = useState(false);
+  const accountMenuRef = useRef<HTMLDivElement>(null);
+  const { requestConfirmation, confirmationDialog } = useConfirmDialog();
   const isWorkspace = location.pathname.startsWith("/workspace");
+
+  useEffect(() => {
+    if (!isAccountMenuOpen) return;
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node) || !accountMenuRef.current?.contains(target)) {
+        setIsAccountMenuOpen(false);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setIsAccountMenuOpen(false);
+    };
+    const closeOnWindowBlur = () => setIsAccountMenuOpen(false);
+    document.addEventListener("pointerdown", closeOnOutsidePointer);
+    document.addEventListener("keydown", closeOnEscape);
+    window.addEventListener("blur", closeOnWindowBlur);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsidePointer);
+      document.removeEventListener("keydown", closeOnEscape);
+      window.removeEventListener("blur", closeOnWindowBlur);
+    };
+  }, [isAccountMenuOpen]);
 
   useEffect(() => {
     setGoogleConnection(null);
@@ -131,7 +156,12 @@ export function AppLayout() {
   }
 
   async function handleDisconnectGoogle() {
-    if (!window.confirm("Google 계정 연결을 해제하시겠습니까?")) return;
+    const confirmed = await requestConfirmation({
+      title: "Google 계정 연결 해제",
+      message: "Google 계정 연결을 해제하시겠습니까?",
+      confirmLabel: "연결 해제",
+    });
+    if (!confirmed) return;
     setGoogleConnectionError(null);
     setIsUpdatingGoogleConnection(true);
     try {
@@ -162,7 +192,7 @@ export function AppLayout() {
 
         <div className="app-header-actions">
           {status === "authenticated" && user ? (
-            <div className="app-account-menu">
+            <div className="app-account-menu" ref={accountMenuRef}>
               <button
                 className="app-account-menu-trigger"
                 type="button"
@@ -374,6 +404,7 @@ export function AppLayout() {
           </section>
         </div>
       )}
+      {confirmationDialog}
     </div>
   );
 }

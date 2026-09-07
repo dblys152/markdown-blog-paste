@@ -1,5 +1,5 @@
 import { type CSSProperties, type DragEvent, type KeyboardEvent, type PointerEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, Navigate } from "react-router-dom";
+import { Link, Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "../../features/auth/AuthProvider";
 import {
   createWorkspacePage,
@@ -24,6 +24,7 @@ import {
 import { convertMarkdown } from "../../shared/markdown/converter-core";
 import type { ConversionResult } from "../../shared/markdown/types";
 import { DocumentActions } from "../../shared/ui/DocumentActions";
+import { useConfirmDialog } from "../../shared/ui/ConfirmDialog";
 import { loadGuestDraft, saveGuestDraft } from "./guest-draft-store";
 
 const SAMPLE_MARKDOWN = `# 임시 Markdown 페이지
@@ -85,7 +86,9 @@ function collectTrashSubtreeIds(pages: TrashedWorkspacePage[], rootId: string): 
 }
 
 export function WorkspaceGatePage() {
+  const navigate = useNavigate();
   const { status: authStatus, user: authUser } = useAuth();
+  const { requestConfirmation, confirmationDialog } = useConfirmDialog();
   const isEmailVerificationRequired = authStatus === "authenticated" && authUser?.email_verified === false;
   const isAuthenticated = authStatus === "authenticated" && authUser?.email_verified === true;
   const [pages, setPages] = useState<WorkspacePageListItem[]>([]);
@@ -155,6 +158,17 @@ export function WorkspaceGatePage() {
   }, []);
 
   useEffect(() => () => window.clearTimeout(toastTimer.current), []);
+
+  useEffect(() => {
+    if (openPageMenuId === null) return;
+    const closePageMenu = (event: Event) => {
+      const target = event.target;
+      if (target instanceof Element && target.closest(".workspace-page-actions")) return;
+      setOpenPageMenuId(null);
+    };
+    document.addEventListener("pointerdown", closePageMenu);
+    return () => document.removeEventListener("pointerdown", closePageMenu);
+  }, [openPageMenuId]);
 
   useEffect(() => {
     if (openTrashMenuId === null) return;
@@ -362,10 +376,16 @@ export function WorkspaceGatePage() {
 
   const removePage = useCallback(async (page: WorkspacePageListItem) => {
     const hasChildren = pages.some((candidate) => candidate.parent_id === page.id);
-    const confirmationMessage = hasChildren
+    const message = hasChildren
       ? `'${page.title}' 페이지와 모든 하위 페이지를 휴지통으로 이동할까요?`
       : `'${page.title}' 페이지를 휴지통으로 이동할까요?`;
-    if (!window.confirm(confirmationMessage)) return;
+    const confirmed = await requestConfirmation({
+      title: "휴지통으로 이동",
+      message,
+      confirmLabel: "휴지통으로 이동",
+      tone: "danger",
+    });
+    if (!confirmed) return;
     try {
       await deleteWorkspacePage(page.id);
       const deletedIds = new Set([page.id]);
@@ -394,7 +414,7 @@ export function WorkspaceGatePage() {
     } catch {
       showToast("페이지를 삭제하지 못했습니다.");
     }
-  }, [pages, selectPage, selectedPageId, showToast]);
+  }, [pages, requestConfirmation, selectPage, selectedPageId, showToast]);
 
   const openTrash = useCallback(async () => {
     setIsSearchOpen(false);
@@ -448,10 +468,15 @@ export function WorkspaceGatePage() {
   const restorePage = useCallback(async (page: TrashedWorkspacePage) => {
     setOpenTrashMenuId(null);
     const hasChildren = trashedPages.some((candidate) => candidate.parent_id === page.id);
-    const confirmationMessage = hasChildren
+    const message = hasChildren
       ? `'${page.title}' 페이지와 모든 하위 페이지를 복원할까요?`
       : `'${page.title}' 페이지를 복원할까요?`;
-    if (!window.confirm(confirmationMessage)) return;
+    const confirmed = await requestConfirmation({
+      title: "페이지 복원",
+      message,
+      confirmLabel: "복원",
+    });
+    if (!confirmed) return;
     try {
       await restoreWorkspacePage(page.id);
       const restoredIds = collectTrashSubtreeIds(trashedPages, page.id);
@@ -477,15 +502,21 @@ export function WorkspaceGatePage() {
     } catch {
       showToast("페이지를 복원하지 못했습니다.");
     }
-  }, [authUser?.id, showToast, trashedPages]);
+  }, [authUser?.id, requestConfirmation, showToast, trashedPages]);
 
   const permanentlyDeletePage = useCallback(async (page: TrashedWorkspacePage) => {
     setOpenTrashMenuId(null);
     const hasChildren = trashedPages.some((candidate) => candidate.parent_id === page.id);
-    const confirmationMessage = hasChildren
+    const message = hasChildren
       ? `'${page.title}' 페이지와 모든 하위 페이지를 영구 삭제할까요?\n이 작업은 되돌릴 수 없습니다.`
       : `'${page.title}' 페이지를 영구 삭제할까요?\n이 작업은 되돌릴 수 없습니다.`;
-    if (!window.confirm(confirmationMessage)) return;
+    const confirmed = await requestConfirmation({
+      title: "페이지 영구 삭제",
+      message,
+      confirmLabel: "영구 삭제",
+      tone: "danger",
+    });
+    if (!confirmed) return;
     try {
       await permanentlyDeleteWorkspacePage(page.id);
       const deletedIds = collectTrashSubtreeIds(trashedPages, page.id);
@@ -498,7 +529,7 @@ export function WorkspaceGatePage() {
     } catch {
       showToast("페이지를 영구 삭제하지 못했습니다.");
     }
-  }, [selectedTrashedPageId, showToast, trashedPages]);
+  }, [requestConfirmation, selectedTrashedPageId, showToast, trashedPages]);
 
   const beginRenamePage = (page: WorkspacePageListItem) => {
     setOpenPageMenuId(null);
@@ -612,7 +643,10 @@ export function WorkspaceGatePage() {
                 <span aria-hidden="true">▤</span><span>{page.title}</span>
               </button>
             )}
-            <div className="workspace-page-actions" onClick={(event) => event.stopPropagation()}>
+            <div
+              className={`workspace-page-actions ${openPageMenuId === page.id ? "is-menu-open" : ""}`}
+              onClick={(event) => event.stopPropagation()}
+            >
               <button
                 type="button"
                 className="workspace-page-add-button"
@@ -894,10 +928,14 @@ export function WorkspaceGatePage() {
               aria-label="새 페이지 추가"
               data-tooltip="페이지 추가"
               onClick={(event) => {
-                const shouldMove = window.confirm(
-                  "페이지를 추가하려면 로그인이 필요합니다.\n로그인 화면으로 이동하시겠습니까?",
-                );
-                if (!shouldMove) event.preventDefault();
+                event.preventDefault();
+                void requestConfirmation({
+                  title: "로그인이 필요합니다",
+                  message: "페이지를 추가하려면 로그인이 필요합니다.\n로그인 화면으로 이동하시겠습니까?",
+                  confirmLabel: "로그인",
+                }).then((confirmed) => {
+                  if (confirmed) navigate("/login");
+                });
               }}
             >+</Link>
           )}
@@ -1038,6 +1076,7 @@ export function WorkspaceGatePage() {
         <footer className="workspace-statusbar is-preview"><span>{markdown.length.toLocaleString("ko-KR")}자</span><span>미리보기</span></footer>
       </section>
       {toast && <div className="toast">{toast}</div>}
+      {confirmationDialog}
     </main>
   );
 }

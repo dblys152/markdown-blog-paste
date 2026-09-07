@@ -20,18 +20,24 @@ export function DocumentActions({ result, markdown, title, onMessage, onSave }: 
   useEffect(() => {
     if (!isExportOpen) return;
 
-    const closeOnOutsideClick = (event: MouseEvent) => {
-      if (!menuRef.current?.contains(event.target as Node)) setIsExportOpen(false);
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node) || !menuRef.current?.contains(target)) {
+        setIsExportOpen(false);
+      }
     };
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") setIsExportOpen(false);
     };
+    const closeOnWindowBlur = () => setIsExportOpen(false);
 
-    document.addEventListener("mousedown", closeOnOutsideClick);
+    document.addEventListener("pointerdown", closeOnOutsidePointer);
     document.addEventListener("keydown", closeOnEscape);
+    window.addEventListener("blur", closeOnWindowBlur);
     return () => {
-      document.removeEventListener("mousedown", closeOnOutsideClick);
+      document.removeEventListener("pointerdown", closeOnOutsidePointer);
       document.removeEventListener("keydown", closeOnEscape);
+      window.removeEventListener("blur", closeOnWindowBlur);
     };
   }, [isExportOpen]);
 

@@ -109,6 +109,25 @@ describe("AppLayout 회원탈퇴", () => {
     expect(auth.updateDisplayName).toHaveBeenCalledWith("새 닉네임");
   });
 
+  it("프로필 메뉴는 바깥 클릭과 Escape로 닫힌다", async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={["/workspace"]}>
+        <Routes><Route element={<AppLayout />}><Route path="workspace" element={<main>기록장</main>} /></Route></Routes>
+      </MemoryRouter>,
+    );
+
+    const trigger = screen.getByRole("button", { name: /사용자/ });
+    await user.click(trigger);
+    expect(screen.getByRole("menu")).not.toBeNull();
+    await user.pointer({ keys: "[MouseLeft]", target: screen.getByText("기록장") });
+    expect(screen.queryByRole("menu")).toBeNull();
+
+    await user.click(trigger);
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
   it("Google 연결 상태는 계정 관리 최초 진입에만 조회한다", async () => {
     const user = userEvent.setup();
     render(
