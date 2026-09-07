@@ -22,6 +22,16 @@ export type SignupInput = LoginInput & {
   display_name: string;
 };
 
+export type GoogleLoginFlow =
+  | AuthSession
+  | { status: "link_required" | "signup_required"; email: string };
+
+export type GoogleConnection = {
+  connected: boolean;
+  email: string | null;
+  can_disconnect: boolean;
+};
+
 let accessToken: string | null = null;
 let refreshPromise: Promise<AuthSession | null> | null = null;
 
@@ -54,6 +64,43 @@ export async function signup(input: SignupInput): Promise<AuthSession> {
       body: JSON.stringify(input),
     }),
   );
+}
+
+export async function googleLogin(credential: string): Promise<GoogleLoginFlow> {
+  const result = await apiRequest<GoogleLoginFlow>("/auth/google/login", {
+    method: "POST",
+    body: JSON.stringify({ credential }),
+  });
+  return "access_token" in result ? rememberSession(result) : result;
+}
+
+export async function googleSignup(credential: string, displayName: string): Promise<AuthSession> {
+  return rememberSession(await apiRequest<AuthSession>("/auth/google/signup", {
+    method: "POST",
+    body: JSON.stringify({ credential, display_name: displayName }),
+  }));
+}
+
+export async function linkGoogleAndLogin(credential: string, password: string): Promise<AuthSession> {
+  return rememberSession(await apiRequest<AuthSession>("/auth/google/link-and-login", {
+    method: "POST",
+    body: JSON.stringify({ credential, password }),
+  }));
+}
+
+export async function getGoogleConnection(): Promise<GoogleConnection> {
+  return authenticatedRequest<GoogleConnection>("/auth/google/connection");
+}
+
+export async function connectGoogle(credential: string): Promise<void> {
+  await authenticatedRequest<void>("/auth/google/connection", {
+    method: "POST",
+    body: JSON.stringify({ credential }),
+  });
+}
+
+export async function disconnectGoogle(): Promise<void> {
+  await authenticatedRequest<void>("/auth/google/connection", { method: "DELETE" });
 }
 
 export async function requestEmailVerification(): Promise<void> {
@@ -109,6 +156,14 @@ export async function deleteAccount(password: string): Promise<void> {
   await authenticatedRequest<void>("/auth/account", {
     method: "DELETE",
     body: JSON.stringify({ password }),
+  });
+  clearAccessToken();
+}
+
+export async function deleteGoogleAccount(credential: string): Promise<void> {
+  await authenticatedRequest<void>("/auth/account", {
+    method: "DELETE",
+    body: JSON.stringify({ google_credential: credential }),
   });
   clearAccessToken();
 }

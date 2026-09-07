@@ -18,7 +18,7 @@ class Login:
 
     async def execute(self, command: LoginCommand) -> LoginResult:
         user = await self._users.find_by_email(command.email)
-        if user is None:
+        if user is None or user.password_hash is None:
             raise AuthenticationFailedError
 
         password_matches = self._password_hasher.verify(

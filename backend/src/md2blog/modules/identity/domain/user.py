@@ -17,7 +17,7 @@ class UserStatus(StrEnum):
 class User:
     id: TSID
     email: Email
-    password_hash: PasswordHash
+    password_hash: PasswordHash | None
     display_name: DisplayName
     email_verified_at: datetime | None = None
     status: UserStatus = UserStatus.ACTIVE
@@ -31,9 +31,30 @@ class User:
             display_name=command.display_name,
         )
 
+    @classmethod
+    def sign_up_with_google(
+        cls,
+        *,
+        user_id: TSID,
+        email: Email,
+        display_name: DisplayName,
+        verified_at: datetime,
+    ) -> "User":
+        return cls(
+            id=user_id,
+            email=email,
+            password_hash=None,
+            display_name=display_name,
+            email_verified_at=verified_at,
+        )
+
     def authenticate(self, password_matches: bool) -> None:
         if not password_matches or self.status is not UserStatus.ACTIVE:
             raise AuthenticationFailedError
+
+    @property
+    def has_password(self) -> bool:
+        return self.password_hash is not None
 
     def confirm_account_deletion(self, password_matches: bool) -> None:
         if not password_matches:

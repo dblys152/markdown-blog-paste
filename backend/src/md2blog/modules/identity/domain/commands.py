@@ -25,7 +25,8 @@ class LoginCommand:
 
 @dataclass(frozen=True, slots=True)
 class DeleteAccountCommand:
-    password: RawPassword
+    password: RawPassword | None = None
+    google_credential: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,3 +43,15 @@ class RequestPasswordResetCommand:
 class ConfirmPasswordResetCommand:
     token: str
     new_password: RawPassword
+
+
+@dataclass(frozen=True, slots=True)
+class GoogleSignUpCommand:
+    credential: str
+    display_name: DisplayName
+
+
+@dataclass(frozen=True, slots=True)
+class LinkGoogleAndLoginCommand:
+    credential: str
+    password: RawPassword

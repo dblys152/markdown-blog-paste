@@ -9,6 +9,9 @@ const auth = vi.hoisted(() => ({
   requestEmailVerification: vi.fn(),
   confirmEmailVerification: vi.fn(),
   refreshCurrentUser: vi.fn(),
+  googleLogin: vi.fn(),
+  googleSignup: vi.fn(),
+  linkGoogleAndLogin: vi.fn(),
 }));
 
 vi.mock("../../../src/features/auth/AuthProvider", () => ({
@@ -20,8 +23,17 @@ vi.mock("../../../src/features/auth/AuthProvider", () => ({
     requestEmailVerification: auth.requestEmailVerification,
     confirmEmailVerification: auth.confirmEmailVerification,
     refreshCurrentUser: auth.refreshCurrentUser,
+    googleLogin: auth.googleLogin,
+    googleSignup: auth.googleSignup,
+    linkGoogleAndLogin: auth.linkGoogleAndLogin,
     logout: vi.fn(),
   }),
+}));
+
+vi.mock("../../../src/features/auth/GoogleIdentityButton", () => ({
+  GoogleIdentityButton: ({ onCredential }: { onCredential: (credential: string) => void }) => (
+    <button type="button" onClick={() => onCredential("google-credential")}>Google로 로그인</button>
+  ),
 }));
 
 import { LoginPage } from "../../../src/pages/auth/LoginPage";
@@ -76,5 +88,31 @@ describe("인증 화면", () => {
       password: "password123",
     });
     expect(await screen.findByText("이메일 인증 화면")).not.toBeNull();
+  });
+
+  it("신규 Google 사용자는 닉네임을 입력해 가입한다", async () => {
+    auth.googleLogin.mockResolvedValue({ status: "signup_required", email: "new@example.com" });
+    const user = userEvent.setup();
+    renderPage("login");
+
+    await user.click(screen.getByRole("button", { name: "Google로 로그인" }));
+    expect(await screen.findByText("new@example.com")).not.toBeNull();
+    await user.type(screen.getByLabelText("닉네임"), "새사용자");
+    await user.click(screen.getByRole("button", { name: "가입하고 로그인" }));
+
+    expect(auth.googleSignup).toHaveBeenCalledWith("google-credential", "새사용자");
+    expect(await screen.findByText("기록장 화면")).not.toBeNull();
+  });
+
+  it("기존 이메일 사용자는 비밀번호 확인 후 Google 계정을 연결한다", async () => {
+    auth.googleLogin.mockResolvedValue({ status: "link_required", email: "user@example.com" });
+    const user = userEvent.setup();
+    renderPage("login");
+
+    await user.click(screen.getByRole("button", { name: "Google로 로그인" }));
+    await user.type(await screen.findByLabelText("기존 계정 비밀번호"), "password123");
+    await user.click(screen.getByRole("button", { name: "연결하고 로그인" }));
+
+    expect(auth.linkGoogleAndLogin).toHaveBeenCalledWith("google-credential", "password123");
   });
 });

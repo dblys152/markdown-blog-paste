@@ -40,6 +40,7 @@ class Settings(BaseSettings):
     password_reset_token_ttl_minutes: int = 60
     password_reset_resend_cooldown_seconds: int = 60
     password_reset_daily_limit: int = 5
+    google_client_id: str | None = None
 
     @property
     def async_database_url(self) -> URL:

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   clearAccessToken,
   deleteAccount,
+  deleteGoogleAccount,
   getAccessToken,
   login,
   logout,
@@ -11,6 +12,9 @@ import {
   requestPasswordReset,
   restoreSession,
   updateDisplayName,
+  googleLogin,
+  googleSignup,
+  getGoogleConnection,
 } from "../../../src/features/auth/api";
 
 const SESSION = {
@@ -132,6 +136,23 @@ describe("auth api", () => {
     );
   });
 
+  it("Google 재인증 정보로 회원탈퇴한다", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify(SESSION), { status: 200, headers: { "Content-Type": "application/json" } }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await login({ email: "user@example.com", password: "password123" });
+
+    await deleteGoogleAccount("google-credential");
+
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "http://localhost:8000/auth/account",
+      expect.objectContaining({ method: "DELETE", body: JSON.stringify({ google_credential: "google-credential" }) }),
+    );
+    expect(getAccessToken()).toBeNull();
+  });
+
   it("닉네임 변경 요청에 액세스 토큰을 전달한다", async () => {
     const updatedUser = { ...SESSION.user, display_name: "새 닉네임" };
     const fetchMock = vi
@@ -191,5 +212,42 @@ describe("auth api", () => {
         body: JSON.stringify({ token: "reset-token", new_password: "new-password" }),
       }),
     );
+  });
+
+  it("Google 로그인 후 인증 완료 세션을 메모리에 보관한다", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(SESSION), { status: 200, headers: { "Content-Type": "application/json" } }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(googleLogin("credential")).resolves.toEqual(SESSION);
+    expect(getAccessToken()).toBe("access-token");
+  });
+
+  it("신규 Google 가입 요청에 닉네임을 전달한다", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(SESSION), { status: 201, headers: { "Content-Type": "application/json" } }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await googleSignup("credential", "사용자");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:8000/auth/google/signup",
+      expect.objectContaining({ body: JSON.stringify({ credential: "credential", display_name: "사용자" }) }),
+    );
+  });
+
+  it("Google 연결 상태 요청에 액세스 토큰을 전달한다", async () => {
+    const connection = { connected: true, email: "user@gmail.com", can_disconnect: true };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify(SESSION), { status: 200, headers: { "Content-Type": "application/json" } }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(connection), { status: 200, headers: { "Content-Type": "application/json" } }));
+    vi.stubGlobal("fetch", fetchMock);
+    await login({ email: "user@example.com", password: "password123" });
+
+    await expect(getGoogleConnection()).resolves.toEqual(connection);
+    const headers = fetchMock.mock.calls[1][1]?.headers as Headers;
+    expect(headers.get("Authorization")).toBe("Bearer access-token");
   });
 });

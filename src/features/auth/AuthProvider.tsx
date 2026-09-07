@@ -2,6 +2,10 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState, type R
 import {
   confirmEmailVerification as confirmEmailVerificationRequest,
   deleteAccount as deleteAccountRequest,
+  deleteGoogleAccount as deleteGoogleAccountRequest,
+  googleLogin as googleLoginRequest,
+  googleSignup as googleSignupRequest,
+  linkGoogleAndLogin as linkGoogleAndLoginRequest,
   login as loginRequest,
   logout as logoutRequest,
   requestEmailVerification as requestEmailVerificationRequest,
@@ -9,6 +13,7 @@ import {
   signup as signupRequest,
   updateDisplayName as updateDisplayNameRequest,
   type AuthUser,
+  type GoogleLoginFlow,
   type LoginInput,
   type SignupInput,
 } from "./api";
@@ -20,10 +25,14 @@ type AuthContextValue = {
   user: AuthUser | null;
   login: (input: LoginInput) => Promise<void>;
   signup: (input: SignupInput) => Promise<void>;
+  googleLogin: (credential: string) => Promise<GoogleLoginFlow>;
+  googleSignup: (credential: string, displayName: string) => Promise<void>;
+  linkGoogleAndLogin: (credential: string, password: string) => Promise<void>;
   requestEmailVerification: () => Promise<void>;
   confirmEmailVerification: (token: string) => Promise<AuthUser>;
   refreshCurrentUser: () => Promise<AuthUser | null>;
   deleteAccount: (password: string) => Promise<void>;
+  deleteGoogleAccount: (credential: string) => Promise<void>;
   updateDisplayName: (displayName: string) => Promise<AuthUser>;
   logout: () => Promise<void>;
 };
@@ -59,6 +68,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(session.user);
         setStatus("authenticated");
       },
+      googleLogin: async (credential) => {
+        const result = await googleLoginRequest(credential);
+        if ("access_token" in result) {
+          setUser(result.user);
+          setStatus("authenticated");
+        }
+        return result;
+      },
+      googleSignup: async (credential, displayName) => {
+        const session = await googleSignupRequest(credential, displayName);
+        setUser(session.user);
+        setStatus("authenticated");
+      },
+      linkGoogleAndLogin: async (credential, password) => {
+        const session = await linkGoogleAndLoginRequest(credential, password);
+        setUser(session.user);
+        setStatus("authenticated");
+      },
       requestEmailVerification: requestEmailVerificationRequest,
       confirmEmailVerification: async (token) => {
         const verifiedUser = await confirmEmailVerificationRequest(token);
@@ -75,6 +102,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       deleteAccount: async (password) => {
         await deleteAccountRequest(password);
+        setUser(null);
+        setStatus("guest");
+      },
+      deleteGoogleAccount: async (credential) => {
+        await deleteGoogleAccountRequest(credential);
         setUser(null);
         setStatus("guest");
       },

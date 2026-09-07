@@ -1,22 +1,54 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../features/auth/AuthProvider";
+import { GoogleIdentityButton } from "../features/auth/GoogleIdentityButton";
+import {
+  connectGoogle,
+  disconnectGoogle,
+  getGoogleConnection,
+  type GoogleConnection,
+} from "../features/auth/api";
 import { ApiError } from "../shared/api/http";
 
 export function AppLayout() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { status, user, logout, deleteAccount, updateDisplayName } = useAuth();
+  const { status, user, logout, deleteAccount, deleteGoogleAccount, updateDisplayName } = useAuth();
   const [isAccountDeletionOpen, setIsAccountDeletionOpen] = useState(false);
   const [isAccountManagementOpen, setIsAccountManagementOpen] = useState(false);
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const [accountDeletionError, setAccountDeletionError] = useState<string | null>(null);
+  const [googleDeletionCredential, setGoogleDeletionCredential] = useState<string | null>(null);
   const [isEditingDisplayName, setIsEditingDisplayName] = useState(false);
   const [isSavingDisplayName, setIsSavingDisplayName] = useState(false);
   const [displayNameDraft, setDisplayNameDraft] = useState("");
   const [displayNameError, setDisplayNameError] = useState<string | null>(null);
+  const [googleConnection, setGoogleConnection] = useState<GoogleConnection | null>(null);
+  const [googleConnectionError, setGoogleConnectionError] = useState<string | null>(null);
+  const [isUpdatingGoogleConnection, setIsUpdatingGoogleConnection] = useState(false);
   const isWorkspace = location.pathname.startsWith("/workspace");
+
+  useEffect(() => {
+    setGoogleConnection(null);
+    setGoogleConnectionError(null);
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (
+      !isAccountManagementOpen
+      || status !== "authenticated"
+      || googleConnection !== null
+    ) return;
+    let active = true;
+    setGoogleConnectionError(null);
+    void getGoogleConnection()
+      .then((connection) => { if (active) setGoogleConnection(connection); })
+      .catch((error: unknown) => {
+        if (active) setGoogleConnectionError(error instanceof ApiError ? error.message : "Google 계정 연결 상태를 확인하지 못했습니다.");
+    });
+    return () => { active = false; };
+  }, [googleConnection, isAccountManagementOpen, status]);
 
   async function handleDeleteAccount(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -26,6 +58,29 @@ export function AppLayout() {
     try {
       await deleteAccount(String(form.get("password") ?? ""));
       setIsAccountDeletionOpen(false);
+      navigate("/", { replace: true });
+    } catch (error) {
+      setAccountDeletionError(
+        error instanceof ApiError ? error.message : "회원탈퇴를 처리하지 못했습니다.",
+      );
+    } finally {
+      setIsDeletingAccount(false);
+    }
+  }
+
+  function handleConfirmGoogleIdentity(credential: string) {
+    setAccountDeletionError(null);
+    setGoogleDeletionCredential(credential);
+  }
+
+  async function handleDeleteGoogleAccount() {
+    if (!googleDeletionCredential) return;
+    setAccountDeletionError(null);
+    setIsDeletingAccount(true);
+    try {
+      await deleteGoogleAccount(googleDeletionCredential);
+      setIsAccountDeletionOpen(false);
+      setGoogleDeletionCredential(null);
       navigate("/", { replace: true });
     } catch (error) {
       setAccountDeletionError(
@@ -59,6 +114,33 @@ export function AppLayout() {
       );
     } finally {
       setIsSavingDisplayName(false);
+    }
+  }
+
+  async function handleConnectGoogle(credential: string) {
+    setGoogleConnectionError(null);
+    setIsUpdatingGoogleConnection(true);
+    try {
+      await connectGoogle(credential);
+      setGoogleConnection(await getGoogleConnection());
+    } catch (error) {
+      setGoogleConnectionError(error instanceof ApiError ? error.message : "Google 계정을 연결하지 못했습니다.");
+    } finally {
+      setIsUpdatingGoogleConnection(false);
+    }
+  }
+
+  async function handleDisconnectGoogle() {
+    if (!window.confirm("Google 계정 연결을 해제하시겠습니까?")) return;
+    setGoogleConnectionError(null);
+    setIsUpdatingGoogleConnection(true);
+    try {
+      await disconnectGoogle();
+      setGoogleConnection({ connected: false, email: null, can_disconnect: false });
+    } catch (error) {
+      setGoogleConnectionError(error instanceof ApiError ? error.message : "Google 계정 연결을 해제하지 못했습니다.");
+    } finally {
+      setIsUpdatingGoogleConnection(false);
     }
   }
 
@@ -185,6 +267,30 @@ export function AppLayout() {
               <div><dt>이메일</dt><dd>{user.email}</dd></div>
               <div><dt>이메일 인증</dt><dd className={user.email_verified ? "is-verified" : ""}>{user.email_verified ? "인증 완료" : "인증 필요"}</dd></div>
             </dl>
+            <section className="account-google-section" aria-labelledby="account-google-title">
+              <div className="account-google-heading">
+                <div>
+                  <strong id="account-google-title">Google 계정</strong>
+                  <p>Google 계정으로 간편하게 로그인할 수 있습니다.</p>
+                </div>
+                {googleConnection?.connected && <span className="account-connected-badge">연결됨</span>}
+              </div>
+              {googleConnection === null && !googleConnectionError ? (
+                <span className="account-google-loading">연결 상태 확인 중...</span>
+              ) : googleConnection?.connected ? (
+                <div className="account-google-connection">
+                  <span>{googleConnection.email}</span>
+                  {googleConnection.can_disconnect && (
+                    <button type="button" disabled={isUpdatingGoogleConnection} onClick={() => void handleDisconnectGoogle()}>
+                      연결 해제
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <GoogleIdentityButton onCredential={handleConnectGoogle} disabled={isUpdatingGoogleConnection} />
+              )}
+              {googleConnectionError && <p className="account-display-name-error" role="alert">{googleConnectionError}</p>}
+            </section>
             <section className="account-danger-zone" aria-labelledby="account-danger-title">
               <div>
                 <strong id="account-danger-title">계정 및 데이터 삭제</strong>
@@ -193,6 +299,7 @@ export function AppLayout() {
               <button type="button" onClick={() => {
                 setIsAccountManagementOpen(false);
                 setAccountDeletionError(null);
+                setGoogleDeletionCredential(null);
                 setIsAccountDeletionOpen(true);
               }}>회원탈퇴</button>
             </section>
@@ -204,6 +311,7 @@ export function AppLayout() {
         <div className="account-deletion-backdrop" role="presentation" onMouseDown={(event) => {
           if (event.target === event.currentTarget && !isDeletingAccount) {
             setIsAccountDeletionOpen(false);
+            setGoogleDeletionCredential(null);
           }
         }}>
           <section className="account-deletion-dialog" role="dialog" aria-modal="true" aria-labelledby="account-deletion-title">
@@ -212,11 +320,45 @@ export function AppLayout() {
                 <span>계정 삭제</span>
                 <h2 id="account-deletion-title">회원탈퇴</h2>
               </div>
-              <button type="button" aria-label="회원탈퇴 닫기" disabled={isDeletingAccount} onClick={() => setIsAccountDeletionOpen(false)}>×</button>
+              <button type="button" aria-label="회원탈퇴 닫기" disabled={isDeletingAccount} onClick={() => {
+                setIsAccountDeletionOpen(false);
+                setGoogleDeletionCredential(null);
+              }}>×</button>
             </div>
-            <p>탈퇴하면 모든 페이지와 휴지통의 내용이 즉시 영구 삭제되며 복구할 수 없습니다.</p>
-            <p>모든 로그인 세션도 종료됩니다. 계속하려면 현재 비밀번호를 입력해 주세요.</p>
-            <form onSubmit={handleDeleteAccount}>
+            <p>탈퇴하면 모든 데이터가 영구 삭제되고 모든 기기에서 로그아웃됩니다.</p>
+            <p>계속하려면 본인 확인을 진행해 주세요.</p>
+            {googleConnection?.connected && !googleConnection.can_disconnect ? (
+              <div className="account-google-deletion">
+                {googleDeletionCredential ? (
+                  <div className="account-google-verification" role="status">
+                    <span aria-hidden="true">✓</span>
+                    <div>
+                      <strong>본인 확인 완료</strong>
+                      <p>{googleConnection.email}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="account-google-verification-request">
+                    <strong>Google 계정으로 본인 확인</strong>
+                    <p>연결된 Google 계정을 확인한 뒤 탈퇴를 진행할 수 있습니다.</p>
+                    <GoogleIdentityButton onCredential={handleConfirmGoogleIdentity} disabled={isDeletingAccount} text="continue_with" />
+                  </div>
+                )}
+                {accountDeletionError && <p className="auth-error" role="alert">{accountDeletionError}</p>}
+                <div className="account-deletion-actions">
+                  <button type="button" disabled={isDeletingAccount} onClick={() => {
+                    setIsAccountDeletionOpen(false);
+                    setGoogleDeletionCredential(null);
+                  }}>취소</button>
+                  <button
+                    className="is-danger"
+                    type="button"
+                    disabled={isDeletingAccount || !googleDeletionCredential}
+                    onClick={() => void handleDeleteGoogleAccount()}
+                  >{isDeletingAccount ? "탈퇴 처리 중..." : "영구 탈퇴"}</button>
+                </div>
+              </div>
+            ) : <form onSubmit={handleDeleteAccount}>
               <label>
                 현재 비밀번호
                 <input name="password" type="password" autoComplete="current-password" minLength={8} maxLength={128} required autoFocus />
@@ -228,7 +370,7 @@ export function AppLayout() {
                   {isDeletingAccount ? "탈퇴 처리 중..." : "영구 탈퇴"}
                 </button>
               </div>
-            </form>
+            </form>}
           </section>
         </div>
       )}

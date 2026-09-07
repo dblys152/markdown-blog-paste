@@ -5,6 +5,9 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from md2blog.modules.identity.application.port.outbound.email import EmailDeliveryError
+from md2blog.modules.identity.application.port.outbound.google_identity import (
+    InvalidGoogleCredentialError,
+)
 from md2blog.modules.identity.application.port.outbound.security import InvalidAccessTokenError
 from md2blog.modules.identity.application.service.authenticate_access_token import (
     AuthenticationRequiredError,
@@ -14,6 +17,9 @@ from md2blog.modules.identity.application.service.email_verification import (
     EmailVerificationDailyLimitError,
     InvalidEmailVerificationTokenError,
 )
+from md2blog.modules.identity.application.service.google_auth import (
+    GoogleAccountLinkRequiredError,
+)
 from md2blog.modules.identity.application.service.password_reset import (
     InvalidPasswordResetTokenError,
 )
@@ -22,6 +28,11 @@ from md2blog.modules.identity.domain.auth_session import InvalidRefreshSessionEr
 from md2blog.modules.identity.domain.email_verification import (
     EmailVerificationExpiredError,
     EmailVerificationUnavailableError,
+)
+from md2blog.modules.identity.domain.google_identity_policy import (
+    GoogleIdentityAlreadyLinkedError,
+    GoogleIdentityNotLinkedError,
+    LastSignInMethodError,
 )
 from md2blog.modules.identity.domain.nickname_policy import NicknameAlreadyInUseError
 from md2blog.modules.identity.domain.password_reset import (
@@ -158,6 +169,46 @@ async def handle_invalid_password_reset(_: Request, __: Exception) -> JSONRespon
     )
 
 
+async def handle_invalid_google_credential(_: Request, __: Exception) -> JSONResponse:
+    return error_response(
+        status.HTTP_401_UNAUTHORIZED,
+        ErrorCode.AUTH_GOOGLE_INVALID,
+        "유효하지 않은 Google 인증 정보입니다.",
+    )
+
+
+async def handle_google_identity_already_linked(_: Request, __: Exception) -> JSONResponse:
+    return error_response(
+        status.HTTP_409_CONFLICT,
+        ErrorCode.AUTH_GOOGLE_ALREADY_LINKED,
+        "이미 연결된 Google 계정입니다.",
+    )
+
+
+async def handle_google_link_required(_: Request, __: Exception) -> JSONResponse:
+    return error_response(
+        status.HTTP_409_CONFLICT,
+        ErrorCode.AUTH_GOOGLE_LINK_REQUIRED,
+        "기존 계정으로 로그인한 후 Google 계정을 연결해 주세요.",
+    )
+
+
+async def handle_last_sign_in_method(_: Request, __: Exception) -> JSONResponse:
+    return error_response(
+        status.HTTP_409_CONFLICT,
+        ErrorCode.AUTH_LAST_SIGN_IN_METHOD,
+        "마지막 로그인 수단은 연결을 해제할 수 없습니다.",
+    )
+
+
+async def handle_google_identity_not_linked(_: Request, __: Exception) -> JSONResponse:
+    return error_response(
+        status.HTTP_404_NOT_FOUND,
+        ErrorCode.AUTH_GOOGLE_INVALID,
+        "연결된 Google 계정이 없습니다.",
+    )
+
+
 async def handle_parent_page_not_found(_: Request, __: Exception) -> JSONResponse:
     return error_response(
         status.HTTP_404_NOT_FOUND,
@@ -256,6 +307,14 @@ def register_exception_handlers(app: FastAPI) -> None:
     app.add_exception_handler(InvalidPasswordResetTokenError, handle_invalid_password_reset)
     app.add_exception_handler(PasswordResetExpiredError, handle_invalid_password_reset)
     app.add_exception_handler(PasswordResetUnavailableError, handle_invalid_password_reset)
+    app.add_exception_handler(InvalidGoogleCredentialError, handle_invalid_google_credential)
+    app.add_exception_handler(
+        GoogleIdentityAlreadyLinkedError,
+        handle_google_identity_already_linked,
+    )
+    app.add_exception_handler(GoogleAccountLinkRequiredError, handle_google_link_required)
+    app.add_exception_handler(LastSignInMethodError, handle_last_sign_in_method)
+    app.add_exception_handler(GoogleIdentityNotLinkedError, handle_google_identity_not_linked)
     app.add_exception_handler(ParentPageNotFoundError, handle_parent_page_not_found)
     app.add_exception_handler(PageNotFoundError, handle_page_not_found)
     app.add_exception_handler(InvalidPageMoveError, handle_invalid_page_move)

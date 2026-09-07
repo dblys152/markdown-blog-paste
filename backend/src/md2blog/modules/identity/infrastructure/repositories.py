@@ -32,7 +32,7 @@ class SqlAlchemyUserRepository:
             UserModel(
                 id=user.id.value,
                 email=user.email.value,
-                password_hash=user.password_hash.value,
+                password_hash=user.password_hash.value if user.password_hash else None,
                 display_name=user.display_name.value,
                 email_verified_at=user.email_verified_at,
                 status=user.status.value,
@@ -46,7 +46,7 @@ class SqlAlchemyUserRepository:
             raise LookupError("user not found")
         model.display_name = user.display_name.value
         model.email_verified_at = user.email_verified_at
-        model.password_hash = user.password_hash.value
+        model.password_hash = user.password_hash.value if user.password_hash else None
         model.status = user.status.value
         await self._session.flush()
 
@@ -71,7 +71,7 @@ class SqlAlchemyUserRepository:
         return User(
             id=TSID(model.id),
             email=Email(model.email),
-            password_hash=PasswordHash(model.password_hash),
+            password_hash=PasswordHash(model.password_hash) if model.password_hash else None,
             display_name=DisplayName(model.display_name),
             email_verified_at=model.email_verified_at,
             status=UserStatus(model.status),

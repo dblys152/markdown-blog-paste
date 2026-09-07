@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from datetime import timedelta
 
-from fastapi import Depends
+from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,6 +10,14 @@ from md2blog.modules.identity.application.port.inbound.account import DeleteAcco
 from md2blog.modules.identity.application.port.inbound.email_verification import (
     ConfirmEmailVerificationUseCase,
     IssueEmailVerificationUseCase,
+)
+from md2blog.modules.identity.application.port.inbound.google_auth import (
+    ConnectGoogleUseCase,
+    DisconnectGoogleUseCase,
+    GetGoogleConnectionUseCase,
+    GoogleLoginUseCase,
+    GoogleSignUpUseCase,
+    LinkGoogleAndLoginUseCase,
 )
 from md2blog.modules.identity.application.port.inbound.login import LoginUseCase
 from md2blog.modules.identity.application.port.inbound.password_reset import (
@@ -32,6 +40,14 @@ from md2blog.modules.identity.application.service.email_verification import (
     EmailVerificationPolicy,
     IssueEmailVerification,
 )
+from md2blog.modules.identity.application.service.google_auth import (
+    ConnectGoogle,
+    DisconnectGoogle,
+    GetGoogleConnection,
+    GoogleLogin,
+    GoogleSignUp,
+    LinkGoogleAndLogin,
+)
 from md2blog.modules.identity.application.service.login import Login
 from md2blog.modules.identity.application.service.logout import LogoutSessionService
 from md2blog.modules.identity.application.service.password_reset import (
@@ -42,12 +58,17 @@ from md2blog.modules.identity.application.service.password_reset import (
 from md2blog.modules.identity.application.service.refresh import RefreshSessionService
 from md2blog.modules.identity.application.service.signup import SignUp
 from md2blog.modules.identity.application.service.update_display_name import UpdateDisplayName
+from md2blog.modules.identity.domain.google_identity_policy import (
+    GoogleIdentityLinkPolicy,
+    GoogleIdentityUnlinkPolicy,
+)
 from md2blog.modules.identity.domain.nickname_policy import NicknameUniquenessPolicy
 from md2blog.modules.identity.domain.user import User
 from md2blog.modules.identity.infrastructure.email import GmailSmtpEmailSender
 from md2blog.modules.identity.infrastructure.email_verification_repositories import (
     SqlAlchemyEmailVerificationTokenRepository,
 )
+from md2blog.modules.identity.infrastructure.google_identity import GoogleIdTokenVerifier
 from md2blog.modules.identity.infrastructure.password_reset_repositories import (
     SqlAlchemyPasswordResetTokenRepository,
 )
@@ -63,6 +84,9 @@ from md2blog.modules.identity.infrastructure.tokens import (
     SecurePasswordResetTokenManager,
     SecureRefreshTokenManager,
     SystemClock,
+)
+from md2blog.modules.identity.infrastructure.user_identity_repositories import (
+    SqlAlchemyUserIdentityRepository,
 )
 from md2blog.settings import Settings, get_settings
 from md2blog.shared.infrastructure.database import get_session
@@ -162,12 +186,89 @@ def get_login_use_case(
     )
 
 
+def get_google_verifier(settings: Settings = Depends(get_settings)) -> GoogleIdTokenVerifier:
+    if settings.google_client_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Google 로그인이 설정되지 않았습니다.",
+        )
+    return GoogleIdTokenVerifier(settings.google_client_id)
+
+
+def get_google_login(
+    session: AsyncSession = Depends(get_session),
+    verifier: GoogleIdTokenVerifier = Depends(get_google_verifier),
+) -> GoogleLoginUseCase:
+    return GoogleLogin(
+        SqlAlchemyUserRepository(session),
+        SqlAlchemyUserIdentityRepository(session),
+        verifier,
+    )
+
+
+def get_google_signup(
+    session: AsyncSession = Depends(get_session),
+    verifier: GoogleIdTokenVerifier = Depends(get_google_verifier),
+) -> GoogleSignUpUseCase:
+    return GoogleSignUp(
+        SqlAlchemyUserRepository(session),
+        SqlAlchemyUserIdentityRepository(session),
+        verifier,
+        NicknameUniquenessPolicy(),
+        SystemClock(),
+    )
+
+
+def get_link_google_and_login(
+    session: AsyncSession = Depends(get_session),
+    verifier: GoogleIdTokenVerifier = Depends(get_google_verifier),
+) -> LinkGoogleAndLoginUseCase:
+    return LinkGoogleAndLogin(
+        SqlAlchemyUserRepository(session),
+        SqlAlchemyUserIdentityRepository(session),
+        verifier,
+        Argon2PasswordHasher(),
+        SystemClock(),
+    )
+
+
+def get_connect_google(
+    session: AsyncSession = Depends(get_session),
+    verifier: GoogleIdTokenVerifier = Depends(get_google_verifier),
+) -> ConnectGoogleUseCase:
+    return ConnectGoogle(
+        SqlAlchemyUserIdentityRepository(session),
+        verifier,
+        SystemClock(),
+        GoogleIdentityLinkPolicy(),
+    )
+
+
+def get_disconnect_google(
+    session: AsyncSession = Depends(get_session),
+) -> DisconnectGoogleUseCase:
+    return DisconnectGoogle(SqlAlchemyUserIdentityRepository(session), GoogleIdentityUnlinkPolicy())
+
+
+def get_google_connection(
+    session: AsyncSession = Depends(get_session),
+) -> GetGoogleConnectionUseCase:
+    return GetGoogleConnection(SqlAlchemyUserIdentityRepository(session))
+
+
 def get_delete_account(
     session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
 ) -> DeleteAccountUseCase:
     return DeleteAccount(
         users=SqlAlchemyUserRepository(session),
         password_hasher=Argon2PasswordHasher(),
+        identities=SqlAlchemyUserIdentityRepository(session),
+        google_verifier=(
+            GoogleIdTokenVerifier(settings.google_client_id)
+            if settings.google_client_id
+            else None
+        ),
     )
 
 

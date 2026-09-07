@@ -107,6 +107,15 @@ export const APP_LAYOUT_CSS = `
 .account-dialog-heading > button:hover { background: #f2f4f7; color: #344054; }
 .account-deletion-dialog > p { margin: 12px 0 0; color: #5f6b7a; font-size: 13px; line-height: 1.65; }
 .account-deletion-dialog form { display: grid; gap: 16px; margin-top: 22px; }
+.account-google-deletion { display: grid; gap: 18px; margin-top: 22px; }
+.account-google-verification-request { display: grid; padding: 16px; justify-items: center; border: 1px solid #e4e7ec; border-radius: 9px; background: #f9fafb; text-align: center; }
+.account-google-verification-request > strong { color: #344054; font-size: 13px; }
+.account-google-verification-request > p { margin: 6px 0 14px; color: #667085; font-size: 11px; line-height: 1.5; }
+.account-google-verification-request .google-identity-button > div { display: flex; justify-content: center; }
+.account-google-verification { display: flex; padding: 14px 16px; align-items: center; gap: 10px; border: 1px solid #a7f3d0; border-radius: 9px; background: #ecfdf5; }
+.account-google-verification > span { display: grid; width: 24px; height: 24px; flex: 0 0 auto; place-items: center; border-radius: 50%; background: #16a34a; color: #fff; font-size: 12px; font-weight: 900; }
+.account-google-verification strong { color: #166534; font-size: 12px; }
+.account-google-verification p { margin: 3px 0 0; color: #4b7c5c; font-size: 11px; }
 .account-deletion-dialog label { display: grid; gap: 8px; color: #374151; font-size: 13px; font-weight: 750; }
 .account-deletion-dialog input { height: 42px; padding: 0 12px; border: 1px solid #d1d5db; border-radius: 7px; font: inherit; }
 .account-deletion-dialog input:focus { border-color: #dc2626; outline: 3px solid rgba(220, 38, 38, .1); }
@@ -174,6 +183,18 @@ export const APP_LAYOUT_CSS = `
 .auth-submit { min-height: 44px; border: 0; border-radius: 8px; background: #3f5bea; color: #fff; font-weight: 800; }
 .auth-submit:not(:disabled) { cursor: pointer; }
 .auth-submit:disabled { opacity: .62; }
+.auth-secondary-button { min-height: 40px; border: 1px solid #d6dbe5; border-radius: 8px; background: #fff; color: #475467; font-weight: 750; cursor: pointer; }
+.auth-secondary-button:disabled { cursor: default; opacity: .62; }
+.auth-divider { display: flex; margin: 22px 0; align-items: center; gap: 12px; color: #98a2b3; font-size: 11px; font-weight: 700; }
+.auth-divider::before, .auth-divider::after { height: 1px; flex: 1; background: #eaecf0; content: ""; }
+.google-identity-button { display: grid; width: 100%; justify-items: center; }
+.google-identity-button > div { display: flex; width: 100%; min-height: 44px; justify-content: center; }
+.google-identity-button.is-disabled { pointer-events: none; opacity: .55; }
+.google-auth-unavailable { margin: 0; padding: 10px 12px; border-radius: 7px; background: #f8fafc; color: #667085; font-size: 11px; line-height: 1.5; text-align: center; }
+.google-auth-completion { margin-top: 24px; }
+.google-auth-account { display: grid; gap: 4px; padding: 12px; border: 1px solid #e4e7ec; border-radius: 8px; background: #f9fafb; }
+.google-auth-account strong { overflow: hidden; color: #344054; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.google-auth-account span { color: #667085; font-size: 11px; }
 .auth-error { margin: -2px 0 0; padding: 10px 12px; border-radius: 7px; background: #fff1f2; color: #be123c; font-size: 12px; font-weight: 700; line-height: 1.5; }
 .auth-success { margin: 18px 0 0; padding: 10px 12px; border-radius: 7px; background: #ecfdf3; color: #15803d; font-size: 12px; font-weight: 700; line-height: 1.5; }
 .verification-card { text-align: center; }
@@ -183,6 +204,17 @@ export const APP_LAYOUT_CSS = `
 .auth-footer { margin: 22px 0 0; color: #6b7280; font-size: 13px; text-align: center; }
 .auth-footer a { color: #2949df; font-weight: 800; }
 .auth-centered-link { justify-content: center; }
+.account-google-section { margin-top: 20px; padding: 16px; border: 1px solid #e4e7ec; border-radius: 9px; }
+.account-google-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.account-google-heading strong { color: #344054; font-size: 13px; }
+.account-google-heading p { margin: 5px 0 0; color: #667085; font-size: 11px; line-height: 1.5; }
+.account-connected-badge { padding: 4px 7px; border-radius: 999px; background: #ecfdf3; color: #15803d; font-size: 10px; font-weight: 800; }
+.account-google-connection { display: flex; min-width: 0; margin-top: 14px; align-items: center; justify-content: space-between; gap: 12px; }
+.account-google-connection > span { overflow: hidden; color: #475467; font-size: 12px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.account-google-connection button { min-height: 32px; flex: 0 0 auto; padding: 0 10px; border: 1px solid #d6dbe5; border-radius: 6px; background: #fff; color: #475467; font-size: 11px; font-weight: 800; cursor: pointer; }
+.account-google-connection button:disabled { cursor: default; opacity: .6; }
+.account-google-section .google-identity-button { margin-top: 14px; }
+.account-google-loading { display: block; margin-top: 14px; color: #98a2b3; font-size: 11px; }
 .not-found-card { text-align: center; }
 .route-primary-link { display: inline-flex; min-height: 42px; margin-top: 24px; padding: 0 18px; align-items: center; border-radius: 8px; background: #3f5bea; color: #fff; font-weight: 800; text-decoration: none; }
 
