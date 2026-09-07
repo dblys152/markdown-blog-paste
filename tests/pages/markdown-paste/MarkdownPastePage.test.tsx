@@ -82,7 +82,14 @@ describe("MarkdownPastePage", () => {
       parent_id: null,
       sort_order: 0,
     });
-    createWorkspacePage.mockResolvedValue(undefined);
+    createWorkspacePage.mockResolvedValue({
+      id: "20",
+      owner_id: "1",
+      title: "sample-post",
+      contents: "# sample-post",
+      parent_id: null,
+      sort_order: 0,
+    });
     updateWorkspacePage.mockResolvedValue(undefined);
   });
 

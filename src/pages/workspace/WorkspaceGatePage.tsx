@@ -1,5 +1,5 @@
 import { type CSSProperties, type DragEvent, type KeyboardEvent, type PointerEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, Navigate, useNavigate } from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../features/auth/AuthProvider";
 import {
   createWorkspacePage,
@@ -87,10 +87,17 @@ function collectTrashSubtreeIds(pages: TrashedWorkspacePage[], rootId: string): 
 
 export function WorkspaceGatePage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { status: authStatus, user: authUser } = useAuth();
   const { requestConfirmation, confirmationDialog } = useConfirmDialog();
   const isEmailVerificationRequired = authStatus === "authenticated" && authUser?.email_verified === false;
   const isAuthenticated = authStatus === "authenticated" && authUser?.email_verified === true;
+  const requestedPageId = typeof location.state === "object"
+    && location.state !== null
+    && "selectedPageId" in location.state
+    && typeof location.state.selectedPageId === "string"
+    ? location.state.selectedPageId
+    : null;
   const [pages, setPages] = useState<WorkspacePageListItem[]>([]);
   const [trashedPages, setTrashedPages] = useState<TrashedWorkspacePage[]>([]);
   const [selectedTrashedPageId, setSelectedTrashedPageId] = useState<string | null>(null);
@@ -99,6 +106,7 @@ export function WorkspaceGatePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<WorkspacePageListItem[]>([]);
   const [searchState, setSearchState] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const hasSearchQuery = searchQuery.trim().length > 0;
   const [trashLoadState, setTrashLoadState] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const pageContentCache = useRef(new Map<string, string>());
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
@@ -242,12 +250,12 @@ export function WorkspaceGatePage() {
       .then((loadedPages) => {
         if (cancelled) return;
         setPages(loadedPages);
-        const firstPage = loadedPages[0] ?? null;
-        setSelectedPageId(firstPage?.id ?? null);
+        const initialPage = loadedPages.find((page) => page.id === requestedPageId) ?? loadedPages[0] ?? null;
+        setSelectedPageId(initialPage?.id ?? null);
         setWorkspaceLoadState("ready");
-        if (firstPage) {
+        if (initialPage) {
           setMarkdown("");
-          getWorkspacePage(firstPage.id)
+          getWorkspacePage(initialPage.id)
             .then((detail) => {
               if (cancelled) return;
               pageContentCache.current.set(detail.id, detail.contents);
@@ -277,7 +285,7 @@ export function WorkspaceGatePage() {
     return () => {
       cancelled = true;
     };
-  }, [isAuthenticated, showToast, workspaceReloadKey]);
+  }, [isAuthenticated, requestedPageId, showToast, workspaceReloadKey]);
 
   useEffect(() => {
     let cancelled = false;
@@ -906,8 +914,8 @@ export function WorkspaceGatePage() {
         </div>
 
         <div className="workspace-pages-heading">
-          <span>{sidebarView === "trash" ? "휴지통" : isSearchOpen ? `검색 결과 ${searchResults.length}` : "페이지"}</span>
-          {isSearchOpen ? null : sidebarView === "trash" ? (
+          <span>{sidebarView === "trash" ? "휴지통" : hasSearchQuery ? `검색 결과 ${searchResults.length}` : "페이지"}</span>
+          {hasSearchQuery ? null : sidebarView === "trash" ? (
             <button type="button" aria-label="페이지 목록으로 돌아가기" onClick={() => {
               setSidebarView("pages");
               setSelectedTrashedPageId(null);
@@ -941,11 +949,9 @@ export function WorkspaceGatePage() {
           )}
         </div>
 
-        {isAuthenticated && isSearchOpen ? (
+        {isAuthenticated && isSearchOpen && hasSearchQuery ? (
           <div className="workspace-page-list workspace-search-results" role="region" aria-label="페이지 검색 결과">
-            {!searchQuery.trim() ? (
-              <p className="workspace-empty-pages">검색할 페이지 제목을 입력하세요.</p>
-            ) : searchState === "loading" ? (
+            {searchState === "loading" ? (
               <p className="workspace-empty-pages">페이지를 검색하는 중…</p>
             ) : searchState === "error" ? (
               <p className="workspace-empty-pages">페이지를 검색하지 못했습니다.</p>

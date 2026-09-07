@@ -228,12 +228,14 @@ export function MarkdownPastePage() {
     setIsSaving(true);
     try {
       if (isAuthenticated) {
+        let savedPageId: string;
         if (workspaceSaveTarget === "new") {
-          await createWorkspacePage({
+          const createdPage = await createWorkspacePage({
             title: outputTitle,
             content: markdownText,
             parent_id: null,
           });
+          savedPageId = createdPage.id;
         } else {
           const targetPage = workspacePages.find((page) => page.id === workspaceSaveTarget);
           if (!targetPage) throw new Error("저장 대상을 찾을 수 없습니다.");
@@ -244,9 +246,10 @@ export function MarkdownPastePage() {
             ? `${existingMarkdown}\n\n${markdownText}`
             : markdownText;
           await updateWorkspacePage(targetPage.id, { content: nextMarkdown });
+          savedPageId = targetPage.id;
         }
         setIsSaveDialogOpen(false);
-        navigate("/workspace");
+        navigate("/workspace", { state: { selectedPageId: savedPageId } });
         return;
       }
 

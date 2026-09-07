@@ -72,9 +72,9 @@ const conversionResult = {
   fullHtml: "<!doctype html><html><body><p>미리보기</p></body></html>",
 };
 
-function renderPage() {
+function renderPage(initialEntry: string | { pathname: string; state?: unknown } = "/workspace") {
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[initialEntry]}>
       <WorkspaceGatePage />
     </MemoryRouter>,
   );
@@ -156,6 +156,20 @@ describe("WorkspaceGatePage", () => {
     expect(screen.getByText("내 기록장을 불러오는 중…")).not.toBeNull();
     expect(screen.queryByText("임시 페이지")).toBeNull();
     expect(loadGuestDraft).not.toHaveBeenCalled();
+  });
+
+  it("기록장 저장 후 전달된 페이지를 첫 화면에서 선택한다", async () => {
+    useAuth.mockReturnValue({ status: "authenticated", user: { id: "1", email_verified: true } });
+    listWorkspacePages.mockResolvedValue([
+      { id: "10", owner_id: "1", title: "첫 페이지", parent_id: null, sort_order: 0 },
+      { id: "20", owner_id: "1", title: "저장한 페이지", parent_id: null, sort_order: 1 },
+    ]);
+
+    renderPage({ pathname: "/workspace", state: { selectedPageId: "20" } });
+
+    await waitFor(() => expect(getWorkspacePage).toHaveBeenCalledWith("20"));
+    expect(screen.getByRole("button", { name: "저장한 페이지" }).closest(".workspace-page-item")?.classList.contains("is-active")).toBe(true);
+    expect(getWorkspacePage).not.toHaveBeenCalledWith("10");
   });
 
   it("페이지 탭에서 임시 페이지를 선택하면 Markdown 탭으로 이동한다", async () => {
@@ -541,9 +555,16 @@ describe("WorkspaceGatePage", () => {
     renderPage();
 
     await user.click(await screen.findByRole("button", { name: "페이지 검색" }));
+    expect(screen.getByText("개발 노트")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "새 페이지 추가" })).toBeTruthy();
+    expect(screen.queryByText(/검색 결과/)).toBeNull();
+    expect(searchWorkspacePages).not.toHaveBeenCalled();
+
     await user.type(screen.getByRole("searchbox", { name: "페이지 검색어" }), "블로그");
 
     await waitFor(() => expect(searchWorkspacePages).toHaveBeenCalledWith("블로그"));
+    expect(screen.getByText("검색 결과 1")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "새 페이지 추가" })).toBeNull();
     expect(screen.queryByText("개발 노트")).toBeNull();
     expect(screen.getByText("개발 노트 › 블로그 초안")).toBeTruthy();
     await user.click(screen.getByRole("button", { name: /블로그 초안/ }));
