@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock
 
 import httpx
@@ -64,7 +65,7 @@ async def test_update_me_changes_display_name() -> None:
     authentication.execute.return_value = current_user
     update_display_name = AsyncMock()
     update_display_name.execute.return_value = current_user.change_display_name(
-        DisplayName("새 이름")
+        DisplayName("새 이름"), datetime(2026, 9, 20, tzinfo=UTC)
     )
     app = create_app()
     app.dependency_overrides[get_authenticate_access_token] = lambda: authentication

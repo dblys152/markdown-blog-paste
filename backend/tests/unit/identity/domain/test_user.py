@@ -58,9 +58,11 @@ def test_unverified_user_cannot_access_workspace() -> None:
 
 
 def test_active_user_changes_display_name() -> None:
-    updated_user = make_user().change_display_name(DisplayName("  새 이름  "))
+    changed_at = datetime(2026, 9, 20, tzinfo=UTC)
+    updated_user = make_user().change_display_name(DisplayName("  새 이름  "), changed_at)
 
     assert updated_user.display_name == DisplayName("새 이름")
+    assert updated_user.updated_at == changed_at
     assert make_user().display_name == DisplayName("User")
 
 

@@ -25,20 +25,12 @@ from md2blog.modules.identity.application.service.password_reset import (
 )
 from md2blog.modules.identity.application.service.signup import EmailAlreadyExistsError
 from md2blog.modules.identity.domain.auth_session import InvalidRefreshSessionError
-from md2blog.modules.identity.domain.email_verification import (
-    EmailVerificationExpiredError,
-    EmailVerificationUnavailableError,
-)
 from md2blog.modules.identity.domain.google_identity_policy import (
     GoogleIdentityAlreadyLinkedError,
     GoogleIdentityNotLinkedError,
     LastSignInMethodError,
 )
 from md2blog.modules.identity.domain.nickname_policy import NicknameAlreadyInUseError
-from md2blog.modules.identity.domain.password_reset import (
-    PasswordResetExpiredError,
-    PasswordResetUnavailableError,
-)
 from md2blog.modules.identity.domain.user import (
     AccountDeletionPasswordMismatchError,
     AuthenticationFailedError,
@@ -282,11 +274,6 @@ def register_exception_handlers(app: FastAPI) -> None:
         InvalidEmailVerificationTokenError,
         handle_invalid_email_verification,
     )
-    app.add_exception_handler(EmailVerificationExpiredError, handle_invalid_email_verification)
-    app.add_exception_handler(
-        EmailVerificationUnavailableError,
-        handle_invalid_email_verification,
-    )
     app.add_exception_handler(
         EmailVerificationCooldownError,
         handle_email_verification_rate_limit,
@@ -305,8 +292,6 @@ def register_exception_handlers(app: FastAPI) -> None:
         handle_account_deletion_password_mismatch,
     )
     app.add_exception_handler(InvalidPasswordResetTokenError, handle_invalid_password_reset)
-    app.add_exception_handler(PasswordResetExpiredError, handle_invalid_password_reset)
-    app.add_exception_handler(PasswordResetUnavailableError, handle_invalid_password_reset)
     app.add_exception_handler(InvalidGoogleCredentialError, handle_invalid_google_credential)
     app.add_exception_handler(
         GoogleIdentityAlreadyLinkedError,

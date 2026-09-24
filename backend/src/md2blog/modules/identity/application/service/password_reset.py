@@ -3,19 +3,23 @@ from datetime import timedelta
 from html import escape
 from urllib.parse import quote
 
-from md2blog.modules.identity.application.port.outbound.email import (
-    EmailSender,
-    OutboundEmail,
-    PasswordResetTokenManager,
+from md2blog.modules.identity.application.port.outbound.account_confirmation_token import (
+    AccountConfirmationTokenManager,
 )
+from md2blog.modules.identity.application.port.outbound.email import EmailSender, OutboundEmail
 from md2blog.modules.identity.application.port.outbound.security import Clock, PasswordHasher
+from md2blog.modules.identity.domain.account_confirmation_token import (
+    AccountConfirmationToken,
+    AccountConfirmationTokenExpiredError,
+    AccountConfirmationTokenPurpose,
+    AccountConfirmationTokenUnavailableError,
+)
+from md2blog.modules.identity.domain.account_confirmation_token_repositories import (
+    AccountConfirmationTokenRepository,
+)
 from md2blog.modules.identity.domain.commands import (
     ConfirmPasswordResetCommand,
     RequestPasswordResetCommand,
-)
-from md2blog.modules.identity.domain.password_reset import PasswordResetToken
-from md2blog.modules.identity.domain.password_reset_repositories import (
-    PasswordResetTokenRepository,
 )
 from md2blog.modules.identity.domain.repositories import UserRepository
 from md2blog.modules.identity.domain.session_repositories import AuthSessionRepository
@@ -24,9 +28,9 @@ from md2blog.shared.domain.tsid import TSID
 
 @dataclass(frozen=True, slots=True)
 class PasswordResetPolicy:
-    token_ttl: timedelta
-    resend_cooldown: timedelta
-    daily_limit: int
+    token_ttl: timedelta = timedelta(minutes=60)
+    resend_cooldown: timedelta = timedelta(seconds=60)
+    daily_limit: int = 5
 
 
 class RequestPasswordReset:
@@ -34,8 +38,8 @@ class RequestPasswordReset:
         self,
         *,
         users: UserRepository,
-        tokens: PasswordResetTokenRepository,
-        token_manager: PasswordResetTokenManager,
+        tokens: AccountConfirmationTokenRepository,
+        token_manager: AccountConfirmationTokenManager,
         email_sender: EmailSender,
         clock: Clock,
         policy: PasswordResetPolicy,
@@ -69,9 +73,10 @@ class RequestPasswordReset:
             await self._tokens.save(latest.revoke(now))
 
         generated = self._token_manager.generate()
-        token = PasswordResetToken.issue(
+        token = AccountConfirmationToken.issue(
             token_id=TSID.generate(),
             user_id=user.id,
+            purpose=AccountConfirmationTokenPurpose.PASSWORD_RESET,
             token_hash=generated.token_hash,
             issued_at=now,
             expires_at=now + self._policy.token_ttl,
@@ -101,8 +106,8 @@ class ConfirmPasswordReset:
         *,
         users: UserRepository,
         sessions: AuthSessionRepository,
-        tokens: PasswordResetTokenRepository,
-        token_manager: PasswordResetTokenManager,
+        tokens: AccountConfirmationTokenRepository,
+        token_manager: AccountConfirmationTokenManager,
         password_hasher: PasswordHasher,
         clock: Clock,
     ) -> None:
@@ -117,17 +122,23 @@ class ConfirmPasswordReset:
         token = await self._tokens.find_by_token_hash_for_update(
             self._token_manager.hash(command.token)
         )
-        if token is None:
+        if token is None or token.purpose != AccountConfirmationTokenPurpose.PASSWORD_RESET:
             raise InvalidPasswordResetTokenError
 
         now = self._clock.now()
-        used_token = token.use(now)
+        try:
+            used_token = token.use(now)
+        except (
+            AccountConfirmationTokenExpiredError,
+            AccountConfirmationTokenUnavailableError,
+        ) as exc:
+            raise InvalidPasswordResetTokenError from exc
         user = await self._users.find_by_id(token.user_id.value)
         if user is None:
             raise InvalidPasswordResetTokenError
 
         password_hash = self._password_hasher.hash(command.new_password)
-        await self._users.save(user.reset_password(password_hash))
+        await self._users.save(user.reset_password(password_hash, now))
         await self._tokens.save(used_token)
         await self._sessions.revoke_all_by_user_id(user.id, now)
 

@@ -5,6 +5,7 @@ import httpx
 from md2blog.main import create_app
 from md2blog.modules.identity.application.service.login import LoginResult
 from md2blog.modules.identity.application.service.refresh import TokenPairResult
+from md2blog.modules.identity.domain.login_failure_state import LoginRateLimitedError
 from md2blog.modules.identity.domain.user import AuthenticationFailedError, User
 from md2blog.modules.identity.domain.value_objects import DisplayName, Email, PasswordHash
 from md2blog.modules.identity.presentation.dependencies import (
@@ -63,6 +64,27 @@ async def test_login_returns_common_error_response_for_invalid_credentials() -> 
     assert response.json() == {
         "code": "AUTH_INVALID_CREDENTIALS",
         "message": "이메일 또는 비밀번호가 올바르지 않습니다.",
+    }
+
+
+async def test_login_returns_retry_after_when_attempts_are_limited() -> None:
+    login_use_case = AsyncMock()
+    login_use_case.execute.side_effect = LoginRateLimitedError(300)
+    app = create_app()
+    app.dependency_overrides[get_login_use_case] = lambda: login_use_case
+    transport = httpx.ASGITransport(app=app)
+
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            "/auth/login",
+            json={"email": "user@example.com", "password": "wrong-password"},
+        )
+
+    assert response.status_code == 429
+    assert response.headers["retry-after"] == "300"
+    assert response.json() == {
+        "code": "AUTH_LOGIN_RATE_LIMITED",
+        "message": "로그인 시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.",
     }
 
 

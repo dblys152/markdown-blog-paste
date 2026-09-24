@@ -35,7 +35,10 @@ class SqlAlchemyUserRepository:
                 password_hash=user.password_hash.value if user.password_hash else None,
                 display_name=user.display_name.value,
                 email_verified_at=user.email_verified_at,
+                last_login_at=user.last_login_at,
                 status=user.status.value,
+                created_at=user.created_at,
+                updated_at=user.updated_at,
             )
         )
         await self._session.flush()
@@ -46,8 +49,11 @@ class SqlAlchemyUserRepository:
             raise LookupError("user not found")
         model.display_name = user.display_name.value
         model.email_verified_at = user.email_verified_at
+        model.last_login_at = user.last_login_at
         model.password_hash = user.password_hash.value if user.password_hash else None
         model.status = user.status.value
+        if user.updated_at is not None:
+            model.updated_at = user.updated_at
         await self._session.flush()
 
     async def delete(self, user: User) -> None:
@@ -75,4 +81,7 @@ class SqlAlchemyUserRepository:
             display_name=DisplayName(model.display_name),
             email_verified_at=model.email_verified_at,
             status=UserStatus(model.status),
+            last_login_at=model.last_login_at,
+            created_at=model.created_at,
+            updated_at=model.updated_at,
         )

@@ -1,3 +1,4 @@
+from md2blog.modules.identity.application.port.outbound.security import Clock
 from md2blog.modules.identity.domain.commands import UpdateDisplayNameCommand
 from md2blog.modules.identity.domain.nickname_policy import NicknameUniquenessPolicy
 from md2blog.modules.identity.domain.repositories import UserRepository
@@ -9,16 +10,18 @@ class UpdateDisplayName:
         self,
         users: UserRepository,
         nickname_policy: NicknameUniquenessPolicy,
+        clock: Clock,
     ) -> None:
         self._users = users
         self._nickname_policy = nickname_policy
+        self._clock = clock
 
     async def execute(
         self,
         user: User,
         command: UpdateDisplayNameCommand,
     ) -> User:
-        updated_user = user.change_display_name(command.display_name)
+        updated_user = user.change_display_name(command.display_name, self._clock.now())
         if updated_user == user:
             return user
         self._nickname_policy.ensure_available(

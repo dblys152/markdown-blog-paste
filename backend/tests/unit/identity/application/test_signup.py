@@ -1,3 +1,5 @@
+from datetime import UTC, datetime
+
 import pytest
 
 from md2blog.modules.identity.application.factory.signup import SignUpCommandFactory
@@ -16,6 +18,13 @@ from md2blog.modules.identity.domain.value_objects import (
     RawPassword,
 )
 from md2blog.shared.domain.tsid import TSID
+
+NOW = datetime(2026, 9, 20, tzinfo=UTC)
+
+
+class FixedClock:
+    def now(self) -> datetime:
+        return NOW
 
 
 class InMemoryUsers:
@@ -64,6 +73,7 @@ async def test_signup_factory_builds_domain_command_and_service_stores_user() ->
         StubTokenIssuer(),
         email_verification,
         NicknameUniquenessPolicy(),
+        FixedClock(),
     )
 
     command = await factory.create(
@@ -92,9 +102,11 @@ def test_user_signs_up_from_domain_command() -> None:
         display_name=DisplayName("User"),
     )
 
-    user = User.sign_up(command)
+    user = User.sign_up(command, NOW)
 
     assert user.id == user_id
+    assert user.created_at == NOW
+    assert user.updated_at == NOW
 
 
 async def test_signup_service_rejects_duplicate_nickname() -> None:
@@ -121,4 +133,5 @@ async def test_signup_service_rejects_duplicate_nickname() -> None:
             StubTokenIssuer(),
             RecordingEmailVerification(),
             NicknameUniquenessPolicy(),
+            FixedClock(),
         ).execute(command)

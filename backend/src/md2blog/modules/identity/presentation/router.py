@@ -62,8 +62,10 @@ from md2blog.modules.identity.domain.commands import (
     RequestPasswordResetCommand,
     UpdateDisplayNameCommand,
 )
+from md2blog.modules.identity.domain.login_failure_state import LoginRateLimitedError
 from md2blog.modules.identity.domain.nickname_policy import NicknameAlreadyInUseError
-from md2blog.modules.identity.domain.user import User
+from md2blog.modules.identity.domain.token_policy import REFRESH_TOKEN_TTL
+from md2blog.modules.identity.domain.user import AuthenticationFailedError, User
 from md2blog.modules.identity.domain.value_objects import DisplayName, Email, RawPassword
 from md2blog.modules.identity.presentation.dependencies import (
     SignUpDependencies,
@@ -106,7 +108,7 @@ def set_refresh_cookie(response: Response, refresh_token: str, settings: Setting
     response.set_cookie(
         key=REFRESH_TOKEN_COOKIE,
         value=refresh_token,
-        max_age=settings.refresh_token_ttl_days * 24 * 60 * 60,
+        max_age=int(REFRESH_TOKEN_TTL.total_seconds()),
         httponly=True,
         secure=settings.refresh_token_cookie_secure,
         samesite=settings.refresh_token_cookie_samesite,
@@ -192,13 +194,27 @@ async def login(
     use_case: LoginUseCase = Depends(get_login_use_case),
     refresh_service: RefreshSessionService = Depends(get_refresh_service),
     settings: Settings = Depends(get_settings),
-) -> TokenResponse:
-    result = await use_case.execute(
-        LoginCommand(
-            email=Email(str(request.email)),
-            password=RawPassword(request.password),
+) -> TokenResponse | JSONResponse:
+    try:
+        result = await use_case.execute(
+            LoginCommand(
+                email=Email(str(request.email)),
+                password=RawPassword(request.password),
+            )
         )
-    )
+    except AuthenticationFailedError:
+        return error_response(
+            status.HTTP_401_UNAUTHORIZED,
+            ErrorCode.AUTH_INVALID_CREDENTIALS,
+            "이메일 또는 비밀번호가 올바르지 않습니다.",
+        )
+    except LoginRateLimitedError as error:
+        return error_response(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            ErrorCode.AUTH_LOGIN_RATE_LIMITED,
+            "로그인 시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.",
+            headers={"Retry-After": str(error.retry_after_seconds)},
+        )
     token_pair = await refresh_service.create(result.user, get_session_metadata(http_request))
     set_refresh_cookie(response, token_pair.refresh_token, settings)
     return TokenResponse(

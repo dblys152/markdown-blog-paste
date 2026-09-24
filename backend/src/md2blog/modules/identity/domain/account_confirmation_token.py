@@ -1,13 +1,20 @@
 from dataclasses import dataclass, replace
 from datetime import datetime
+from enum import StrEnum
 
 from md2blog.shared.domain.tsid import TSID
 
 
+class AccountConfirmationTokenPurpose(StrEnum):
+    EMAIL_VERIFICATION = "email_verification"
+    PASSWORD_RESET = "password_reset"
+
+
 @dataclass(frozen=True, slots=True, kw_only=True)
-class EmailVerificationToken:
+class AccountConfirmationToken:
     id: TSID
     user_id: TSID
+    purpose: AccountConfirmationTokenPurpose
     token_hash: str
     expires_at: datetime
     created_at: datetime
@@ -20,10 +27,11 @@ class EmailVerificationToken:
         *,
         token_id: TSID,
         user_id: TSID,
+        purpose: AccountConfirmationTokenPurpose,
         token_hash: str,
         issued_at: datetime,
         expires_at: datetime,
-    ) -> "EmailVerificationToken":
+    ) -> "AccountConfirmationToken":
         if not token_hash:
             raise ValueError("token hash must not be empty")
         if expires_at <= issued_at:
@@ -31,19 +39,20 @@ class EmailVerificationToken:
         return cls(
             id=token_id,
             user_id=user_id,
+            purpose=purpose,
             token_hash=token_hash,
             expires_at=expires_at,
             created_at=issued_at,
         )
 
-    def confirm(self, confirmed_at: datetime) -> "EmailVerificationToken":
+    def use(self, used_at: datetime) -> "AccountConfirmationToken":
         if self.used_at is not None or self.revoked_at is not None:
-            raise EmailVerificationUnavailableError
-        if confirmed_at >= self.expires_at:
-            raise EmailVerificationExpiredError
-        return replace(self, used_at=confirmed_at)
+            raise AccountConfirmationTokenUnavailableError
+        if used_at >= self.expires_at:
+            raise AccountConfirmationTokenExpiredError
+        return replace(self, used_at=used_at)
 
-    def revoke(self, revoked_at: datetime) -> "EmailVerificationToken":
+    def revoke(self, revoked_at: datetime) -> "AccountConfirmationToken":
         if self.used_at is not None or self.revoked_at is not None:
             return self
         return replace(self, revoked_at=revoked_at)
@@ -52,13 +61,9 @@ class EmailVerificationToken:
         return self.used_at is None and self.revoked_at is None and now < self.expires_at
 
 
-class EmailVerificationError(Exception):
+class AccountConfirmationTokenExpiredError(Exception):
     pass
 
 
-class EmailVerificationExpiredError(EmailVerificationError):
-    pass
-
-
-class EmailVerificationUnavailableError(EmailVerificationError):
+class AccountConfirmationTokenUnavailableError(Exception):
     pass

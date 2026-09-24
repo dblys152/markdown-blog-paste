@@ -49,6 +49,8 @@ class RefreshSessionService:
 
     async def create(self, user: User, metadata: SessionMetadata) -> TokenPairResult:
         now = self._clock.now()
+        user = user.record_login(now)
+        await self._users.save(user)
         token = self._refresh_tokens.generate()
         await self._sessions.add(
             AuthSession(

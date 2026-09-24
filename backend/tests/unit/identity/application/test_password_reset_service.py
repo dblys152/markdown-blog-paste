@@ -1,19 +1,25 @@
 from datetime import UTC, datetime, timedelta
 
-from md2blog.modules.identity.application.port.outbound.email import (
-    GeneratedPasswordResetToken,
-    OutboundEmail,
+import pytest
+
+from md2blog.modules.identity.application.port.outbound.account_confirmation_token import (
+    GeneratedAccountConfirmationToken,
 )
+from md2blog.modules.identity.application.port.outbound.email import OutboundEmail
 from md2blog.modules.identity.application.service.password_reset import (
     ConfirmPasswordReset,
+    InvalidPasswordResetTokenError,
     PasswordResetPolicy,
     RequestPasswordReset,
+)
+from md2blog.modules.identity.domain.account_confirmation_token import (
+    AccountConfirmationToken,
+    AccountConfirmationTokenPurpose,
 )
 from md2blog.modules.identity.domain.commands import (
     ConfirmPasswordResetCommand,
     RequestPasswordResetCommand,
 )
-from md2blog.modules.identity.domain.password_reset import PasswordResetToken
 from md2blog.modules.identity.domain.user import User
 from md2blog.modules.identity.domain.value_objects import (
     DisplayName,
@@ -32,8 +38,8 @@ class Clock:
 
 
 class TokenManager:
-    def generate(self) -> GeneratedPasswordResetToken:
-        return GeneratedPasswordResetToken(raw="raw-token", token_hash="token-hash")
+    def generate(self) -> GeneratedAccountConfirmationToken:
+        return GeneratedAccountConfirmationToken(raw="raw-token", token_hash="token-hash")
 
     def hash(self, raw_token: str) -> str:
         return "token-hash" if raw_token == "raw-token" else "unknown"
@@ -48,20 +54,22 @@ class Emails:
 
 
 class Tokens:
-    def __init__(self, token: PasswordResetToken | None = None) -> None:
+    def __init__(self, token: AccountConfirmationToken | None = None) -> None:
         self.tokens = [] if token is None else [token]
 
-    async def add(self, token: PasswordResetToken) -> None:
+    async def add(self, token: AccountConfirmationToken) -> None:
         self.tokens.append(token)
 
-    async def find_by_token_hash_for_update(self, token_hash: str) -> PasswordResetToken | None:
+    async def find_by_token_hash_for_update(
+        self, token_hash: str
+    ) -> AccountConfirmationToken | None:
         return next((token for token in self.tokens if token.token_hash == token_hash), None)
 
-    async def find_latest_by_user_id(self, user_id: TSID) -> PasswordResetToken | None:
+    async def find_latest_by_user_id(self, user_id: TSID) -> AccountConfirmationToken | None:
         matches = [token for token in self.tokens if token.user_id == user_id]
         return max(matches, key=lambda token: token.created_at) if matches else None
 
-    async def save(self, token: PasswordResetToken) -> None:
+    async def save(self, token: AccountConfirmationToken) -> None:
         self.tokens = [token if current.id == token.id else current for current in self.tokens]
 
     async def count_created_since(self, user_id: TSID, since: datetime) -> int:
@@ -151,9 +159,10 @@ async def test_request_does_nothing_for_unknown_email() -> None:
 
 
 async def test_confirm_changes_password_and_revokes_all_sessions() -> None:
-    token = PasswordResetToken.issue(
+    token = AccountConfirmationToken.issue(
         token_id=TSID(2),
         user_id=TSID(1),
+        purpose=AccountConfirmationTokenPurpose.PASSWORD_RESET,
         token_hash="token-hash",
         issued_at=NOW - timedelta(minutes=1),
         expires_at=NOW + timedelta(hours=1),
@@ -181,3 +190,29 @@ async def test_confirm_changes_password_and_revokes_all_sessions() -> None:
     assert users.user.password_hash == PasswordHash("hashed:new-password")
     assert tokens.tokens[0].used_at == NOW
     assert sessions.revoked_user_id == TSID(1)
+
+
+async def test_email_verification_token_cannot_reset_password() -> None:
+    token = AccountConfirmationToken.issue(
+        token_id=TSID(2),
+        user_id=TSID(1),
+        purpose=AccountConfirmationTokenPurpose.EMAIL_VERIFICATION,
+        token_hash="token-hash",
+        issued_at=NOW - timedelta(minutes=1),
+        expires_at=NOW + timedelta(hours=1),
+    )
+    users = Users(make_user())
+    service = ConfirmPasswordReset(
+        users=users,  # type: ignore[arg-type]
+        sessions=Sessions(),  # type: ignore[arg-type]
+        tokens=Tokens(token),
+        token_manager=TokenManager(),
+        password_hasher=Passwords(),  # type: ignore[arg-type]
+        clock=Clock(),
+    )
+
+    with pytest.raises(InvalidPasswordResetTokenError):
+        await service.execute(
+            ConfirmPasswordResetCommand(token="raw-token", new_password=RawPassword("new-password"))
+        )
+    assert users.user == make_user()

@@ -16,15 +16,17 @@ CommaSeparatedList = Annotated[list[str], NoDecode, BeforeValidator(parse_comma_
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env.local", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(
+        env_file=".env.local",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
     app_name: str = "MD2Blog API"
     environment: str = "local"
     database_url: str = "postgresql://md2blog:md2blog@localhost:5432/md2blog"
     migration_database_url: str = "postgresql://md2blog:md2blog@localhost:5432/md2blog"
     jwt_secret_key: SecretStr = SecretStr("local-development-secret-change-me")
-    access_token_ttl_minutes: int = 15
-    refresh_token_ttl_days: int = 14
     refresh_token_cookie_secure: bool = False
     refresh_token_cookie_samesite: Literal["lax", "strict", "none"] = "lax"
     cors_allowed_origins: CommaSeparatedList = ["http://localhost:5173"]
@@ -34,12 +36,6 @@ class Settings(BaseSettings):
     smtp_password: SecretStr | None = None
     email_from: str | None = None
     frontend_url: str = "http://localhost:5173"
-    email_verification_token_ttl_hours: int = 24
-    email_verification_resend_cooldown_seconds: int = 60
-    email_verification_daily_limit: int = 5
-    password_reset_token_ttl_minutes: int = 60
-    password_reset_resend_cooldown_seconds: int = 60
-    password_reset_daily_limit: int = 5
     google_client_id: str | None = None
 
     @property

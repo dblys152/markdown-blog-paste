@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, String, Text
+from sqlalchemy import BigInteger, CheckConstraint, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from md2blog.shared.infrastructure.persistence import Base, TimestampMixin, TSIDPrimaryKeyMixin
@@ -13,6 +13,7 @@ class UserModel(TSIDPrimaryKeyMixin, TimestampMixin, Base):
     password_hash: Mapped[str | None] = mapped_column(String(255))
     display_name: Mapped[str] = mapped_column(String(20), nullable=False)
     email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")
 
 
@@ -52,8 +53,14 @@ class AuthSessionModel(TSIDPrimaryKeyMixin, Base):
     )
 
 
-class EmailVerificationTokenModel(TSIDPrimaryKeyMixin, Base):
-    __tablename__ = "email_verification_tokens"
+class AccountConfirmationTokenModel(TSIDPrimaryKeyMixin, Base):
+    __tablename__ = "account_confirmation_tokens"
+    __table_args__ = (
+        CheckConstraint(
+            "purpose IN ('email_verification', 'password_reset')",
+            name="purpose",
+        ),
+    )
 
     user_id: Mapped[int] = mapped_column(
         BigInteger,
@@ -61,6 +68,7 @@ class EmailVerificationTokenModel(TSIDPrimaryKeyMixin, Base):
         nullable=False,
         index=True,
     )
+    purpose: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
     token_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -68,17 +76,14 @@ class EmailVerificationTokenModel(TSIDPrimaryKeyMixin, Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
-class PasswordResetTokenModel(TSIDPrimaryKeyMixin, Base):
-    __tablename__ = "password_reset_tokens"
+class LoginFailureStateModel(TimestampMixin, Base):
+    __tablename__ = "login_failure_states"
 
     user_id: Mapped[int] = mapped_column(
         BigInteger,
         ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
+        primary_key=True,
     )
-    token_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    failure_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    window_started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    blocked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

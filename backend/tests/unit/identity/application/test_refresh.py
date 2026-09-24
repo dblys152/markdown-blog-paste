@@ -58,6 +58,9 @@ class Users:
     async def add(self, user: User) -> None:
         self.user = user
 
+    async def save(self, user: User) -> None:
+        self.user = user
+
     async def find_by_id(self, user_id: int) -> User | None:
         return self.user if self.user.id.value == user_id else None
 
@@ -108,6 +111,7 @@ async def test_refresh_rotates_token_and_rejects_reuse() -> None:
         timedelta(days=14),
     )
     created = await service.create(make_user(), SessionMetadata(None, None))
+    assert created.user.last_login_at == now
 
     rotated = await service.rotate(created.refresh_token, SessionMetadata("agent", "127.0.0.1"))
 

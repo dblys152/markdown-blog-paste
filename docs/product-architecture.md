@@ -321,6 +321,7 @@ users
 - password_hash
 - display_name
 - email_verified_at
+- last_login_at
 - status
 - created_at
 - updated_at
@@ -335,22 +336,33 @@ auth_sessions
 - ip_address
 - created_at
 
-email_verification_tokens
+login_failure_states
+- user_id (PK, FK → users.id)
+- failure_count
+- window_started_at
+- blocked_until
+- created_at
+- updated_at
+
+account_confirmation_tokens
 - id
 - user_id
+- purpose (email_verification | password_reset)
 - token_hash
 - expires_at
 - used_at
 - revoked_at
 - created_at
-
-password_reset_tokens
-- id
-- user_id
-- token_hash
-- expires_at
-- used_at
 ```
+
+인증 토큰은 `purpose`별로 조회·재발송 제한·사용 검증을 분리해 서로 다른 용도의
+토큰을 교차 사용할 수 없도록 합니다.
+
+`users.last_login_at`은 새로운 로그인 세션을 만들 때 갱신합니다. 리프레시 토큰
+갱신은 로그인으로 세지 않으며, 상세 로그인 이력과 별도로 마지막 성공 시각만 유지합니다.
+
+`login_failure_states`는 가입된 사용자별 실패 횟수와 일시 차단 상태만 저장합니다.
+로그인에 성공하면 해당 상태를 삭제하며, 로그인 성공 이력을 보관하는 테이블은 아닙니다.
 
 ## 7. 식별자 정책
 

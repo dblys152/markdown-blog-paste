@@ -3,15 +3,19 @@ from datetime import timedelta
 from html import escape
 from urllib.parse import quote
 
-from md2blog.modules.identity.application.port.outbound.email import (
-    EmailSender,
-    EmailVerificationTokenManager,
-    OutboundEmail,
+from md2blog.modules.identity.application.port.outbound.account_confirmation_token import (
+    AccountConfirmationTokenManager,
 )
+from md2blog.modules.identity.application.port.outbound.email import EmailSender, OutboundEmail
 from md2blog.modules.identity.application.port.outbound.security import Clock
-from md2blog.modules.identity.domain.email_verification import EmailVerificationToken
-from md2blog.modules.identity.domain.email_verification_repositories import (
-    EmailVerificationTokenRepository,
+from md2blog.modules.identity.domain.account_confirmation_token import (
+    AccountConfirmationToken,
+    AccountConfirmationTokenExpiredError,
+    AccountConfirmationTokenPurpose,
+    AccountConfirmationTokenUnavailableError,
+)
+from md2blog.modules.identity.domain.account_confirmation_token_repositories import (
+    AccountConfirmationTokenRepository,
 )
 from md2blog.modules.identity.domain.repositories import UserRepository
 from md2blog.modules.identity.domain.user import User
@@ -20,17 +24,17 @@ from md2blog.shared.domain.tsid import TSID
 
 @dataclass(frozen=True, slots=True)
 class EmailVerificationPolicy:
-    token_ttl: timedelta
-    resend_cooldown: timedelta
-    daily_limit: int
+    token_ttl: timedelta = timedelta(hours=24)
+    resend_cooldown: timedelta = timedelta(seconds=60)
+    daily_limit: int = 5
 
 
 class IssueEmailVerification:
     def __init__(
         self,
         *,
-        tokens: EmailVerificationTokenRepository,
-        token_manager: EmailVerificationTokenManager,
+        tokens: AccountConfirmationTokenRepository,
+        token_manager: AccountConfirmationTokenManager,
         email_sender: EmailSender,
         clock: Clock,
         policy: EmailVerificationPolicy,
@@ -61,9 +65,10 @@ class IssueEmailVerification:
             await self._tokens.save(latest.revoke(now))
 
         generated = self._token_manager.generate()
-        token = EmailVerificationToken.issue(
+        token = AccountConfirmationToken.issue(
             token_id=TSID.generate(),
             user_id=user.id,
+            purpose=AccountConfirmationTokenPurpose.EMAIL_VERIFICATION,
             token_hash=generated.token_hash,
             issued_at=now,
             expires_at=now + self._policy.token_ttl,
@@ -96,8 +101,8 @@ class ConfirmEmailVerification:
         self,
         *,
         users: UserRepository,
-        tokens: EmailVerificationTokenRepository,
-        token_manager: EmailVerificationTokenManager,
+        tokens: AccountConfirmationTokenRepository,
+        token_manager: AccountConfirmationTokenManager,
         clock: Clock,
     ) -> None:
         self._users = users
@@ -108,11 +113,17 @@ class ConfirmEmailVerification:
     async def execute(self, raw_token: str) -> User:
         token_hash = self._token_manager.hash(raw_token)
         token = await self._tokens.find_by_token_hash_for_update(token_hash)
-        if token is None:
+        if token is None or token.purpose != AccountConfirmationTokenPurpose.EMAIL_VERIFICATION:
             raise InvalidEmailVerificationTokenError
 
         now = self._clock.now()
-        confirmed_token = token.confirm(now)
+        try:
+            confirmed_token = token.use(now)
+        except (
+            AccountConfirmationTokenExpiredError,
+            AccountConfirmationTokenUnavailableError,
+        ) as exc:
+            raise InvalidEmailVerificationTokenError from exc
         user = await self._users.find_by_id(token.user_id.value)
         if user is None:
             raise InvalidEmailVerificationTokenError

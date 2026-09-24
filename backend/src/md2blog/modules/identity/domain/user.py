@@ -21,14 +21,19 @@ class User:
     display_name: DisplayName
     email_verified_at: datetime | None = None
     status: UserStatus = UserStatus.ACTIVE
+    last_login_at: datetime | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
     @classmethod
-    def sign_up(cls, command: SignUpCommand) -> "User":
+    def sign_up(cls, command: SignUpCommand, created_at: datetime) -> "User":
         return cls(
             id=command.id,
             email=command.email,
             password_hash=command.password_hash,
             display_name=command.display_name,
+            created_at=created_at,
+            updated_at=created_at,
         )
 
     @classmethod
@@ -46,6 +51,8 @@ class User:
             password_hash=None,
             display_name=display_name,
             email_verified_at=verified_at,
+            created_at=verified_at,
+            updated_at=verified_at,
         )
 
     def authenticate(self, password_matches: bool) -> None:
@@ -72,15 +79,21 @@ class User:
     def verify_email(self, verified_at: datetime) -> "User":
         if self.email_verified_at is not None:
             return self
-        return replace(self, email_verified_at=verified_at)
+        return replace(self, email_verified_at=verified_at, updated_at=verified_at)
 
-    def reset_password(self, password_hash: PasswordHash) -> "User":
+    def reset_password(self, password_hash: PasswordHash, changed_at: datetime) -> "User":
         self.ensure_access_allowed()
-        return replace(self, password_hash=password_hash)
+        return replace(self, password_hash=password_hash, updated_at=changed_at)
 
-    def change_display_name(self, display_name: DisplayName) -> "User":
+    def change_display_name(self, display_name: DisplayName, changed_at: datetime) -> "User":
         self.ensure_access_allowed()
-        return replace(self, display_name=display_name)
+        if self.display_name == display_name:
+            return self
+        return replace(self, display_name=display_name, updated_at=changed_at)
+
+    def record_login(self, logged_in_at: datetime) -> "User":
+        self.ensure_access_allowed()
+        return replace(self, last_login_at=logged_in_at, updated_at=logged_in_at)
 
     @property
     def is_email_verified(self) -> bool:

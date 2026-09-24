@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from datetime import timedelta
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
@@ -58,19 +57,24 @@ from md2blog.modules.identity.application.service.password_reset import (
 from md2blog.modules.identity.application.service.refresh import RefreshSessionService
 from md2blog.modules.identity.application.service.signup import SignUp
 from md2blog.modules.identity.application.service.update_display_name import UpdateDisplayName
+from md2blog.modules.identity.domain.account_confirmation_token import (
+    AccountConfirmationTokenPurpose,
+)
 from md2blog.modules.identity.domain.google_identity_policy import (
     GoogleIdentityLinkPolicy,
     GoogleIdentityUnlinkPolicy,
 )
+from md2blog.modules.identity.domain.login_failure_state import LoginFailurePolicy
 from md2blog.modules.identity.domain.nickname_policy import NicknameUniquenessPolicy
+from md2blog.modules.identity.domain.token_policy import ACCESS_TOKEN_TTL, REFRESH_TOKEN_TTL
 from md2blog.modules.identity.domain.user import User
-from md2blog.modules.identity.infrastructure.email import GmailSmtpEmailSender
-from md2blog.modules.identity.infrastructure.email_verification_repositories import (
-    SqlAlchemyEmailVerificationTokenRepository,
+from md2blog.modules.identity.infrastructure.account_confirmation_token_repositories import (
+    SqlAlchemyAccountConfirmationTokenRepository,
 )
+from md2blog.modules.identity.infrastructure.email import GmailSmtpEmailSender
 from md2blog.modules.identity.infrastructure.google_identity import GoogleIdTokenVerifier
-from md2blog.modules.identity.infrastructure.password_reset_repositories import (
-    SqlAlchemyPasswordResetTokenRepository,
+from md2blog.modules.identity.infrastructure.login_failure_states import (
+    SqlAlchemyLoginFailureStateRepository,
 )
 from md2blog.modules.identity.infrastructure.passwords import Argon2PasswordHasher
 from md2blog.modules.identity.infrastructure.repositories import SqlAlchemyUserRepository
@@ -80,8 +84,7 @@ from md2blog.modules.identity.infrastructure.session_repositories import (
 from md2blog.modules.identity.infrastructure.tokens import (
     JwtAccessTokenDecoder,
     JwtAccessTokenIssuer,
-    SecureEmailVerificationTokenManager,
-    SecurePasswordResetTokenManager,
+    SecureAccountConfirmationTokenManager,
     SecureRefreshTokenManager,
     SystemClock,
 )
@@ -122,17 +125,13 @@ def get_issue_email_verification(
     settings: Settings = Depends(get_settings),
 ) -> IssueEmailVerificationUseCase:
     return IssueEmailVerification(
-        tokens=SqlAlchemyEmailVerificationTokenRepository(session),
-        token_manager=SecureEmailVerificationTokenManager(),
+        tokens=SqlAlchemyAccountConfirmationTokenRepository(
+            session, AccountConfirmationTokenPurpose.EMAIL_VERIFICATION
+        ),
+        token_manager=SecureAccountConfirmationTokenManager(),
         email_sender=email_sender,
         clock=SystemClock(),
-        policy=EmailVerificationPolicy(
-            token_ttl=timedelta(hours=settings.email_verification_token_ttl_hours),
-            resend_cooldown=timedelta(
-                seconds=settings.email_verification_resend_cooldown_seconds
-            ),
-            daily_limit=settings.email_verification_daily_limit,
-        ),
+        policy=EmailVerificationPolicy(),
         frontend_url=settings.frontend_url,
     )
 
@@ -142,8 +141,10 @@ def get_confirm_email_verification(
 ) -> ConfirmEmailVerificationUseCase:
     return ConfirmEmailVerification(
         users=SqlAlchemyUserRepository(session),
-        tokens=SqlAlchemyEmailVerificationTokenRepository(session),
-        token_manager=SecureEmailVerificationTokenManager(),
+        tokens=SqlAlchemyAccountConfirmationTokenRepository(
+            session, AccountConfirmationTokenPurpose.EMAIL_VERIFICATION
+        ),
+        token_manager=SecureAccountConfirmationTokenManager(),
         clock=SystemClock(),
     )
 
@@ -183,6 +184,9 @@ def get_login_use_case(
     return Login(
         users=SqlAlchemyUserRepository(session),
         password_hasher=Argon2PasswordHasher(),
+        failures=SqlAlchemyLoginFailureStateRepository(session),
+        clock=SystemClock(),
+        policy=LoginFailurePolicy(),
     )
 
 
@@ -265,9 +269,7 @@ def get_delete_account(
         password_hasher=Argon2PasswordHasher(),
         identities=SqlAlchemyUserIdentityRepository(session),
         google_verifier=(
-            GoogleIdTokenVerifier(settings.google_client_id)
-            if settings.google_client_id
-            else None
+            GoogleIdTokenVerifier(settings.google_client_id) if settings.google_client_id else None
         ),
     )
 
@@ -278,6 +280,7 @@ def get_update_display_name(
     return UpdateDisplayName(
         users=SqlAlchemyUserRepository(session),
         nickname_policy=NicknameUniquenessPolicy(),
+        clock=SystemClock(),
     )
 
 
@@ -288,17 +291,13 @@ def get_request_password_reset(
 ) -> RequestPasswordResetUseCase:
     return RequestPasswordReset(
         users=SqlAlchemyUserRepository(session),
-        tokens=SqlAlchemyPasswordResetTokenRepository(session),
-        token_manager=SecurePasswordResetTokenManager(),
+        tokens=SqlAlchemyAccountConfirmationTokenRepository(
+            session, AccountConfirmationTokenPurpose.PASSWORD_RESET
+        ),
+        token_manager=SecureAccountConfirmationTokenManager(),
         email_sender=email_sender,
         clock=SystemClock(),
-        policy=PasswordResetPolicy(
-            token_ttl=timedelta(minutes=settings.password_reset_token_ttl_minutes),
-            resend_cooldown=timedelta(
-                seconds=settings.password_reset_resend_cooldown_seconds
-            ),
-            daily_limit=settings.password_reset_daily_limit,
-        ),
+        policy=PasswordResetPolicy(),
         frontend_url=settings.frontend_url,
     )
 
@@ -309,8 +308,10 @@ def get_confirm_password_reset(
     return ConfirmPasswordReset(
         users=SqlAlchemyUserRepository(session),
         sessions=SqlAlchemyAuthSessionRepository(session),
-        tokens=SqlAlchemyPasswordResetTokenRepository(session),
-        token_manager=SecurePasswordResetTokenManager(),
+        tokens=SqlAlchemyAccountConfirmationTokenRepository(
+            session, AccountConfirmationTokenPurpose.PASSWORD_RESET
+        ),
+        token_manager=SecureAccountConfirmationTokenManager(),
         password_hasher=Argon2PasswordHasher(),
         clock=SystemClock(),
     )
@@ -331,10 +332,11 @@ def get_signup_dependencies(
             users=users,
             token_issuer=JwtAccessTokenIssuer(
                 settings.jwt_secret_key.get_secret_value(),
-                timedelta(minutes=settings.access_token_ttl_minutes),
+                ACCESS_TOKEN_TTL,
             ),
             email_verification=email_verification,
             nickname_policy=NicknameUniquenessPolicy(),
+            clock=SystemClock(),
         ),
     )
 
@@ -349,10 +351,10 @@ def get_refresh_service(
         refresh_tokens=SecureRefreshTokenManager(),
         access_tokens=JwtAccessTokenIssuer(
             settings.jwt_secret_key.get_secret_value(),
-            timedelta(minutes=settings.access_token_ttl_minutes),
+            ACCESS_TOKEN_TTL,
         ),
         clock=SystemClock(),
-        refresh_ttl=timedelta(days=settings.refresh_token_ttl_days),
+        refresh_ttl=REFRESH_TOKEN_TTL,
     )
 
 

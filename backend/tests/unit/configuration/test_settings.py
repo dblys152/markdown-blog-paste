@@ -1,3 +1,11 @@
+from datetime import timedelta
+
+from md2blog.modules.identity.application.service.email_verification import (
+    EmailVerificationPolicy,
+)
+from md2blog.modules.identity.application.service.password_reset import PasswordResetPolicy
+from md2blog.modules.identity.domain.login_failure_state import LoginFailurePolicy
+from md2blog.modules.identity.domain.token_policy import ACCESS_TOKEN_TTL, REFRESH_TOKEN_TTL
 from md2blog.settings import Settings
 
 
@@ -38,15 +46,30 @@ def test_cors_origins_are_parsed_from_comma_separated_environment_value() -> Non
 def test_email_delivery_uses_safe_local_defaults() -> None:
     settings = Settings(_env_file=None)
 
+    assert settings.app_name == "MD2Blog API"
     assert settings.smtp_host == "smtp.gmail.com"
     assert settings.smtp_port == 587
     assert settings.smtp_username is None
     assert settings.smtp_password is None
     assert settings.email_from is None
     assert settings.frontend_url == "http://localhost:5173"
-    assert settings.email_verification_token_ttl_hours == 24
-    assert settings.email_verification_resend_cooldown_seconds == 60
-    assert settings.email_verification_daily_limit == 5
-    assert settings.password_reset_token_ttl_minutes == 60
-    assert settings.password_reset_resend_cooldown_seconds == 60
-    assert settings.password_reset_daily_limit == 5
+
+
+def test_auth_policies_have_fixed_defaults() -> None:
+    assert EmailVerificationPolicy() == EmailVerificationPolicy(
+        token_ttl=timedelta(hours=24),
+        resend_cooldown=timedelta(seconds=60),
+        daily_limit=5,
+    )
+    assert PasswordResetPolicy() == PasswordResetPolicy(
+        token_ttl=timedelta(minutes=60),
+        resend_cooldown=timedelta(seconds=60),
+        daily_limit=5,
+    )
+    assert LoginFailurePolicy() == LoginFailurePolicy(
+        failure_limit=10,
+        window=timedelta(minutes=10),
+        block_duration=timedelta(minutes=5),
+    )
+    assert ACCESS_TOKEN_TTL == timedelta(minutes=15)
+    assert REFRESH_TOKEN_TTL == timedelta(days=14)

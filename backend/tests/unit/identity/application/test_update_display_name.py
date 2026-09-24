@@ -1,3 +1,5 @@
+from datetime import UTC, datetime
+
 import pytest
 
 from md2blog.modules.identity.application.service.update_display_name import UpdateDisplayName
@@ -9,6 +11,13 @@ from md2blog.modules.identity.domain.nickname_policy import (
 from md2blog.modules.identity.domain.user import User
 from md2blog.modules.identity.domain.value_objects import DisplayName, Email, PasswordHash
 from md2blog.shared.domain.tsid import TSID
+
+NOW = datetime(2026, 9, 20, tzinfo=UTC)
+
+
+class FixedClock:
+    def now(self) -> datetime:
+        return NOW
 
 
 class Users:
@@ -40,12 +49,13 @@ async def test_update_display_name_saves_changed_user() -> None:
         display_name=DisplayName("기존 이름"),
     )
 
-    updated_user = await UpdateDisplayName(users, NicknameUniquenessPolicy()).execute(
+    updated_user = await UpdateDisplayName(users, NicknameUniquenessPolicy(), FixedClock()).execute(
         user,
         UpdateDisplayNameCommand(display_name=DisplayName("새 이름")),
     )
 
     assert updated_user.display_name == DisplayName("새 이름")
+    assert updated_user.updated_at == NOW
     assert users.saved == updated_user
 
 
@@ -58,7 +68,7 @@ async def test_update_display_name_skips_save_when_name_is_unchanged() -> None:
         display_name=DisplayName("같은 이름"),
     )
 
-    updated_user = await UpdateDisplayName(users, NicknameUniquenessPolicy()).execute(
+    updated_user = await UpdateDisplayName(users, NicknameUniquenessPolicy(), FixedClock()).execute(
         user,
         UpdateDisplayNameCommand(display_name=DisplayName("같은 이름")),
     )
@@ -77,7 +87,7 @@ async def test_update_display_name_rejects_duplicate_case_insensitively() -> Non
     )
 
     with pytest.raises(NicknameAlreadyInUseError):
-        await UpdateDisplayName(users, NicknameUniquenessPolicy()).execute(
+        await UpdateDisplayName(users, NicknameUniquenessPolicy(), FixedClock()).execute(
             user,
             UpdateDisplayNameCommand(display_name=DisplayName("existing")),
         )
