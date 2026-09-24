@@ -2,15 +2,18 @@
 
 ## 1. 문서 목적
 
-이 문서는 MD2Blog를 빠른 Markdown 변환 도구에서 사용자별 Markdown 기록장으로 확장하기 위한 제품 방향과 기술 결정을 정의합니다.
+이 문서는 MD2Blog의 제품 정책, 도메인 규칙, 아키텍처 경계, 기술적 의사결정과
+트레이드오프를 정의합니다. 구현 진행 상황, 데이터 전환 절차, 배포 절차와 작업
+목록은 이 문서에서 다루지 않습니다.
 
-현재 제공 중인 빠른 변환 기능은 유지합니다. 비로그인 사용자는 임시 Markdown 페이지 한 개를 사용할 수 있고, 로그인 사용자는 같은 서비스에서 개인 기록장을 함께 이용할 수 있도록 확장합니다.
+MD2Blog는 빠른 Markdown 변환 기능과 사용자별 Markdown 기록장을 함께 제공합니다.
+비로그인 사용자는 임시 Markdown 페이지 한 개를 사용할 수 있습니다.
 
 ## 2. 제품 방향
 
 ### 2.1 빠른 변환
 
-로그인 여부와 관계없이 현재 Markdown 변환 기능을 이용할 수 있습니다.
+로그인 여부와 관계없이 Markdown 변환 기능을 이용할 수 있습니다.
 
 - Markdown 입력 및 파일 업로드
 - 실시간 HTML 미리보기
@@ -124,7 +127,7 @@ flowchart LR
 - 비회원 임시 페이지는 IndexedDB에 저장
 - 기록장 기능은 FastAPI 인증 및 기록장 API 사용
 
-현재 요구사항은 검색 엔진 노출보다 애플리케이션 상호작용이 중요하므로 SSR을 목적으로 Next.js를 도입하지 않습니다.
+MD2Blog는 검색 엔진 노출보다 애플리케이션 상호작용이 중요하므로 SSR을 목적으로 Next.js를 도입하지 않습니다.
 
 ### 4.2 백엔드
 
@@ -181,8 +184,10 @@ backend/
 - 사용자
 - 비밀번호 자격 증명
 - 로그인 세션
+- 외부 인증 제공자 연결
 - 이메일 인증
 - 비밀번호 재설정
+- 로그인 보안 상태
 
 #### Workspace
 
@@ -201,11 +206,17 @@ backend/
 - Infrastructure는 DB, 암호화, 메일 등 외부 구현을 담당합니다.
 - Presentation은 HTTP 요청과 응답을 애플리케이션 유스케이스에 연결합니다.
 - SQLAlchemy 모델과 도메인 엔티티를 분리합니다.
-- HTTP DTO는 `presentation/schemas`에 두고 Pydantic으로 전송 형식을 검증합니다.
+- HTTP 입력 모델과 Inbound Port는 `application/port/inbound`에 두고 Pydantic으로
+  전송 형식을 검증합니다.
 - 프레임워크 독립적인 변경 명령은 `domain/commands.py`의 dataclass로 정의합니다.
 - Presentation은 HTTP DTO를 Command로 변환하고 UseCase에는 Command 하나를 전달합니다.
 - DB 조회가 필요한 Command 조립은 `application/factory`가 담당합니다.
 - 조회 결과인 `PageListItem`, `PageDetail`은 `application/model`에 둡니다.
+
+아키텍처는 특정 배포 환경을 기준으로 역산하지 않습니다. Cloud Run, Cloud Logging,
+Cloud Scheduler, Gmail SMTP, Neon은 도메인과 애플리케이션에서 정의한 요구사항을
+구현하는 Infrastructure Adapter입니다. 배포 대상이나 외부 제품을 교체하더라도
+도메인 정책과 유스케이스의 의미가 유지되어야 합니다.
 
 ### 5.3 Workspace 저장 구조
 
@@ -268,7 +279,7 @@ DELETE /workspace/trash/{page_id}
 - 휴지통 목록은 `parent_id`, `sort_order`를 포함해 삭제된 페이지 계층 전체를 반환합니다.
 - 삭제된 페이지 상세 API는 Markdown 본문을 반환하며 프론트엔드는 읽기 전용 편집기와 미리보기로 표시합니다.
 - 복원과 영구 삭제는 삭제 묶음의 최상위 페이지에서 실행하며 하위 페이지에도 함께 적용합니다.
-- 30일 경과 페이지 정리 작업은 `python -m md2blog.jobs.purge_expired_pages`로 실행합니다.
+- 30일 경과 페이지는 정기 정리 작업에서 삭제합니다.
 
 ## 6. 인증 설계
 
@@ -290,7 +301,7 @@ DELETE /workspace/trash/{page_id}
 - 인증 메일 재발송은 사용자별 대기 시간과 최근 24시간 발송 횟수로 제한
 - 이메일 인증 전 사용자는 기록장 API 접근 불가
 
-### 6.2 API 초안
+### 6.2 API 계약
 
 ```text
 POST /auth/signup
@@ -300,11 +311,19 @@ POST /auth/logout
 POST /auth/logout-all
 DELETE /auth/account
 GET  /auth/me
+PATCH /auth/me
 
 POST /auth/email-verification/request
 POST /auth/email-verification/confirm
 POST /auth/password-reset/request
 POST /auth/password-reset/confirm
+
+POST   /auth/google/login
+POST   /auth/google/signup
+POST   /auth/google/link-and-login
+GET    /auth/google/connection
+POST   /auth/google/connection
+DELETE /auth/google/connection
 ```
 
 회원탈퇴는 현재 비밀번호를 다시 검증한 후 `users` 행을 영구 삭제합니다. 페이지,
@@ -312,7 +331,7 @@ POST /auth/password-reset/confirm
 `ON DELETE CASCADE`로 같은 트랜잭션에서 제거합니다. 이후 발급된 Access Token도
 사용자 조회에 실패하므로 사용할 수 없으며, 삭제된 이메일은 즉시 재가입할 수 있습니다.
 
-### 6.3 인증 테이블 초안
+### 6.3 인증 데이터 모델
 
 ```text
 users
@@ -332,15 +351,25 @@ auth_sessions
 - refresh_token_hash
 - expires_at
 - revoked_at
+- replaced_by_token_hash
 - user_agent
 - ip_address
 - created_at
 
-login_failure_states
+user_identities
+- id
+- user_id
+- provider
+- provider_subject
+- provider_email
+- created_at
+
+login_security_states
 - user_id (PK, FK → users.id)
-- failure_count
-- window_started_at
+- failed_attempt_count
+- failure_window_started_at
 - blocked_until
+- last_failed_at
 - created_at
 - updated_at
 
@@ -361,8 +390,72 @@ account_confirmation_tokens
 `users.last_login_at`은 새로운 로그인 세션을 만들 때 갱신합니다. 리프레시 토큰
 갱신은 로그인으로 세지 않으며, 상세 로그인 이력과 별도로 마지막 성공 시각만 유지합니다.
 
-`login_failure_states`는 가입된 사용자별 실패 횟수와 일시 차단 상태만 저장합니다.
-로그인에 성공하면 해당 상태를 삭제하며, 로그인 성공 이력을 보관하는 테이블은 아닙니다.
+`LoginSecurityState`는 `User`와 필수 1:1 관계를 가지는 로그인 보안 상태입니다. `User`와
+같은 트랜잭션에서 생성하며, 로그인 성공 시 행을 삭제하지 않고 실패 횟수, 실패 구간,
+차단 상태를 초기화합니다. 로그인 성공·실패의 과거 이력과는 별개의 모델입니다.
+
+Google을 포함한 외부 인증 계정은 `user_identities`에 Provider와 Provider Subject를
+저장합니다. Provider와 Subject 조합, 사용자와 Provider 조합은 각각 유일해야 하며,
+새로운 인증 제공자는 `UserIdentity` 경계를 유지한 채 추가합니다.
+
+### 6.4 도메인 이벤트 정책
+
+도메인 이벤트는 다음 기준으로 인정합니다.
+
+> 도메인 이벤트는 도메인에서 이미 발생한 의미 있는 사실이며, 상태 전이 또는 도메인
+> 판단이 완료됐고, 해당 유스케이스 밖에서도 독립적인 의미를 가지는 사건입니다.
+
+다음 조건을 함께 검토합니다.
+
+- 과거형으로 표현할 수 있는가?
+- 구현 기술이 아닌 도메인 용어로 설명할 수 있는가?
+- 상태 전이 또는 도메인 판단이 완료됐는가?
+- 업무 트랜잭션이 롤백되면 이벤트도 발생하지 않아야 하는가?
+- 호출한 메서드 밖에서도 사건 자체로 의미가 있는가?
+
+도메인 이벤트가 발행되면 이벤트 핸들러는 사건의 목적에 따라 다음 정책을 적용합니다.
+
+```text
+도메인 이벤트 발생·발행
+        ↓
+이벤트 핸들러
+        ├─ 비즈니스 후속 작업이 있음
+        │    → Outbox Message 저장
+        │    → Worker가 후속 작업 실행
+        │    → 실패하면 재시도
+        │
+        ├─ 보안 추적이 필요함
+        │    → Security Audit Log 저장
+        │
+        └─ 둘 다 해당함
+             → 두 곳 모두 저장
+```
+
+각 구성 요소의 책임은 다음과 같습니다.
+
+- 도메인 이벤트는 이미 발생한 도메인의 사실입니다.
+- `outbox_messages`는 유실되어서는 안 되는 비즈니스 후속 작업을 보관합니다.
+- Outbox Worker와 Message Handler는 저장된 후속 작업을 실행하고 실패 시 재시도합니다.
+- `security_audit_logs`는 이미 발생한 보안 사건을 추적하기 위한 변경 불가능한 이력입니다.
+- 하나의 도메인 이벤트에 Outbox와 보안 감사 기록 정책을 함께 적용할 수 있습니다.
+- 단순 운영·디버그 로그는 도메인 이벤트 처리 및 보안 감사 기록과 구분합니다.
+
+모든 도메인 이벤트를 일괄적으로 영속화하지 않습니다. 비즈니스 후속 작업이 있는
+이벤트는 Outbox Message로, 보안 추적이 필요한 이벤트는 Security Audit Log로 목적에
+맞게 영속화합니다. 후속 작업이나 보안 감사가 필요하지 않은 이벤트는 별도로
+영속화하지 않습니다.
+
+도메인 상태 변경과 Outbox Message 및 Security Audit Log 저장은 필요한 경우 동일한
+업무 트랜잭션에서 원자적으로 처리합니다. 실제 Outbox 후속 작업은 커밋 이후에
+실행하며 최소 한 번 처리될 수 있으므로 Handler는 멱등하게 설계합니다. 비밀번호,
+원문 확인 토큰, JWT, 세션 토큰과 같은 민감 정보는 장기 이력에 저장하지 않습니다.
+
+모듈러 모놀리스에서는 DB 기반 Outbox와 내부 Worker로 구성합니다. MSA와 메시지
+브로커를 사용하는 구조에서도 도메인 이벤트 계약을 유지하고, Outbox Relay 및 소비자
+멱등성 또는 Inbox 정책을 Infrastructure에 둡니다.
+
+도메인 이벤트 정책은 특정 배포 제품이 아니라 요구사항과 신뢰성 수준을 기준으로
+결정하며, 저장소, Processor와 메시지 브로커는 이를 구현하는 Infrastructure로 둡니다.
 
 ## 7. 식별자 정책
 
@@ -388,7 +481,9 @@ type TSID = string & { readonly __brand: "TSID" };
 }
 ```
 
-Cloud Run의 여러 인스턴스에서 동시에 ID를 생성할 수 있으므로 충분한 랜덤 비트를 사용하는 검증된 TSID 구현체를 사용합니다. PostgreSQL의 기본 키 제약을 최종 충돌 방어선으로 둡니다.
+여러 애플리케이션 인스턴스에서 동시에 ID를 생성할 수 있으므로 충분한 랜덤 비트를
+사용하는 검증된 TSID 구현체를 사용합니다. PostgreSQL의 기본 키 제약을 최종 충돌
+방어선으로 둡니다.
 
 ## 8. TDD 전략
 
@@ -433,80 +528,20 @@ SQLite로 PostgreSQL 동작을 대신하지 않고 테스트용 PostgreSQL을 �
 - 상위·하위 페이지 생성과 이동
 - Markdown 저장과 조회
 
-## 9. 구현 단계
+## 9. 기술적 의사결정과 트레이드오프
 
-### 1단계: 프론트엔드 기반 정리
-
-- React + Vite 애플리케이션 구조 확정
-- 라우팅 추가
-- 기존 빠른 변환 기능을 독립 화면으로 분리
-- 공통 레이아웃과 사이드바 구성
-
-### 2단계: FastAPI 기반 구축
-
-- 백엔드 프로젝트와 Docker 구성
-- DDD 모듈 구조 생성
-- Neon PostgreSQL 연결
-- Alembic 설정
-- TSID 값 객체와 DB 타입 구현
-
-### 3단계: 최소 인증
-
-- 회원가입
-- 로그인
-- 토큰 갱신
-- 현재 사용자 조회
-- 현재 및 전체 세션 로그아웃
-
-### 4단계: 기록장
-
-- 페이지 생성, 조회, 수정, 삭제
-- 하위 페이지
-- 페이지 이동과 정렬
-- 사용자별 접근 제어
-- 자동 저장
-
-현재 1~4단계, 이메일 인증과 기본 운영 배포는 완료되었습니다. 이후 개발은 나머지 인증 확장과 운영 안정화 항목을 중심으로 진행합니다.
-
-### 5단계: 인증 확장
-
-- 이메일 인증 (완료)
-- 비밀번호 재설정
-- 로그인 제한
-- 보안 감사 로그
-- 필요할 경우 소셜 로그인
-
-### 6단계: 배포 및 운영
-
-- 프론트엔드 Cloudflare Pages 배포
-- FastAPI Google Cloud Run 배포
-- 운영용 Neon PostgreSQL 구성
-- CORS, 쿠키 도메인 및 비밀 값 설정
-- 로깅, 모니터링 및 백업 정책 구성
-
-## 10. 확정 사항
-
-| 항목 | 결정 |
-|---|---|
-| 프론트엔드 | React + Vite + TypeScript |
-| SSR/Next.js | 현재 범위에서는 도입하지 않음 |
-| 백엔드 | FastAPI |
-| 백엔드 배포 | Docker + Google Cloud Run |
-| 프론트엔드 배포 | Cloudflare Pages |
-| 데이터베이스 | Neon PostgreSQL |
-| 인증 | FastAPI 직접 구현 |
-| 아키텍처 | DDD 기반 모듈러 모놀리스 |
-| 개발 방법 | TDD |
-| ID | TSID |
-| DB ID 타입 | PostgreSQL `BIGINT` |
-| API ID 타입 | 문자열 |
-
-## 11. 추후 결정 사항
-
-- Markdown 자동 저장 주기와 충돌 처리 방식
-- 이메일 발송 서비스
-- Access Token 전달 방식의 최종 선택
-- CORS와 쿠키를 단순화할 커스텀 도메인 구조
-- 전문 검색 도입 여부
-- 첨부 파일 저장소
-- 협업 및 공유 기능의 범위
+| 결정 영역 | 선택 | 근거 | 트레이드오프 |
+|---|---|---|---|
+| 프론트엔드 | React + Vite + TypeScript | 상호작용 중심의 클라이언트 애플리케이션이며 기존 기능을 유지하기 쉽습니다. | SSR이 필요한 공개 콘텐츠와 검색 노출에는 별도 전략이 필요합니다. |
+| 백엔드 | FastAPI | Python 생태계를 활용하면서 API와 비동기 I/O를 간결하게 구성할 수 있습니다. | Spring과 비교해 DI와 트랜잭션 경계를 프로젝트 규칙으로 명확히 정의해야 합니다. |
+| 아키텍처 | DDD 기반 모듈러 모놀리스 | 도메인 경계를 유지하면서 단일 배포 단위의 운영 복잡성을 유지합니다. | 모듈 간 경계를 코드 규칙과 테스트로 강제해야 하며 독립 배포는 지원하지 않습니다. |
+| 인증 | FastAPI에서 직접 구현 | 인증 정책과 사용자 생명주기를 도메인 요구사항에 맞게 통제합니다. | 토큰 보안, 계정 복구, 공격 방어와 운영 책임을 애플리케이션이 부담합니다. |
+| 데이터베이스 | 외부 PostgreSQL | 애플리케이션 컨테이너와 데이터 생명주기를 분리하고 관계형 무결성을 활용합니다. | 외부 네트워크 지연과 커넥션 관리가 필요합니다. |
+| 페이지 본문 | `pages`와 `page_contents` 분리 | 목록 조회에서 큰 Markdown 본문을 읽지 않고 상세 조회에서만 접근합니다. | 생성·상세 조회 시 두 테이블의 일관성과 트랜잭션 관리가 필요합니다. |
+| 식별자 | TSID, DB는 `BIGINT`, API는 문자열 | 분산 생성과 시간 순 정렬을 지원하고 JavaScript 정밀도 손실을 방지합니다. | 계층마다 표현이 달라 명시적인 변환이 필요합니다. |
+| 계정 확인 토큰 | `AccountConfirmationToken`에 용도 구분 | 이메일 인증과 비밀번호 재설정의 공통 생명주기를 공유합니다. | 용도별 정책과 교차 사용 방지를 명시적으로 검증해야 합니다. |
+| 로그인 보안 상태 | `User`와 1:1인 `LoginSecurityState` | 사용자와 생명주기를 맞추고 실패 횟수·차단 상태를 하나의 모델로 관리합니다. | 사용자마다 별도 상태 행을 유지하며 동시 로그인 실패 갱신을 제어해야 합니다. |
+| 도메인 이벤트 | 목적에 따른 선택적 영속화 | 후속 작업은 Outbox로 실행을 보장하고 보안 사건은 Audit Log로 추적합니다. | Worker, 재시도, 멱등성, 보존 정책을 운영해야 합니다. |
+| 배포 | 프론트엔드 Cloudflare Pages, 백엔드 Docker + Google Cloud Run | 정적 프론트엔드와 API의 배포·확장 책임을 분리합니다. | 서로 다른 Origin의 CORS, 쿠키와 환경 설정을 관리해야 합니다. |
+| 메일 발송 | Gmail SMTP | 별도 메일 서비스 도메인 없이 초기 메일 발송을 구성할 수 있습니다. | 발송량, 전달률, 제공자 정책에 제약이 있으며 확장 시 Adapter 교체가 필요합니다. |
+| 개발 방법 | TDD | 도메인 규칙과 경계의 변경을 테스트로 검증합니다. | 테스트 설계와 유지에 지속적인 비용이 발생합니다. |
