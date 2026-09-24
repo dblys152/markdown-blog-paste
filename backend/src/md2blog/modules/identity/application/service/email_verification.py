@@ -1,12 +1,9 @@
 from dataclasses import dataclass
 from datetime import timedelta
-from html import escape
-from urllib.parse import quote
 
 from md2blog.modules.identity.application.port.outbound.account_confirmation_token import (
     AccountConfirmationTokenManager,
 )
-from md2blog.modules.identity.application.port.outbound.email import EmailSender, OutboundEmail
 from md2blog.modules.identity.application.port.outbound.security import Clock
 from md2blog.modules.identity.domain.account_confirmation_token import (
     AccountConfirmationToken,
@@ -17,8 +14,10 @@ from md2blog.modules.identity.domain.account_confirmation_token import (
 from md2blog.modules.identity.domain.account_confirmation_token_repositories import (
     AccountConfirmationTokenRepository,
 )
+from md2blog.modules.identity.domain.events import EmailVerificationRequested, EmailVerified
 from md2blog.modules.identity.domain.repositories import UserRepository
 from md2blog.modules.identity.domain.user import User
+from md2blog.shared.application.events import DomainEventPublisher
 from md2blog.shared.domain.tsid import TSID
 
 
@@ -35,17 +34,15 @@ class IssueEmailVerification:
         *,
         tokens: AccountConfirmationTokenRepository,
         token_manager: AccountConfirmationTokenManager,
-        email_sender: EmailSender,
+        events: DomainEventPublisher,
         clock: Clock,
         policy: EmailVerificationPolicy,
-        frontend_url: str,
     ) -> None:
         self._tokens = tokens
         self._token_manager = token_manager
-        self._email_sender = email_sender
+        self._events = events
         self._clock = clock
         self._policy = policy
-        self._frontend_url = frontend_url.rstrip("/")
 
     async def execute(self, user: User) -> None:
         if user.is_email_verified:
@@ -74,25 +71,16 @@ class IssueEmailVerification:
             expires_at=now + self._policy.token_ttl,
         )
         await self._tokens.add(token)
-        verification_url = (
-            f"{self._frontend_url}/verify-email?token={quote(generated.raw, safe='')}"
-        )
-        await self._email_sender.send(
-            OutboundEmail(
-                to=user.email,
-                subject="[MD2Blog] 이메일을 인증해 주세요",
-                html=self._build_html(user, verification_url),
+        await self._events.publish(
+            EmailVerificationRequested(
+                event_id=TSID.generate(),
+                aggregate_id=user.id,
+                occurred_at=now,
+                user_id=user.id,
+                email=user.email,
+                display_name=user.display_name,
+                raw_token=generated.raw,
             )
-        )
-
-    @staticmethod
-    def _build_html(user: User, verification_url: str) -> str:
-        display_name = escape(user.display_name.value)
-        safe_url = escape(verification_url, quote=True)
-        return (
-            f"<p>{display_name}님, MD2Blog 가입을 완료하려면 이메일을 인증해 주세요.</p>"
-            f'<p><a href="{safe_url}">이메일 인증하기</a></p>'
-            "<p>본인이 요청하지 않았다면 이 메일을 무시해 주세요.</p>"
         )
 
 
@@ -103,11 +91,13 @@ class ConfirmEmailVerification:
         users: UserRepository,
         tokens: AccountConfirmationTokenRepository,
         token_manager: AccountConfirmationTokenManager,
+        events: DomainEventPublisher,
         clock: Clock,
     ) -> None:
         self._users = users
         self._tokens = tokens
         self._token_manager = token_manager
+        self._events = events
         self._clock = clock
 
     async def execute(self, raw_token: str) -> User:
@@ -131,6 +121,14 @@ class ConfirmEmailVerification:
         verified_user = user.verify_email(now)
         await self._tokens.save(confirmed_token)
         await self._users.save(verified_user)
+        await self._events.publish(
+            EmailVerified(
+                event_id=TSID.generate(),
+                aggregate_id=user.id,
+                occurred_at=now,
+                user_id=user.id,
+            )
+        )
         return verified_user
 
 

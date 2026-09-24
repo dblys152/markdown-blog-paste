@@ -10,6 +10,7 @@ requires-python = ">=3.13"
 dependencies = [
     "alembic>=1.19.1",
     "asyncpg>=0.31.0",
+    "cryptography>=50.0.1",
     "fastapi>=0.141.1",
     "google-auth[requests]>=2.57.1",
     "psycopg[binary]>=3.3.4",
@@ -25,6 +26,7 @@ dependencies = [
 [project.scripts]
 md2blog-api = "md2blog.main:run"
 md2blog-purge-expired-pages = "md2blog.jobs.purge_expired_pages:main"
+md2blog-process-outbox = "md2blog.jobs.process_outbox:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

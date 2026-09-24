@@ -13,6 +13,7 @@ from md2blog.modules.identity.domain.commands import (
     GoogleSignUpCommand,
     LinkGoogleAndLoginCommand,
 )
+from md2blog.modules.identity.domain.events import UserIdentityLinked, UserIdentityUnlinked
 from md2blog.modules.identity.domain.google_identity_policy import (
     GoogleIdentityAlreadyLinkedError,
     GoogleIdentityLinkPolicy,
@@ -24,6 +25,7 @@ from md2blog.modules.identity.domain.user import AuthenticationFailedError, User
 from md2blog.modules.identity.domain.user_identity import IdentityProvider, UserIdentity
 from md2blog.modules.identity.domain.user_identity_repositories import UserIdentityRepository
 from md2blog.modules.identity.domain.value_objects import Email
+from md2blog.shared.application.events import DomainEventPublisher
 from md2blog.shared.domain.tsid import TSID
 
 
@@ -74,18 +76,21 @@ class GoogleSignUp:
         verifier: GoogleIdentityVerifier,
         nickname_policy: NicknameUniquenessPolicy,
         clock: Clock,
+        events: DomainEventPublisher,
     ) -> None:
         self._users = users
         self._identities = identities
         self._verifier = verifier
         self._nickname_policy = nickname_policy
         self._clock = clock
+        self._events = events
 
     async def execute(self, command: GoogleSignUpCommand) -> User:
         claims = await verified_claims(self._verifier, command.credential)
-        if await self._identities.find_by_provider_subject(
-            IdentityProvider.GOOGLE, claims.subject
-        ) is not None:
+        if (
+            await self._identities.find_by_provider_subject(IdentityProvider.GOOGLE, claims.subject)
+            is not None
+        ):
             raise GoogleIdentityAlreadyLinkedError
         email = Email(claims.email)
         if await self._users.find_by_email(email) is not None:
@@ -111,6 +116,15 @@ class GoogleSignUp:
                 created_at=now,
             )
         )
+        await self._events.publish(
+            UserIdentityLinked(
+                event_id=TSID.generate(),
+                aggregate_id=user.id,
+                occurred_at=now,
+                user_id=user.id,
+                provider=IdentityProvider.GOOGLE,
+            )
+        )
         return user
 
 
@@ -122,23 +136,27 @@ class LinkGoogleAndLogin:
         verifier: GoogleIdentityVerifier,
         password_hasher: PasswordHasher,
         clock: Clock,
+        events: DomainEventPublisher,
     ) -> None:
         self._users = users
         self._identities = identities
         self._verifier = verifier
         self._password_hasher = password_hasher
         self._clock = clock
+        self._events = events
 
     async def execute(self, command: LinkGoogleAndLoginCommand) -> User:
         claims = await verified_claims(self._verifier, command.credential)
-        if await self._identities.find_by_provider_subject(
-            IdentityProvider.GOOGLE, claims.subject
-        ) is not None:
+        if (
+            await self._identities.find_by_provider_subject(IdentityProvider.GOOGLE, claims.subject)
+            is not None
+        ):
             raise GoogleIdentityAlreadyLinkedError
         user = await self._users.find_by_email(Email(claims.email))
         if user is None or user.password_hash is None:
             raise AuthenticationFailedError
         user.authenticate(self._password_hasher.verify(command.password, user.password_hash))
+        now = self._clock.now()
         await self._identities.add(
             UserIdentity(
                 id=TSID.generate(),
@@ -146,7 +164,16 @@ class LinkGoogleAndLogin:
                 provider=IdentityProvider.GOOGLE,
                 provider_subject=claims.subject,
                 provider_email=claims.email,
-                created_at=self._clock.now(),
+                created_at=now,
+            )
+        )
+        await self._events.publish(
+            UserIdentityLinked(
+                event_id=TSID.generate(),
+                aggregate_id=user.id,
+                occurred_at=now,
+                user_id=user.id,
+                provider=IdentityProvider.GOOGLE,
             )
         )
         return user
@@ -159,11 +186,13 @@ class ConnectGoogle:
         verifier: GoogleIdentityVerifier,
         clock: Clock,
         link_policy: GoogleIdentityLinkPolicy,
+        events: DomainEventPublisher,
     ) -> None:
         self._identities = identities
         self._verifier = verifier
         self._clock = clock
         self._link_policy = link_policy
+        self._events = events
 
     async def execute(self, user: User, credential: str) -> None:
         claims = await verified_claims(self._verifier, credential)
@@ -177,6 +206,7 @@ class ConnectGoogle:
             linked_to_another_user=existing is not None and existing.user_id != user.id,
             user_already_has_google=current_identity is not None,
         )
+        now = self._clock.now()
         await self._identities.add(
             UserIdentity(
                 id=TSID.generate(),
@@ -184,7 +214,16 @@ class ConnectGoogle:
                 provider=IdentityProvider.GOOGLE,
                 provider_subject=claims.subject,
                 provider_email=claims.email,
-                created_at=self._clock.now(),
+                created_at=now,
+            )
+        )
+        await self._events.publish(
+            UserIdentityLinked(
+                event_id=TSID.generate(),
+                aggregate_id=user.id,
+                occurred_at=now,
+                user_id=user.id,
+                provider=IdentityProvider.GOOGLE,
             )
         )
 
@@ -194,9 +233,13 @@ class DisconnectGoogle:
         self,
         identities: UserIdentityRepository,
         unlink_policy: GoogleIdentityUnlinkPolicy,
+        events: DomainEventPublisher,
+        clock: Clock,
     ) -> None:
         self._identities = identities
         self._unlink_policy = unlink_policy
+        self._events = events
+        self._clock = clock
 
     async def execute(self, user: User) -> None:
         identity = await self._identities.find_by_user_and_provider(
@@ -208,6 +251,16 @@ class DisconnectGoogle:
         )
         assert identity is not None
         await self._identities.delete(identity)
+        now = self._clock.now()
+        await self._events.publish(
+            UserIdentityUnlinked(
+                event_id=TSID.generate(),
+                aggregate_id=user.id,
+                occurred_at=now,
+                user_id=user.id,
+                provider=IdentityProvider.GOOGLE,
+            )
+        )
 
 
 class GetGoogleConnection:

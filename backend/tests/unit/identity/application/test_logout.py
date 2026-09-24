@@ -3,6 +3,7 @@ from datetime import UTC, datetime, timedelta
 from md2blog.modules.identity.application.port.outbound.security import RefreshToken
 from md2blog.modules.identity.application.service.logout import LogoutSessionService
 from md2blog.modules.identity.domain.auth_session import AuthSession
+from md2blog.shared.application.events import DomainEventPublisher
 from md2blog.shared.domain.tsid import TSID
 
 
@@ -61,7 +62,7 @@ async def test_logout_revokes_current_session() -> None:
             created_at=now,
         )
     )
-    service = LogoutSessionService(sessions, Tokens(), Clock(now))
+    service = LogoutSessionService(sessions, Tokens(), Clock(now), DomainEventPublisher())
 
     await service.logout("raw-token")
 
@@ -70,7 +71,9 @@ async def test_logout_revokes_current_session() -> None:
 
 
 async def test_logout_is_idempotent_without_session() -> None:
-    service = LogoutSessionService(Sessions(None), Tokens(), Clock(datetime.now(UTC)))
+    service = LogoutSessionService(
+        Sessions(None), Tokens(), Clock(datetime.now(UTC)), DomainEventPublisher()
+    )
 
     await service.logout(None)
     await service.logout("unknown")
@@ -79,7 +82,7 @@ async def test_logout_is_idempotent_without_session() -> None:
 async def test_logout_all_revokes_user_sessions() -> None:
     now = datetime.now(UTC)
     sessions = Sessions(None)
-    service = LogoutSessionService(sessions, Tokens(), Clock(now))
+    service = LogoutSessionService(sessions, Tokens(), Clock(now), DomainEventPublisher())
 
     await service.logout_all(TSID(2))
 

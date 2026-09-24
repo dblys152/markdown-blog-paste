@@ -5,7 +5,6 @@ import pytest
 from md2blog.modules.identity.application.port.outbound.account_confirmation_token import (
     GeneratedAccountConfirmationToken,
 )
-from md2blog.modules.identity.application.port.outbound.email import OutboundEmail
 from md2blog.modules.identity.application.service.password_reset import (
     ConfirmPasswordReset,
     InvalidPasswordResetTokenError,
@@ -27,6 +26,8 @@ from md2blog.modules.identity.domain.value_objects import (
     PasswordHash,
     RawPassword,
 )
+from md2blog.shared.application.events import DomainEventPublisher
+from md2blog.shared.domain.events import DomainEvent
 from md2blog.shared.domain.tsid import TSID
 
 NOW = datetime(2026, 9, 6, 12, tzinfo=UTC)
@@ -45,12 +46,13 @@ class TokenManager:
         return "token-hash" if raw_token == "raw-token" else "unknown"
 
 
-class Emails:
+class RecordingEvents(DomainEventPublisher):
     def __init__(self) -> None:
-        self.messages: list[OutboundEmail] = []
+        super().__init__()
+        self.events: list[DomainEvent] = []
 
-    async def send(self, message: OutboundEmail) -> None:
-        self.messages.append(message)
+    async def publish(self, event: DomainEvent) -> None:
+        self.events.append(event)
 
 
 class Tokens:
@@ -123,39 +125,37 @@ def make_policy() -> PasswordResetPolicy:
 
 async def test_request_stores_hashed_token_and_sends_reset_link() -> None:
     tokens = Tokens()
-    emails = Emails()
+    events = RecordingEvents()
     service = RequestPasswordReset(
         users=Users(make_user()),  # type: ignore[arg-type]
         tokens=tokens,
         token_manager=TokenManager(),
-        email_sender=emails,
+        events=events,
         clock=Clock(),
         policy=make_policy(),
-        frontend_url="https://md2blog.pages.dev",
     )
 
     await service.execute(RequestPasswordResetCommand(email=Email("user@example.com")))
 
     assert tokens.tokens[0].token_hash == "token-hash"
     assert tokens.tokens[0].expires_at == NOW + timedelta(hours=1)
-    assert "https://md2blog.pages.dev/reset-password?token=raw-token" in emails.messages[0].html
+    assert events.events[0].event_type == "PasswordResetRequested"
 
 
 async def test_request_does_nothing_for_unknown_email() -> None:
-    emails = Emails()
+    events = RecordingEvents()
     service = RequestPasswordReset(
         users=Users(None),  # type: ignore[arg-type]
         tokens=Tokens(),
         token_manager=TokenManager(),
-        email_sender=emails,
+        events=events,
         clock=Clock(),
         policy=make_policy(),
-        frontend_url="https://md2blog.pages.dev",
     )
 
     await service.execute(RequestPasswordResetCommand(email=Email("unknown@example.com")))
 
-    assert emails.messages == []
+    assert events.events == []
 
 
 async def test_confirm_changes_password_and_revokes_all_sessions() -> None:
@@ -176,6 +176,7 @@ async def test_confirm_changes_password_and_revokes_all_sessions() -> None:
         tokens=tokens,
         token_manager=TokenManager(),
         password_hasher=Passwords(),  # type: ignore[arg-type]
+        events=RecordingEvents(),
         clock=Clock(),
     )
 
@@ -208,6 +209,7 @@ async def test_email_verification_token_cannot_reset_password() -> None:
         tokens=Tokens(token),
         token_manager=TokenManager(),
         password_hasher=Passwords(),  # type: ignore[arg-type]
+        events=RecordingEvents(),
         clock=Clock(),
     )
 

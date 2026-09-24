@@ -812,6 +812,7 @@ source = { editable = "." }
 dependencies = [
     { name = "alembic" },
     { name = "asyncpg" },
+    { name = "cryptography" },
     { name = "fastapi" },
     { name = "google-auth", extra = ["requests"] },
     { name = "psycopg", extra = ["binary"] },
@@ -837,6 +838,7 @@ dev = [
 requires-dist = [
     { name = "alembic", specifier = ">=1.19.1" },
     { name = "asyncpg", specifier = ">=0.31.0" },
+    { name = "cryptography", specifier = ">=50.0.1" },
     { name = "fastapi", specifier = ">=0.141.1" },
     { name = "google-auth", extras = ["requests"], specifier = ">=2.57.1" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.3.4" },

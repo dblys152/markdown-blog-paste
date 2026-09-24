@@ -4,6 +4,11 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from md2blog.modules.identity.application.event_handlers import (
+    EmailVerificationRequestedHandler,
+    PasswordResetRequestedHandler,
+    SecurityAuditLogHandler,
+)
 from md2blog.modules.identity.application.factory.signup import SignUpCommandFactory
 from md2blog.modules.identity.application.port.inbound.account import DeleteAccountUseCase
 from md2blog.modules.identity.application.port.inbound.email_verification import (
@@ -27,7 +32,6 @@ from md2blog.modules.identity.application.port.inbound.profile import (
     UpdateDisplayNameUseCase,
 )
 from md2blog.modules.identity.application.port.inbound.signup import SignUpUseCase
-from md2blog.modules.identity.application.port.outbound.email import EmailDeliveryError, EmailSender
 from md2blog.modules.identity.application.port.outbound.security import InvalidAccessTokenError
 from md2blog.modules.identity.application.service.authenticate_access_token import (
     AuthenticateAccessToken,
@@ -60,6 +64,18 @@ from md2blog.modules.identity.application.service.update_display_name import Upd
 from md2blog.modules.identity.domain.account_confirmation_token import (
     AccountConfirmationTokenPurpose,
 )
+from md2blog.modules.identity.domain.events import (
+    AccountDeleted,
+    AllSessionsRevoked,
+    AuthenticationFailed,
+    AuthenticationSucceeded,
+    EmailVerificationRequested,
+    EmailVerified,
+    PasswordResetCompleted,
+    PasswordResetRequested,
+    UserIdentityLinked,
+    UserIdentityUnlinked,
+)
 from md2blog.modules.identity.domain.google_identity_policy import (
     GoogleIdentityLinkPolicy,
     GoogleIdentityUnlinkPolicy,
@@ -71,7 +87,6 @@ from md2blog.modules.identity.domain.user import User
 from md2blog.modules.identity.infrastructure.account_confirmation_token_repositories import (
     SqlAlchemyAccountConfirmationTokenRepository,
 )
-from md2blog.modules.identity.infrastructure.email import GmailSmtpEmailSender
 from md2blog.modules.identity.infrastructure.google_identity import GoogleIdTokenVerifier
 from md2blog.modules.identity.infrastructure.login_failure_states import (
     SqlAlchemyLoginFailureStateRepository,
@@ -92,7 +107,15 @@ from md2blog.modules.identity.infrastructure.user_identity_repositories import (
     SqlAlchemyUserIdentityRepository,
 )
 from md2blog.settings import Settings, get_settings
+from md2blog.shared.application.events import DomainEventPublisher
 from md2blog.shared.infrastructure.database import get_session
+from md2blog.shared.infrastructure.event_repositories import (
+    SqlAlchemyOutboxMessageRepository,
+    SqlAlchemySecurityAuditLogRepository,
+)
+from md2blog.shared.infrastructure.sensitive_value_cipher import (
+    FernetSensitiveValueCipher,
+)
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
 
@@ -103,41 +126,51 @@ class SignUpDependencies:
     use_case: SignUpUseCase
 
 
-def get_email_sender(settings: Settings = Depends(get_settings)) -> EmailSender:
-    if (
-        settings.smtp_username is None
-        or settings.smtp_password is None
-        or settings.email_from is None
-    ):
-        raise EmailDeliveryError("SMTP configuration is incomplete")
-    return GmailSmtpEmailSender(
-        host=settings.smtp_host,
-        port=settings.smtp_port,
-        username=settings.smtp_username,
-        password=settings.smtp_password.get_secret_value(),
-        from_address=settings.email_from,
+def get_domain_event_publisher(
+    session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
+) -> DomainEventPublisher:
+    publisher = DomainEventPublisher()
+    outbox = SqlAlchemyOutboxMessageRepository(session)
+    cipher = FernetSensitiveValueCipher(settings.outbox_token_encryption_key.get_secret_value())
+    publisher.subscribe(
+        EmailVerificationRequested,
+        EmailVerificationRequestedHandler(outbox, cipher, settings.frontend_url).handle,
     )
+    publisher.subscribe(
+        PasswordResetRequested,
+        PasswordResetRequestedHandler(outbox, cipher, settings.frontend_url).handle,
+    )
+    audit_handler = SecurityAuditLogHandler(SqlAlchemySecurityAuditLogRepository(session))
+    publisher.subscribe(AuthenticationSucceeded, audit_handler.handle)
+    publisher.subscribe(AuthenticationFailed, audit_handler.handle)
+    publisher.subscribe(EmailVerified, audit_handler.handle)
+    publisher.subscribe(PasswordResetCompleted, audit_handler.handle)
+    publisher.subscribe(AllSessionsRevoked, audit_handler.handle)
+    publisher.subscribe(UserIdentityLinked, audit_handler.handle)
+    publisher.subscribe(UserIdentityUnlinked, audit_handler.handle)
+    publisher.subscribe(AccountDeleted, audit_handler.handle)
+    return publisher
 
 
 def get_issue_email_verification(
     session: AsyncSession = Depends(get_session),
-    email_sender: EmailSender = Depends(get_email_sender),
-    settings: Settings = Depends(get_settings),
+    events: DomainEventPublisher = Depends(get_domain_event_publisher),
 ) -> IssueEmailVerificationUseCase:
     return IssueEmailVerification(
         tokens=SqlAlchemyAccountConfirmationTokenRepository(
             session, AccountConfirmationTokenPurpose.EMAIL_VERIFICATION
         ),
         token_manager=SecureAccountConfirmationTokenManager(),
-        email_sender=email_sender,
+        events=events,
         clock=SystemClock(),
         policy=EmailVerificationPolicy(),
-        frontend_url=settings.frontend_url,
     )
 
 
 def get_confirm_email_verification(
     session: AsyncSession = Depends(get_session),
+    events: DomainEventPublisher = Depends(get_domain_event_publisher),
 ) -> ConfirmEmailVerificationUseCase:
     return ConfirmEmailVerification(
         users=SqlAlchemyUserRepository(session),
@@ -145,6 +178,7 @@ def get_confirm_email_verification(
             session, AccountConfirmationTokenPurpose.EMAIL_VERIFICATION
         ),
         token_manager=SecureAccountConfirmationTokenManager(),
+        events=events,
         clock=SystemClock(),
     )
 
@@ -180,6 +214,7 @@ async def get_email_verified_user(
 
 def get_login_use_case(
     session: AsyncSession = Depends(get_session),
+    events: DomainEventPublisher = Depends(get_domain_event_publisher),
 ) -> LoginUseCase:
     return Login(
         users=SqlAlchemyUserRepository(session),
@@ -187,6 +222,7 @@ def get_login_use_case(
         failures=SqlAlchemyLoginFailureStateRepository(session),
         clock=SystemClock(),
         policy=LoginFailurePolicy(),
+        events=events,
     )
 
 
@@ -213,6 +249,7 @@ def get_google_login(
 def get_google_signup(
     session: AsyncSession = Depends(get_session),
     verifier: GoogleIdTokenVerifier = Depends(get_google_verifier),
+    events: DomainEventPublisher = Depends(get_domain_event_publisher),
 ) -> GoogleSignUpUseCase:
     return GoogleSignUp(
         SqlAlchemyUserRepository(session),
@@ -220,12 +257,14 @@ def get_google_signup(
         verifier,
         NicknameUniquenessPolicy(),
         SystemClock(),
+        events,
     )
 
 
 def get_link_google_and_login(
     session: AsyncSession = Depends(get_session),
     verifier: GoogleIdTokenVerifier = Depends(get_google_verifier),
+    events: DomainEventPublisher = Depends(get_domain_event_publisher),
 ) -> LinkGoogleAndLoginUseCase:
     return LinkGoogleAndLogin(
         SqlAlchemyUserRepository(session),
@@ -233,25 +272,34 @@ def get_link_google_and_login(
         verifier,
         Argon2PasswordHasher(),
         SystemClock(),
+        events,
     )
 
 
 def get_connect_google(
     session: AsyncSession = Depends(get_session),
     verifier: GoogleIdTokenVerifier = Depends(get_google_verifier),
+    events: DomainEventPublisher = Depends(get_domain_event_publisher),
 ) -> ConnectGoogleUseCase:
     return ConnectGoogle(
         SqlAlchemyUserIdentityRepository(session),
         verifier,
         SystemClock(),
         GoogleIdentityLinkPolicy(),
+        events,
     )
 
 
 def get_disconnect_google(
     session: AsyncSession = Depends(get_session),
+    events: DomainEventPublisher = Depends(get_domain_event_publisher),
 ) -> DisconnectGoogleUseCase:
-    return DisconnectGoogle(SqlAlchemyUserIdentityRepository(session), GoogleIdentityUnlinkPolicy())
+    return DisconnectGoogle(
+        SqlAlchemyUserIdentityRepository(session),
+        GoogleIdentityUnlinkPolicy(),
+        events,
+        SystemClock(),
+    )
 
 
 def get_google_connection(
@@ -263,6 +311,7 @@ def get_google_connection(
 def get_delete_account(
     session: AsyncSession = Depends(get_session),
     settings: Settings = Depends(get_settings),
+    events: DomainEventPublisher = Depends(get_domain_event_publisher),
 ) -> DeleteAccountUseCase:
     return DeleteAccount(
         users=SqlAlchemyUserRepository(session),
@@ -271,6 +320,8 @@ def get_delete_account(
         google_verifier=(
             GoogleIdTokenVerifier(settings.google_client_id) if settings.google_client_id else None
         ),
+        events=events,
+        clock=SystemClock(),
     )
 
 
@@ -286,8 +337,7 @@ def get_update_display_name(
 
 def get_request_password_reset(
     session: AsyncSession = Depends(get_session),
-    email_sender: EmailSender = Depends(get_email_sender),
-    settings: Settings = Depends(get_settings),
+    events: DomainEventPublisher = Depends(get_domain_event_publisher),
 ) -> RequestPasswordResetUseCase:
     return RequestPasswordReset(
         users=SqlAlchemyUserRepository(session),
@@ -295,15 +345,15 @@ def get_request_password_reset(
             session, AccountConfirmationTokenPurpose.PASSWORD_RESET
         ),
         token_manager=SecureAccountConfirmationTokenManager(),
-        email_sender=email_sender,
+        events=events,
         clock=SystemClock(),
         policy=PasswordResetPolicy(),
-        frontend_url=settings.frontend_url,
     )
 
 
 def get_confirm_password_reset(
     session: AsyncSession = Depends(get_session),
+    events: DomainEventPublisher = Depends(get_domain_event_publisher),
 ) -> ConfirmPasswordResetUseCase:
     return ConfirmPasswordReset(
         users=SqlAlchemyUserRepository(session),
@@ -313,6 +363,7 @@ def get_confirm_password_reset(
         ),
         token_manager=SecureAccountConfirmationTokenManager(),
         password_hasher=Argon2PasswordHasher(),
+        events=events,
         clock=SystemClock(),
     )
 
@@ -360,9 +411,11 @@ def get_refresh_service(
 
 def get_logout_service(
     session: AsyncSession = Depends(get_session),
+    events: DomainEventPublisher = Depends(get_domain_event_publisher),
 ) -> LogoutSessionService:
     return LogoutSessionService(
         sessions=SqlAlchemyAuthSessionRepository(session),
         refresh_tokens=SecureRefreshTokenManager(),
         clock=SystemClock(),
+        events=events,
     )

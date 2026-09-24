@@ -5,7 +5,6 @@ import pytest
 from md2blog.modules.identity.application.port.outbound.account_confirmation_token import (
     GeneratedAccountConfirmationToken,
 )
-from md2blog.modules.identity.application.port.outbound.email import OutboundEmail
 from md2blog.modules.identity.application.service.email_verification import (
     ConfirmEmailVerification,
     EmailVerificationCooldownError,
@@ -19,6 +18,8 @@ from md2blog.modules.identity.domain.account_confirmation_token import (
 )
 from md2blog.modules.identity.domain.user import User
 from md2blog.modules.identity.domain.value_objects import DisplayName, Email, PasswordHash
+from md2blog.shared.application.events import DomainEventPublisher
+from md2blog.shared.domain.events import DomainEvent
 from md2blog.shared.domain.tsid import TSID
 
 NOW = datetime(2026, 8, 27, 12, tzinfo=UTC)
@@ -37,12 +38,13 @@ class StubTokenManager:
         return "token-hash" if raw_token == "raw-token" else "unknown"
 
 
-class RecordingEmailSender:
+class RecordingEvents(DomainEventPublisher):
     def __init__(self) -> None:
-        self.messages: list[OutboundEmail] = []
+        super().__init__()
+        self.events: list[DomainEvent] = []
 
-    async def send(self, message: OutboundEmail) -> None:
-        self.messages.append(message)
+    async def publish(self, event: DomainEvent) -> None:
+        self.events.append(event)
 
 
 class InMemoryTokens:
@@ -99,22 +101,20 @@ def make_policy() -> EmailVerificationPolicy:
 @pytest.mark.asyncio
 async def test_issue_stores_hashed_token_and_sends_verification_link() -> None:
     tokens = InMemoryTokens()
-    emails = RecordingEmailSender()
+    events = RecordingEvents()
     service = IssueEmailVerification(
         tokens=tokens,
         token_manager=StubTokenManager(),
-        email_sender=emails,
+        events=events,
         clock=FixedClock(),
         policy=make_policy(),
-        frontend_url="https://md2blog.pages.dev/",
     )
 
     await service.execute(make_user())
 
     assert tokens.tokens[0].token_hash == "token-hash"
     assert tokens.tokens[0].expires_at == NOW + timedelta(hours=24)
-    assert len(emails.messages) == 1
-    assert "https://md2blog.pages.dev/verify-email?token=raw-token" in emails.messages[0].html
+    assert events.events[0].event_type == "EmailVerificationRequested"
 
 
 @pytest.mark.asyncio
@@ -130,10 +130,9 @@ async def test_issue_rejects_resend_during_cooldown() -> None:
     service = IssueEmailVerification(
         tokens=InMemoryTokens(token),
         token_manager=StubTokenManager(),
-        email_sender=RecordingEmailSender(),
+        events=RecordingEvents(),
         clock=FixedClock(),
         policy=make_policy(),
-        frontend_url="https://md2blog.pages.dev",
     )
 
     with pytest.raises(EmailVerificationCooldownError) as error:
@@ -158,6 +157,7 @@ async def test_confirm_marks_token_and_user_as_verified() -> None:
         users=users,  # type: ignore[arg-type]
         tokens=tokens,
         token_manager=StubTokenManager(),
+        events=RecordingEvents(),
         clock=FixedClock(),
     )
 
@@ -182,6 +182,7 @@ async def test_password_reset_token_cannot_verify_email() -> None:
         users=users,  # type: ignore[arg-type]
         tokens=InMemoryTokens(token),
         token_manager=StubTokenManager(),
+        events=RecordingEvents(),
         clock=FixedClock(),
     )
 

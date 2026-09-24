@@ -1,12 +1,9 @@
 from dataclasses import dataclass
 from datetime import timedelta
-from html import escape
-from urllib.parse import quote
 
 from md2blog.modules.identity.application.port.outbound.account_confirmation_token import (
     AccountConfirmationTokenManager,
 )
-from md2blog.modules.identity.application.port.outbound.email import EmailSender, OutboundEmail
 from md2blog.modules.identity.application.port.outbound.security import Clock, PasswordHasher
 from md2blog.modules.identity.domain.account_confirmation_token import (
     AccountConfirmationToken,
@@ -21,8 +18,14 @@ from md2blog.modules.identity.domain.commands import (
     ConfirmPasswordResetCommand,
     RequestPasswordResetCommand,
 )
+from md2blog.modules.identity.domain.events import (
+    AllSessionsRevoked,
+    PasswordResetCompleted,
+    PasswordResetRequested,
+)
 from md2blog.modules.identity.domain.repositories import UserRepository
 from md2blog.modules.identity.domain.session_repositories import AuthSessionRepository
+from md2blog.shared.application.events import DomainEventPublisher
 from md2blog.shared.domain.tsid import TSID
 
 
@@ -40,18 +43,16 @@ class RequestPasswordReset:
         users: UserRepository,
         tokens: AccountConfirmationTokenRepository,
         token_manager: AccountConfirmationTokenManager,
-        email_sender: EmailSender,
+        events: DomainEventPublisher,
         clock: Clock,
         policy: PasswordResetPolicy,
-        frontend_url: str,
     ) -> None:
         self._users = users
         self._tokens = tokens
         self._token_manager = token_manager
-        self._email_sender = email_sender
+        self._events = events
         self._clock = clock
         self._policy = policy
-        self._frontend_url = frontend_url.rstrip("/")
 
     async def execute(self, command: RequestPasswordResetCommand) -> None:
         user = await self._users.find_by_email(command.email)
@@ -82,21 +83,16 @@ class RequestPasswordReset:
             expires_at=now + self._policy.token_ttl,
         )
         await self._tokens.add(token)
-        reset_url = f"{self._frontend_url}/reset-password?token={quote(generated.raw, safe='')}"
-        await self._email_sender.send(
-            OutboundEmail(
-                to=user.email,
-                subject="[MD2Blog] 비밀번호를 재설정해 주세요",
-                html=self._build_html(user.display_name.value, reset_url),
+        await self._events.publish(
+            PasswordResetRequested(
+                event_id=TSID.generate(),
+                aggregate_id=user.id,
+                occurred_at=now,
+                user_id=user.id,
+                email=user.email,
+                display_name=user.display_name,
+                raw_token=generated.raw,
             )
-        )
-
-    @staticmethod
-    def _build_html(display_name: str, reset_url: str) -> str:
-        return (
-            f"<p>{escape(display_name)}님, 요청하신 비밀번호 재설정 링크입니다.</p>"
-            f'<p><a href="{escape(reset_url, quote=True)}">비밀번호 재설정하기</a></p>'
-            "<p>본인이 요청하지 않았다면 이 메일을 무시해 주세요.</p>"
         )
 
 
@@ -109,6 +105,7 @@ class ConfirmPasswordReset:
         tokens: AccountConfirmationTokenRepository,
         token_manager: AccountConfirmationTokenManager,
         password_hasher: PasswordHasher,
+        events: DomainEventPublisher,
         clock: Clock,
     ) -> None:
         self._users = users
@@ -116,6 +113,7 @@ class ConfirmPasswordReset:
         self._tokens = tokens
         self._token_manager = token_manager
         self._password_hasher = password_hasher
+        self._events = events
         self._clock = clock
 
     async def execute(self, command: ConfirmPasswordResetCommand) -> None:
@@ -141,6 +139,22 @@ class ConfirmPasswordReset:
         await self._users.save(user.reset_password(password_hash, now))
         await self._tokens.save(used_token)
         await self._sessions.revoke_all_by_user_id(user.id, now)
+        await self._events.publish(
+            PasswordResetCompleted(
+                event_id=TSID.generate(),
+                aggregate_id=user.id,
+                occurred_at=now,
+                user_id=user.id,
+            )
+        )
+        await self._events.publish(
+            AllSessionsRevoked(
+                event_id=TSID.generate(),
+                aggregate_id=user.id,
+                occurred_at=now,
+                user_id=user.id,
+            )
+        )
 
 
 class InvalidPasswordResetTokenError(Exception):

@@ -13,6 +13,7 @@ from md2blog.modules.identity.domain.value_objects import (
     PasswordHash,
     RawPassword,
 )
+from md2blog.shared.application.events import DomainEventPublisher
 from md2blog.shared.domain.tsid import TSID
 
 
@@ -47,6 +48,11 @@ class GoogleVerifier:
         return GoogleIdentityClaims("google-sub", "user@example.com", True)
 
 
+class Clock:
+    def now(self) -> datetime:
+        return datetime(2026, 1, 1, tzinfo=UTC)
+
+
 def make_service(
     users: Users,
     passwords: Passwords,
@@ -57,6 +63,8 @@ def make_service(
         password_hasher=passwords,  # type: ignore[arg-type]
         identities=Identities(identity),  # type: ignore[arg-type]
         google_verifier=GoogleVerifier(),
+        events=DomainEventPublisher(),
+        clock=Clock(),
     )
 
 

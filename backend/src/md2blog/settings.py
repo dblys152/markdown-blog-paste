@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     database_url: str = "postgresql://md2blog:md2blog@localhost:5432/md2blog"
     migration_database_url: str = "postgresql://md2blog:md2blog@localhost:5432/md2blog"
     jwt_secret_key: SecretStr = SecretStr("local-development-secret-change-me")
+    outbox_token_encryption_key: SecretStr = SecretStr(
+        "MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA="
+    )
     refresh_token_cookie_secure: bool = False
     refresh_token_cookie_samesite: Literal["lax", "strict", "none"] = "lax"
     cors_allowed_origins: CommaSeparatedList = ["http://localhost:5173"]

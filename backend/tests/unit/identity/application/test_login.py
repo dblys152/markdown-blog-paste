@@ -16,6 +16,7 @@ from md2blog.modules.identity.domain.value_objects import (
     PasswordHash,
     RawPassword,
 )
+from md2blog.shared.application.events import DomainEventPublisher
 from md2blog.shared.domain.tsid import TSID
 
 
@@ -75,6 +76,7 @@ def make_service(user: User | None, failures: Failures | None = None) -> Login:
         failures if failures is not None else Failures(),
         Clock(),
         LoginFailurePolicy(),
+        DomainEventPublisher(),
     )
 
 
