@@ -21,6 +21,7 @@ from md2blog.modules.identity.domain.value_objects import DisplayName, Email, Pa
 from md2blog.shared.application.events import DomainEventPublisher
 from md2blog.shared.domain.events import DomainEvent
 from md2blog.shared.domain.tsid import TSID
+from tests.fakes.unit_of_work import InMemoryUnitOfWork
 
 NOW = datetime(2026, 8, 27, 12, tzinfo=UTC)
 
@@ -108,6 +109,7 @@ async def test_issue_stores_hashed_token_and_sends_verification_link() -> None:
         events=events,
         clock=FixedClock(),
         policy=make_policy(),
+        unit_of_work=InMemoryUnitOfWork(),
     )
 
     await service.execute(make_user())
@@ -133,6 +135,7 @@ async def test_issue_rejects_resend_during_cooldown() -> None:
         events=RecordingEvents(),
         clock=FixedClock(),
         policy=make_policy(),
+        unit_of_work=InMemoryUnitOfWork(),
     )
 
     with pytest.raises(EmailVerificationCooldownError) as error:
@@ -159,6 +162,7 @@ async def test_confirm_marks_token_and_user_as_verified() -> None:
         token_manager=StubTokenManager(),
         events=RecordingEvents(),
         clock=FixedClock(),
+        unit_of_work=InMemoryUnitOfWork(),
     )
 
     result = await service.execute("raw-token")
@@ -184,6 +188,7 @@ async def test_password_reset_token_cannot_verify_email() -> None:
         token_manager=StubTokenManager(),
         events=RecordingEvents(),
         clock=FixedClock(),
+        unit_of_work=InMemoryUnitOfWork(),
     )
 
     with pytest.raises(InvalidEmailVerificationTokenError):

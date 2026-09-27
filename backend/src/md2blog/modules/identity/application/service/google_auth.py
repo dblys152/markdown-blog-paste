@@ -26,6 +26,7 @@ from md2blog.modules.identity.domain.user_identity import IdentityProvider, User
 from md2blog.modules.identity.domain.user_identity_repositories import UserIdentityRepository
 from md2blog.modules.identity.domain.value_objects import Email
 from md2blog.shared.application.events import DomainEventPublisher
+from md2blog.shared.application.unit_of_work import UnitOfWork
 from md2blog.shared.domain.tsid import TSID
 
 
@@ -77,6 +78,7 @@ class GoogleSignUp:
         nickname_policy: NicknameUniquenessPolicy,
         clock: Clock,
         events: DomainEventPublisher,
+        unit_of_work: UnitOfWork,
     ) -> None:
         self._users = users
         self._identities = identities
@@ -84,9 +86,18 @@ class GoogleSignUp:
         self._nickname_policy = nickname_policy
         self._clock = clock
         self._events = events
+        self._unit_of_work = unit_of_work
 
     async def execute(self, command: GoogleSignUpCommand) -> User:
         claims = await verified_claims(self._verifier, command.credential)
+        async with self._unit_of_work:
+            return await self._execute(command, claims)
+
+    async def _execute(
+        self,
+        command: GoogleSignUpCommand,
+        claims: GoogleIdentityClaims,
+    ) -> User:
         if (
             await self._identities.find_by_provider_subject(IdentityProvider.GOOGLE, claims.subject)
             is not None
@@ -137,6 +148,7 @@ class LinkGoogleAndLogin:
         password_hasher: PasswordHasher,
         clock: Clock,
         events: DomainEventPublisher,
+        unit_of_work: UnitOfWork,
     ) -> None:
         self._users = users
         self._identities = identities
@@ -144,9 +156,18 @@ class LinkGoogleAndLogin:
         self._password_hasher = password_hasher
         self._clock = clock
         self._events = events
+        self._unit_of_work = unit_of_work
 
     async def execute(self, command: LinkGoogleAndLoginCommand) -> User:
         claims = await verified_claims(self._verifier, command.credential)
+        async with self._unit_of_work:
+            return await self._execute(command, claims)
+
+    async def _execute(
+        self,
+        command: LinkGoogleAndLoginCommand,
+        claims: GoogleIdentityClaims,
+    ) -> User:
         if (
             await self._identities.find_by_provider_subject(IdentityProvider.GOOGLE, claims.subject)
             is not None
@@ -187,15 +208,21 @@ class ConnectGoogle:
         clock: Clock,
         link_policy: GoogleIdentityLinkPolicy,
         events: DomainEventPublisher,
+        unit_of_work: UnitOfWork,
     ) -> None:
         self._identities = identities
         self._verifier = verifier
         self._clock = clock
         self._link_policy = link_policy
         self._events = events
+        self._unit_of_work = unit_of_work
 
     async def execute(self, user: User, credential: str) -> None:
         claims = await verified_claims(self._verifier, credential)
+        async with self._unit_of_work:
+            await self._execute(user, claims)
+
+    async def _execute(self, user: User, claims: GoogleIdentityClaims) -> None:
         existing = await self._identities.find_by_provider_subject(
             IdentityProvider.GOOGLE, claims.subject
         )
@@ -235,13 +262,19 @@ class DisconnectGoogle:
         unlink_policy: GoogleIdentityUnlinkPolicy,
         events: DomainEventPublisher,
         clock: Clock,
+        unit_of_work: UnitOfWork,
     ) -> None:
         self._identities = identities
         self._unlink_policy = unlink_policy
         self._events = events
         self._clock = clock
+        self._unit_of_work = unit_of_work
 
     async def execute(self, user: User) -> None:
+        async with self._unit_of_work:
+            await self._execute(user)
+
+    async def _execute(self, user: User) -> None:
         identity = await self._identities.find_by_user_and_provider(
             user.id, IdentityProvider.GOOGLE
         )

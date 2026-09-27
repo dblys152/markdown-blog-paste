@@ -18,6 +18,7 @@ from md2blog.modules.identity.domain.value_objects import (
 )
 from md2blog.shared.application.events import DomainEventPublisher
 from md2blog.shared.domain.tsid import TSID
+from tests.fakes.unit_of_work import InMemoryUnitOfWork
 
 
 class Users:
@@ -69,7 +70,11 @@ class Clock:
         return self.now_value
 
 
-def make_service(user: User | None, failures: Failures | None = None) -> Login:
+def make_service(
+    user: User | None,
+    failures: Failures | None = None,
+    unit_of_work: InMemoryUnitOfWork | None = None,
+) -> Login:
     return Login(
         Users(user),
         Passwords(),
@@ -77,6 +82,7 @@ def make_service(user: User | None, failures: Failures | None = None) -> Login:
         Clock(),
         LoginFailurePolicy(),
         DomainEventPublisher(),
+        unit_of_work or InMemoryUnitOfWork(),
     )
 
 
@@ -120,7 +126,8 @@ async def test_login_rejects_unknown_user_wrong_password_and_inactive_user(
 
 async def test_tenth_email_failure_blocks_login_for_five_minutes() -> None:
     failures = Failures()
-    service = make_service(make_user(), failures)
+    unit_of_work = InMemoryUnitOfWork()
+    service = make_service(make_user(), failures, unit_of_work)
     command = LoginCommand(Email("user@example.com"), RawPassword("wrong-password"))
 
     for _ in range(9):
@@ -131,6 +138,8 @@ async def test_tenth_email_failure_blocks_login_for_five_minutes() -> None:
         await service.execute(command)
 
     assert raised.value.retry_after_seconds == 300
+    assert unit_of_work.committed
+    assert not unit_of_work.rolled_back
 
 
 async def test_successful_login_clears_email_failures() -> None:

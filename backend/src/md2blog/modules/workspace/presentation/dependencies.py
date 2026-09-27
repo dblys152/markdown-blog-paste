@@ -19,11 +19,19 @@ from md2blog.modules.workspace.infrastructure.repositories import (
     SqlAlchemyPageQueryRepository,
     SqlAlchemyPageRepository,
 )
-from md2blog.shared.infrastructure.database import get_session
+from md2blog.shared.infrastructure.database import (
+    SqlAlchemyUnitOfWork,
+    get_session,
+)
 
 
-def get_create_page(session: AsyncSession = Depends(get_session)) -> CreatePage:
-    return CreatePage(SqlAlchemyPageRepository(session))
+def get_create_page(
+    session: AsyncSession = Depends(get_session),
+) -> CreatePage:
+    return CreatePage(
+        SqlAlchemyPageRepository(session),
+        SqlAlchemyUnitOfWork(session),
+    )
 
 
 def get_create_page_command_factory(
@@ -44,16 +52,22 @@ def get_page(session: AsyncSession = Depends(get_session)) -> GetPage:
     return GetPage(SqlAlchemyPageQueryRepository(session))
 
 
-def get_update_page(session: AsyncSession = Depends(get_session)) -> UpdatePage:
-    return UpdatePage(SqlAlchemyPageRepository(session))
+def get_update_page(
+    session: AsyncSession = Depends(get_session),
+) -> UpdatePage:
+    return UpdatePage(SqlAlchemyPageRepository(session), SqlAlchemyUnitOfWork(session))
 
 
-def get_delete_page(session: AsyncSession = Depends(get_session)) -> DeletePage:
-    return DeletePage(SqlAlchemyPageRepository(session))
+def get_delete_page(
+    session: AsyncSession = Depends(get_session),
+) -> DeletePage:
+    return DeletePage(SqlAlchemyPageRepository(session), SqlAlchemyUnitOfWork(session))
 
 
-def get_move_page(session: AsyncSession = Depends(get_session)) -> MovePage:
-    return MovePage(SqlAlchemyPageRepository(session))
+def get_move_page(
+    session: AsyncSession = Depends(get_session),
+) -> MovePage:
+    return MovePage(SqlAlchemyPageRepository(session), SqlAlchemyUnitOfWork(session))
 
 
 def get_list_trashed_pages(
@@ -66,11 +80,16 @@ def get_trashed_page(session: AsyncSession = Depends(get_session)) -> GetTrashed
     return GetTrashedPage(SqlAlchemyPageQueryRepository(session))
 
 
-def get_restore_page(session: AsyncSession = Depends(get_session)) -> RestorePage:
-    return RestorePage(SqlAlchemyPageRepository(session))
+def get_restore_page(
+    session: AsyncSession = Depends(get_session),
+) -> RestorePage:
+    return RestorePage(SqlAlchemyPageRepository(session), SqlAlchemyUnitOfWork(session))
 
 
 def get_permanently_delete_page(
     session: AsyncSession = Depends(get_session),
 ) -> PermanentlyDeletePage:
-    return PermanentlyDeletePage(SqlAlchemyPageRepository(session))
+    return PermanentlyDeletePage(
+        SqlAlchemyPageRepository(session),
+        SqlAlchemyUnitOfWork(session),
+    )

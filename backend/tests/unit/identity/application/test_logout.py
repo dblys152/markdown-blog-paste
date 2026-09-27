@@ -5,6 +5,7 @@ from md2blog.modules.identity.application.service.logout import LogoutSessionSer
 from md2blog.modules.identity.domain.auth_session import AuthSession
 from md2blog.shared.application.events import DomainEventPublisher
 from md2blog.shared.domain.tsid import TSID
+from tests.fakes.unit_of_work import InMemoryUnitOfWork
 
 
 class Sessions:
@@ -62,7 +63,9 @@ async def test_logout_revokes_current_session() -> None:
             created_at=now,
         )
     )
-    service = LogoutSessionService(sessions, Tokens(), Clock(now), DomainEventPublisher())
+    service = LogoutSessionService(
+        sessions, Tokens(), Clock(now), DomainEventPublisher(), InMemoryUnitOfWork()
+    )
 
     await service.logout("raw-token")
 
@@ -72,7 +75,11 @@ async def test_logout_revokes_current_session() -> None:
 
 async def test_logout_is_idempotent_without_session() -> None:
     service = LogoutSessionService(
-        Sessions(None), Tokens(), Clock(datetime.now(UTC)), DomainEventPublisher()
+        Sessions(None),
+        Tokens(),
+        Clock(datetime.now(UTC)),
+        DomainEventPublisher(),
+        InMemoryUnitOfWork(),
     )
 
     await service.logout(None)
@@ -82,7 +89,9 @@ async def test_logout_is_idempotent_without_session() -> None:
 async def test_logout_all_revokes_user_sessions() -> None:
     now = datetime.now(UTC)
     sessions = Sessions(None)
-    service = LogoutSessionService(sessions, Tokens(), Clock(now), DomainEventPublisher())
+    service = LogoutSessionService(
+        sessions, Tokens(), Clock(now), DomainEventPublisher(), InMemoryUnitOfWork()
+    )
 
     await service.logout_all(TSID(2))
 

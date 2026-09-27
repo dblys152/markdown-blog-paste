@@ -18,6 +18,7 @@ from md2blog.modules.identity.domain.value_objects import (
     RawPassword,
 )
 from md2blog.shared.domain.tsid import TSID
+from tests.fakes.unit_of_work import InMemoryUnitOfWork
 
 NOW = datetime(2026, 9, 20, tzinfo=UTC)
 
@@ -74,6 +75,7 @@ async def test_signup_factory_builds_domain_command_and_service_stores_user() ->
         email_verification,
         NicknameUniquenessPolicy(),
         FixedClock(),
+        InMemoryUnitOfWork(),
     )
 
     command = await factory.create(
@@ -134,4 +136,5 @@ async def test_signup_service_rejects_duplicate_nickname() -> None:
             RecordingEmailVerification(),
             NicknameUniquenessPolicy(),
             FixedClock(),
+            InMemoryUnitOfWork(),
         ).execute(command)

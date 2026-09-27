@@ -10,6 +10,7 @@ from md2blog.modules.identity.domain.user import User
 from md2blog.modules.identity.domain.user_identity import IdentityProvider
 from md2blog.modules.identity.domain.user_identity_repositories import UserIdentityRepository
 from md2blog.shared.application.events import DomainEventPublisher
+from md2blog.shared.application.unit_of_work import UnitOfWork
 from md2blog.shared.domain.tsid import TSID
 
 
@@ -22,6 +23,7 @@ class DeleteAccount:
         google_verifier: GoogleIdentityVerifier | None,
         events: DomainEventPublisher,
         clock: Clock,
+        unit_of_work: UnitOfWork,
     ) -> None:
         self._users = users
         self._password_hasher = password_hasher
@@ -29,8 +31,13 @@ class DeleteAccount:
         self._google_verifier = google_verifier
         self._events = events
         self._clock = clock
+        self._unit_of_work = unit_of_work
 
     async def execute(self, user: User, command: DeleteAccountCommand) -> None:
+        async with self._unit_of_work:
+            await self._execute(user, command)
+
+    async def _execute(self, user: User, command: DeleteAccountCommand) -> None:
         if user.has_password:
             password_hash = user.password_hash
             assert password_hash is not None

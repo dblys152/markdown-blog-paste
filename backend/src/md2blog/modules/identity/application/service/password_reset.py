@@ -26,6 +26,7 @@ from md2blog.modules.identity.domain.events import (
 from md2blog.modules.identity.domain.repositories import UserRepository
 from md2blog.modules.identity.domain.session_repositories import AuthSessionRepository
 from md2blog.shared.application.events import DomainEventPublisher
+from md2blog.shared.application.unit_of_work import UnitOfWork
 from md2blog.shared.domain.tsid import TSID
 
 
@@ -46,6 +47,7 @@ class RequestPasswordReset:
         events: DomainEventPublisher,
         clock: Clock,
         policy: PasswordResetPolicy,
+        unit_of_work: UnitOfWork,
     ) -> None:
         self._users = users
         self._tokens = tokens
@@ -53,8 +55,13 @@ class RequestPasswordReset:
         self._events = events
         self._clock = clock
         self._policy = policy
+        self._unit_of_work = unit_of_work
 
     async def execute(self, command: RequestPasswordResetCommand) -> None:
+        async with self._unit_of_work:
+            await self._execute(command)
+
+    async def _execute(self, command: RequestPasswordResetCommand) -> None:
         user = await self._users.find_by_email(command.email)
         if user is None:
             return
@@ -107,6 +114,7 @@ class ConfirmPasswordReset:
         password_hasher: PasswordHasher,
         events: DomainEventPublisher,
         clock: Clock,
+        unit_of_work: UnitOfWork,
     ) -> None:
         self._users = users
         self._sessions = sessions
@@ -115,8 +123,13 @@ class ConfirmPasswordReset:
         self._password_hasher = password_hasher
         self._events = events
         self._clock = clock
+        self._unit_of_work = unit_of_work
 
     async def execute(self, command: ConfirmPasswordResetCommand) -> None:
+        async with self._unit_of_work:
+            await self._execute(command)
+
+    async def _execute(self, command: ConfirmPasswordResetCommand) -> None:
         token = await self._tokens.find_by_token_hash_for_update(
             self._token_manager.hash(command.token)
         )

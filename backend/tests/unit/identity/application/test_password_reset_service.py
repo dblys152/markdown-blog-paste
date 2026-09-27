@@ -29,6 +29,7 @@ from md2blog.modules.identity.domain.value_objects import (
 from md2blog.shared.application.events import DomainEventPublisher
 from md2blog.shared.domain.events import DomainEvent
 from md2blog.shared.domain.tsid import TSID
+from tests.fakes.unit_of_work import InMemoryUnitOfWork
 
 NOW = datetime(2026, 9, 6, 12, tzinfo=UTC)
 
@@ -133,6 +134,7 @@ async def test_request_stores_hashed_token_and_sends_reset_link() -> None:
         events=events,
         clock=Clock(),
         policy=make_policy(),
+        unit_of_work=InMemoryUnitOfWork(),
     )
 
     await service.execute(RequestPasswordResetCommand(email=Email("user@example.com")))
@@ -151,6 +153,7 @@ async def test_request_does_nothing_for_unknown_email() -> None:
         events=events,
         clock=Clock(),
         policy=make_policy(),
+        unit_of_work=InMemoryUnitOfWork(),
     )
 
     await service.execute(RequestPasswordResetCommand(email=Email("unknown@example.com")))
@@ -178,6 +181,7 @@ async def test_confirm_changes_password_and_revokes_all_sessions() -> None:
         password_hasher=Passwords(),  # type: ignore[arg-type]
         events=RecordingEvents(),
         clock=Clock(),
+        unit_of_work=InMemoryUnitOfWork(),
     )
 
     await service.execute(
@@ -211,6 +215,7 @@ async def test_email_verification_token_cannot_reset_password() -> None:
         password_hasher=Passwords(),  # type: ignore[arg-type]
         events=RecordingEvents(),
         clock=Clock(),
+        unit_of_work=InMemoryUnitOfWork(),
     )
 
     with pytest.raises(InvalidPasswordResetTokenError):

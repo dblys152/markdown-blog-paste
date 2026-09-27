@@ -38,6 +38,18 @@ from md2blog.modules.workspace.domain.page import Page as DomainPage
 from md2blog.shared.domain.tsid import TSID
 
 
+class InMemoryUnitOfWork:
+    async def __aenter__(self) -> "InMemoryUnitOfWork":
+        return self
+
+    async def __aexit__(self, *args: object) -> None:
+        return None
+
+
+def unit_of_work() -> InMemoryUnitOfWork:
+    return InMemoryUnitOfWork()
+
+
 class Page(DomainPage):
     def __init__(
         self,
@@ -253,7 +265,7 @@ async def test_create_page_appends_after_siblings() -> None:
         title=" API 설계 ",
         content="# API 설계",
     )
-    created = await CreatePage(pages).execute(command)
+    created = await CreatePage(pages, unit_of_work()).execute(command)
 
     assert created.title == "API 설계"
     assert created.parent_id == parent.id
@@ -298,7 +310,7 @@ async def test_update_page_revises_only_provided_fields() -> None:
     )
     pages = InMemoryPages([original])
 
-    updated = await UpdatePage(pages).execute(
+    updated = await UpdatePage(pages, unit_of_work()).execute(
         UpdatePageCommand(
             page_id=original.id,
             owner_id=original.owner_id,
@@ -315,7 +327,7 @@ async def test_update_page_hides_another_users_page_as_not_found() -> None:
     other = Page(id=TSID(2), owner_id=TSID(99), title="다른 페이지", content="")
 
     with pytest.raises(PageNotFoundError):
-        await UpdatePage(InMemoryPages([other])).execute(
+        await UpdatePage(InMemoryPages([other]), unit_of_work()).execute(
             UpdatePageCommand(
                 page_id=other.id,
                 owner_id=TSID(1),
@@ -343,7 +355,7 @@ async def test_delete_page_moves_page_and_descendants_to_trash() -> None:
     )
     pages = InMemoryPages([parent, child, grandchild])
 
-    await DeletePage(pages).execute(
+    await DeletePage(pages, unit_of_work()).execute(
         DeletePageCommand(page_id=parent.id, owner_id=parent.owner_id)
     )
 
@@ -354,7 +366,7 @@ async def test_delete_page_hides_another_users_page_as_not_found() -> None:
     other = Page(id=TSID(2), owner_id=TSID(99), title="다른 페이지", content="")
 
     with pytest.raises(PageNotFoundError):
-        await DeletePage(InMemoryPages([other])).execute(
+        await DeletePage(InMemoryPages([other]), unit_of_work()).execute(
             DeletePageCommand(page_id=other.id, owner_id=TSID(1))
         )
 
@@ -374,7 +386,7 @@ async def test_restore_page_restores_page_and_descendants() -> None:
     )
     pages = InMemoryPages([parent, child])
 
-    await RestorePage(pages).execute(
+    await RestorePage(pages, unit_of_work()).execute(
         RestorePageCommand(page_id=parent.id, owner_id=parent.owner_id)
     )
 
@@ -425,7 +437,7 @@ async def test_permanently_delete_page_removes_trashed_tree() -> None:
     )
     pages = InMemoryPages([page])
 
-    await PermanentlyDeletePage(pages).execute(
+    await PermanentlyDeletePage(pages, unit_of_work()).execute(
         PermanentlyDeletePageCommand(page_id=page.id, owner_id=page.owner_id)
     )
 
@@ -450,7 +462,7 @@ async def test_purge_expired_pages_hard_deletes_pages_after_30_days() -> None:
     )
     pages = InMemoryPages([expired, retained])
 
-    count = await PurgeExpiredPages(pages).execute(now=now)
+    count = await PurgeExpiredPages(pages, unit_of_work()).execute(now=now)
 
     assert count == 1
     assert pages.pages == [retained]
@@ -469,7 +481,7 @@ async def test_move_page_changes_parent_and_clamps_sibling_position() -> None:
     )
     pages = InMemoryPages([page, parent, child])
 
-    moved = await MovePage(pages).execute(
+    moved = await MovePage(pages, unit_of_work()).execute(
         MovePageCommand(
             page_id=page.id,
             owner_id=owner_id,
@@ -488,7 +500,7 @@ async def test_move_page_reorders_pages_in_same_parent() -> None:
     second = Page(id=TSID(3), owner_id=owner_id, title="두 번째", content="", sort_order=1)
     pages = InMemoryPages([first, second])
 
-    moved = await MovePage(pages).execute(
+    moved = await MovePage(pages, unit_of_work()).execute(
         MovePageCommand(
             page_id=second.id,
             owner_id=owner_id,
@@ -514,7 +526,7 @@ async def test_move_page_rejects_descendant_as_parent() -> None:
     )
 
     with pytest.raises(InvalidPageMoveError):
-        await MovePage(InMemoryPages([parent, child])).execute(
+        await MovePage(InMemoryPages([parent, child]), unit_of_work()).execute(
             MovePageCommand(
                 page_id=parent.id,
                 owner_id=owner_id,
@@ -529,7 +541,7 @@ async def test_move_page_rejects_parent_owned_by_another_user() -> None:
     other_parent = Page(id=TSID(3), owner_id=TSID(99), title="다른 사용자", content="")
 
     with pytest.raises(ParentPageNotFoundError):
-        await MovePage(InMemoryPages([page, other_parent])).execute(
+        await MovePage(InMemoryPages([page, other_parent]), unit_of_work()).execute(
             MovePageCommand(
                 page_id=page.id,
                 owner_id=page.owner_id,

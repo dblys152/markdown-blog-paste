@@ -11,6 +11,7 @@ from md2blog.modules.identity.domain.nickname_policy import (
 from md2blog.modules.identity.domain.user import User
 from md2blog.modules.identity.domain.value_objects import DisplayName, Email, PasswordHash
 from md2blog.shared.domain.tsid import TSID
+from tests.fakes.unit_of_work import InMemoryUnitOfWork
 
 NOW = datetime(2026, 9, 20, tzinfo=UTC)
 
@@ -49,7 +50,9 @@ async def test_update_display_name_saves_changed_user() -> None:
         display_name=DisplayName("기존 이름"),
     )
 
-    updated_user = await UpdateDisplayName(users, NicknameUniquenessPolicy(), FixedClock()).execute(
+    updated_user = await UpdateDisplayName(
+        users, NicknameUniquenessPolicy(), FixedClock(), InMemoryUnitOfWork()
+    ).execute(
         user,
         UpdateDisplayNameCommand(display_name=DisplayName("새 이름")),
     )
@@ -68,7 +71,9 @@ async def test_update_display_name_skips_save_when_name_is_unchanged() -> None:
         display_name=DisplayName("같은 이름"),
     )
 
-    updated_user = await UpdateDisplayName(users, NicknameUniquenessPolicy(), FixedClock()).execute(
+    updated_user = await UpdateDisplayName(
+        users, NicknameUniquenessPolicy(), FixedClock(), InMemoryUnitOfWork()
+    ).execute(
         user,
         UpdateDisplayNameCommand(display_name=DisplayName("같은 이름")),
     )
@@ -87,7 +92,9 @@ async def test_update_display_name_rejects_duplicate_case_insensitively() -> Non
     )
 
     with pytest.raises(NicknameAlreadyInUseError):
-        await UpdateDisplayName(users, NicknameUniquenessPolicy(), FixedClock()).execute(
+        await UpdateDisplayName(
+            users, NicknameUniquenessPolicy(), FixedClock(), InMemoryUnitOfWork()
+        ).execute(
             user,
             UpdateDisplayNameCommand(display_name=DisplayName("existing")),
         )

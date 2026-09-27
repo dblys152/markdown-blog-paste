@@ -108,7 +108,11 @@ from md2blog.modules.identity.infrastructure.user_identity_repositories import (
 )
 from md2blog.settings import Settings, get_settings
 from md2blog.shared.application.events import DomainEventPublisher
-from md2blog.shared.infrastructure.database import get_session
+from md2blog.shared.application.unit_of_work import UnitOfWork
+from md2blog.shared.infrastructure.database import (
+    SqlAlchemyUnitOfWork,
+    get_session,
+)
 from md2blog.shared.infrastructure.event_repositories import (
     SqlAlchemyOutboxMessageRepository,
     SqlAlchemySecurityAuditLogRepository,
@@ -124,6 +128,12 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
 class SignUpDependencies:
     command_factory: SignUpCommandFactory
     use_case: SignUpUseCase
+
+
+def get_unit_of_work(
+    session: AsyncSession = Depends(get_session),
+) -> UnitOfWork:
+    return SqlAlchemyUnitOfWork(session)
 
 
 def get_domain_event_publisher(
@@ -156,6 +166,7 @@ def get_domain_event_publisher(
 def get_issue_email_verification(
     session: AsyncSession = Depends(get_session),
     events: DomainEventPublisher = Depends(get_domain_event_publisher),
+    unit_of_work: UnitOfWork = Depends(get_unit_of_work),
 ) -> IssueEmailVerificationUseCase:
     return IssueEmailVerification(
         tokens=SqlAlchemyAccountConfirmationTokenRepository(
@@ -165,12 +176,14 @@ def get_issue_email_verification(
         events=events,
         clock=SystemClock(),
         policy=EmailVerificationPolicy(),
+        unit_of_work=unit_of_work,
     )
 
 
 def get_confirm_email_verification(
     session: AsyncSession = Depends(get_session),
     events: DomainEventPublisher = Depends(get_domain_event_publisher),
+    unit_of_work: UnitOfWork = Depends(get_unit_of_work),
 ) -> ConfirmEmailVerificationUseCase:
     return ConfirmEmailVerification(
         users=SqlAlchemyUserRepository(session),
@@ -180,6 +193,7 @@ def get_confirm_email_verification(
         token_manager=SecureAccountConfirmationTokenManager(),
         events=events,
         clock=SystemClock(),
+        unit_of_work=unit_of_work,
     )
 
 
@@ -215,6 +229,7 @@ async def get_email_verified_user(
 def get_login_use_case(
     session: AsyncSession = Depends(get_session),
     events: DomainEventPublisher = Depends(get_domain_event_publisher),
+    unit_of_work: UnitOfWork = Depends(get_unit_of_work),
 ) -> LoginUseCase:
     return Login(
         users=SqlAlchemyUserRepository(session),
@@ -223,6 +238,7 @@ def get_login_use_case(
         clock=SystemClock(),
         policy=LoginFailurePolicy(),
         events=events,
+        unit_of_work=unit_of_work,
     )
 
 
@@ -250,6 +266,7 @@ def get_google_signup(
     session: AsyncSession = Depends(get_session),
     verifier: GoogleIdTokenVerifier = Depends(get_google_verifier),
     events: DomainEventPublisher = Depends(get_domain_event_publisher),
+    unit_of_work: UnitOfWork = Depends(get_unit_of_work),
 ) -> GoogleSignUpUseCase:
     return GoogleSignUp(
         SqlAlchemyUserRepository(session),
@@ -258,6 +275,7 @@ def get_google_signup(
         NicknameUniquenessPolicy(),
         SystemClock(),
         events,
+        unit_of_work,
     )
 
 
@@ -265,6 +283,7 @@ def get_link_google_and_login(
     session: AsyncSession = Depends(get_session),
     verifier: GoogleIdTokenVerifier = Depends(get_google_verifier),
     events: DomainEventPublisher = Depends(get_domain_event_publisher),
+    unit_of_work: UnitOfWork = Depends(get_unit_of_work),
 ) -> LinkGoogleAndLoginUseCase:
     return LinkGoogleAndLogin(
         SqlAlchemyUserRepository(session),
@@ -273,6 +292,7 @@ def get_link_google_and_login(
         Argon2PasswordHasher(),
         SystemClock(),
         events,
+        unit_of_work,
     )
 
 
@@ -280,6 +300,7 @@ def get_connect_google(
     session: AsyncSession = Depends(get_session),
     verifier: GoogleIdTokenVerifier = Depends(get_google_verifier),
     events: DomainEventPublisher = Depends(get_domain_event_publisher),
+    unit_of_work: UnitOfWork = Depends(get_unit_of_work),
 ) -> ConnectGoogleUseCase:
     return ConnectGoogle(
         SqlAlchemyUserIdentityRepository(session),
@@ -287,18 +308,21 @@ def get_connect_google(
         SystemClock(),
         GoogleIdentityLinkPolicy(),
         events,
+        unit_of_work,
     )
 
 
 def get_disconnect_google(
     session: AsyncSession = Depends(get_session),
     events: DomainEventPublisher = Depends(get_domain_event_publisher),
+    unit_of_work: UnitOfWork = Depends(get_unit_of_work),
 ) -> DisconnectGoogleUseCase:
     return DisconnectGoogle(
         SqlAlchemyUserIdentityRepository(session),
         GoogleIdentityUnlinkPolicy(),
         events,
         SystemClock(),
+        unit_of_work,
     )
 
 
@@ -312,6 +336,7 @@ def get_delete_account(
     session: AsyncSession = Depends(get_session),
     settings: Settings = Depends(get_settings),
     events: DomainEventPublisher = Depends(get_domain_event_publisher),
+    unit_of_work: UnitOfWork = Depends(get_unit_of_work),
 ) -> DeleteAccountUseCase:
     return DeleteAccount(
         users=SqlAlchemyUserRepository(session),
@@ -322,22 +347,26 @@ def get_delete_account(
         ),
         events=events,
         clock=SystemClock(),
+        unit_of_work=unit_of_work,
     )
 
 
 def get_update_display_name(
     session: AsyncSession = Depends(get_session),
+    unit_of_work: UnitOfWork = Depends(get_unit_of_work),
 ) -> UpdateDisplayNameUseCase:
     return UpdateDisplayName(
         users=SqlAlchemyUserRepository(session),
         nickname_policy=NicknameUniquenessPolicy(),
         clock=SystemClock(),
+        unit_of_work=unit_of_work,
     )
 
 
 def get_request_password_reset(
     session: AsyncSession = Depends(get_session),
     events: DomainEventPublisher = Depends(get_domain_event_publisher),
+    unit_of_work: UnitOfWork = Depends(get_unit_of_work),
 ) -> RequestPasswordResetUseCase:
     return RequestPasswordReset(
         users=SqlAlchemyUserRepository(session),
@@ -348,12 +377,14 @@ def get_request_password_reset(
         events=events,
         clock=SystemClock(),
         policy=PasswordResetPolicy(),
+        unit_of_work=unit_of_work,
     )
 
 
 def get_confirm_password_reset(
     session: AsyncSession = Depends(get_session),
     events: DomainEventPublisher = Depends(get_domain_event_publisher),
+    unit_of_work: UnitOfWork = Depends(get_unit_of_work),
 ) -> ConfirmPasswordResetUseCase:
     return ConfirmPasswordReset(
         users=SqlAlchemyUserRepository(session),
@@ -365,12 +396,14 @@ def get_confirm_password_reset(
         password_hasher=Argon2PasswordHasher(),
         events=events,
         clock=SystemClock(),
+        unit_of_work=unit_of_work,
     )
 
 
 def get_signup_dependencies(
     session: AsyncSession = Depends(get_session),
     email_verification: IssueEmailVerificationUseCase = Depends(get_issue_email_verification),
+    unit_of_work: UnitOfWork = Depends(get_unit_of_work),
 ) -> SignUpDependencies:
     settings = get_settings()
     users = SqlAlchemyUserRepository(session)
@@ -388,12 +421,14 @@ def get_signup_dependencies(
             email_verification=email_verification,
             nickname_policy=NicknameUniquenessPolicy(),
             clock=SystemClock(),
+            unit_of_work=unit_of_work,
         ),
     )
 
 
 def get_refresh_service(
     session: AsyncSession = Depends(get_session),
+    unit_of_work: UnitOfWork = Depends(get_unit_of_work),
 ) -> RefreshSessionService:
     settings = get_settings()
     return RefreshSessionService(
@@ -406,16 +441,19 @@ def get_refresh_service(
         ),
         clock=SystemClock(),
         refresh_ttl=REFRESH_TOKEN_TTL,
+        unit_of_work=unit_of_work,
     )
 
 
 def get_logout_service(
     session: AsyncSession = Depends(get_session),
     events: DomainEventPublisher = Depends(get_domain_event_publisher),
+    unit_of_work: UnitOfWork = Depends(get_unit_of_work),
 ) -> LogoutSessionService:
     return LogoutSessionService(
         sessions=SqlAlchemyAuthSessionRepository(session),
         refresh_tokens=SecureRefreshTokenManager(),
         clock=SystemClock(),
         events=events,
+        unit_of_work=unit_of_work,
     )

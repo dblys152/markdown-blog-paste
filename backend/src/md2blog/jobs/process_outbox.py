@@ -11,7 +11,7 @@ from md2blog.modules.identity.infrastructure.email import GmailSmtpEmailSender
 from md2blog.settings import get_settings
 from md2blog.shared.application.event_records import OutboxMessageStatus
 from md2blog.shared.application.outbox import OutboxMessageDispatcher
-from md2blog.shared.infrastructure.database import get_session_factory
+from md2blog.shared.infrastructure.database import SqlAlchemyUnitOfWork, get_session_factory
 from md2blog.shared.infrastructure.event_models import OutboxMessageModel
 from md2blog.shared.infrastructure.sensitive_value_cipher import (
     FernetSensitiveValueCipher,
@@ -23,30 +23,31 @@ BATCH_SIZE = 20
 
 
 async def claim_messages(now: datetime) -> list[OutboxMessageModel]:
-    async with get_session_factory()() as session, session.begin():
-        result = await session.scalars(
-            select(OutboxMessageModel)
-            .where(
-                or_(
-                    and_(
-                        OutboxMessageModel.status == OutboxMessageStatus.PENDING.value,
-                        OutboxMessageModel.available_at <= now,
-                    ),
-                    and_(
-                        OutboxMessageModel.status == OutboxMessageStatus.PROCESSING.value,
-                        OutboxMessageModel.locked_at < now - LOCK_TIMEOUT,
-                    ),
+    async with get_session_factory()() as session:
+        async with SqlAlchemyUnitOfWork(session):
+            result = await session.scalars(
+                select(OutboxMessageModel)
+                .where(
+                    or_(
+                        and_(
+                            OutboxMessageModel.status == OutboxMessageStatus.PENDING.value,
+                            OutboxMessageModel.available_at <= now,
+                        ),
+                        and_(
+                            OutboxMessageModel.status == OutboxMessageStatus.PROCESSING.value,
+                            OutboxMessageModel.locked_at < now - LOCK_TIMEOUT,
+                        ),
+                    )
                 )
+                .order_by(OutboxMessageModel.available_at, OutboxMessageModel.id)
+                .limit(BATCH_SIZE)
+                .with_for_update(skip_locked=True)
             )
-            .order_by(OutboxMessageModel.available_at, OutboxMessageModel.id)
-            .limit(BATCH_SIZE)
-            .with_for_update(skip_locked=True)
-        )
-        messages = list(result)
-        for message in messages:
-            message.status = OutboxMessageStatus.PROCESSING.value
-            message.locked_at = now
-        return messages
+            messages = list(result)
+            for message in messages:
+                message.status = OutboxMessageStatus.PROCESSING.value
+                message.locked_at = now
+            return messages
 
 
 def build_dispatcher() -> OutboxMessageDispatcher:
@@ -78,11 +79,12 @@ async def process_message(message: OutboxMessageModel, dispatcher: OutboxMessage
 
 
 async def mark_completed(message_id: int, now: datetime) -> None:
-    async with get_session_factory()() as session, session.begin():
-        message = await session.get(OutboxMessageModel, message_id, with_for_update=True)
-        if message is None:
-            return
-        complete_message(message, now)
+    async with get_session_factory()() as session:
+        async with SqlAlchemyUnitOfWork(session):
+            message = await session.get(OutboxMessageModel, message_id, with_for_update=True)
+            if message is None:
+                return
+            complete_message(message, now)
 
 
 def complete_message(message: OutboxMessageModel, now: datetime) -> None:
@@ -93,19 +95,20 @@ def complete_message(message: OutboxMessageModel, now: datetime) -> None:
 
 
 async def mark_failed(message_id: int, error: Exception, now: datetime) -> None:
-    async with get_session_factory()() as session, session.begin():
-        message = await session.get(OutboxMessageModel, message_id, with_for_update=True)
-        if message is None:
-            return
-        message.retry_count += 1
-        message.status = (
-            OutboxMessageStatus.FAILED.value
-            if message.retry_count >= MAX_RETRIES
-            else OutboxMessageStatus.PENDING.value
-        )
-        message.available_at = now + timedelta(minutes=2 ** (message.retry_count - 1))
-        message.locked_at = None
-        message.last_error = str(error)[:2000]
+    async with get_session_factory()() as session:
+        async with SqlAlchemyUnitOfWork(session):
+            message = await session.get(OutboxMessageModel, message_id, with_for_update=True)
+            if message is None:
+                return
+            message.retry_count += 1
+            message.status = (
+                OutboxMessageStatus.FAILED.value
+                if message.retry_count >= MAX_RETRIES
+                else OutboxMessageStatus.PENDING.value
+            )
+            message.available_at = now + timedelta(minutes=2 ** (message.retry_count - 1))
+            message.locked_at = None
+            message.last_error = str(error)[:2000]
 
 
 async def run() -> None:

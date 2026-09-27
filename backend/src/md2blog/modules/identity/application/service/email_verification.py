@@ -18,6 +18,7 @@ from md2blog.modules.identity.domain.events import EmailVerificationRequested, E
 from md2blog.modules.identity.domain.repositories import UserRepository
 from md2blog.modules.identity.domain.user import User
 from md2blog.shared.application.events import DomainEventPublisher
+from md2blog.shared.application.unit_of_work import UnitOfWork
 from md2blog.shared.domain.tsid import TSID
 
 
@@ -37,14 +38,20 @@ class IssueEmailVerification:
         events: DomainEventPublisher,
         clock: Clock,
         policy: EmailVerificationPolicy,
+        unit_of_work: UnitOfWork,
     ) -> None:
         self._tokens = tokens
         self._token_manager = token_manager
         self._events = events
         self._clock = clock
         self._policy = policy
+        self._unit_of_work = unit_of_work
 
     async def execute(self, user: User) -> None:
+        async with self._unit_of_work:
+            await self._execute(user)
+
+    async def _execute(self, user: User) -> None:
         if user.is_email_verified:
             return
 
@@ -93,14 +100,20 @@ class ConfirmEmailVerification:
         token_manager: AccountConfirmationTokenManager,
         events: DomainEventPublisher,
         clock: Clock,
+        unit_of_work: UnitOfWork,
     ) -> None:
         self._users = users
         self._tokens = tokens
         self._token_manager = token_manager
         self._events = events
         self._clock = clock
+        self._unit_of_work = unit_of_work
 
     async def execute(self, raw_token: str) -> User:
+        async with self._unit_of_work:
+            return await self._execute(raw_token)
+
+    async def _execute(self, raw_token: str) -> User:
         token_hash = self._token_manager.hash(raw_token)
         token = await self._tokens.find_by_token_hash_for_update(token_hash)
         if token is None or token.purpose != AccountConfirmationTokenPurpose.EMAIL_VERIFICATION:

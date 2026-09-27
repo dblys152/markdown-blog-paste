@@ -15,6 +15,7 @@ from md2blog.modules.identity.domain.value_objects import (
 )
 from md2blog.shared.application.events import DomainEventPublisher
 from md2blog.shared.domain.tsid import TSID
+from tests.fakes.unit_of_work import InMemoryUnitOfWork
 
 
 class Users:
@@ -65,6 +66,7 @@ def make_service(
         google_verifier=GoogleVerifier(),
         events=DomainEventPublisher(),
         clock=Clock(),
+        unit_of_work=InMemoryUnitOfWork(),
     )
 
 

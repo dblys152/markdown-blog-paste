@@ -19,6 +19,7 @@ from md2blog.modules.identity.domain.login_failure_state_repositories import (
 from md2blog.modules.identity.domain.repositories import UserRepository
 from md2blog.modules.identity.domain.user import AuthenticationFailedError, User
 from md2blog.shared.application.events import DomainEventPublisher
+from md2blog.shared.application.unit_of_work import UnitOfWork
 from md2blog.shared.domain.tsid import TSID
 
 
@@ -36,6 +37,7 @@ class Login:
         clock: Clock,
         policy: LoginFailurePolicy,
         events: DomainEventPublisher,
+        unit_of_work: UnitOfWork,
     ) -> None:
         self._users = users
         self._password_hasher = password_hasher
@@ -43,8 +45,22 @@ class Login:
         self._clock = clock
         self._policy = policy
         self._events = events
+        self._unit_of_work = unit_of_work
 
     async def execute(self, command: LoginCommand) -> LoginResult:
+        pending_error: AuthenticationFailedError | LoginRateLimitedError | None = None
+        result: LoginResult | None = None
+        async with self._unit_of_work:
+            try:
+                result = await self._execute(command)
+            except (AuthenticationFailedError, LoginRateLimitedError) as error:
+                pending_error = error
+        if pending_error is not None:
+            raise pending_error
+        assert result is not None
+        return result
+
+    async def _execute(self, command: LoginCommand) -> LoginResult:
         user = await self._users.find_by_email(command.email)
         if user is None:
             raise AuthenticationFailedError

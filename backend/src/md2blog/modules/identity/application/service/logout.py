@@ -5,6 +5,7 @@ from md2blog.modules.identity.application.port.outbound.security import (
 from md2blog.modules.identity.domain.events import AllSessionsRevoked
 from md2blog.modules.identity.domain.session_repositories import AuthSessionRepository
 from md2blog.shared.application.events import DomainEventPublisher
+from md2blog.shared.application.unit_of_work import UnitOfWork
 from md2blog.shared.domain.tsid import TSID
 
 
@@ -15,13 +16,19 @@ class LogoutSessionService:
         refresh_tokens: RefreshTokenManager,
         clock: Clock,
         events: DomainEventPublisher,
+        unit_of_work: UnitOfWork,
     ) -> None:
         self._sessions = sessions
         self._refresh_tokens = refresh_tokens
         self._clock = clock
         self._events = events
+        self._unit_of_work = unit_of_work
 
     async def logout(self, raw_token: str | None) -> None:
+        async with self._unit_of_work:
+            await self._logout(raw_token)
+
+    async def _logout(self, raw_token: str | None) -> None:
         if raw_token is None:
             return
         token_hash = self._refresh_tokens.hash(raw_token)
@@ -31,6 +38,10 @@ class LogoutSessionService:
         await self._sessions.revoke(session.revoke(self._clock.now()))
 
     async def logout_all(self, user_id: TSID) -> None:
+        async with self._unit_of_work:
+            await self._logout_all(user_id)
+
+    async def _logout_all(self, user_id: TSID) -> None:
         now = self._clock.now()
         await self._sessions.revoke_all_by_user_id(user_id, now)
         await self._events.publish(

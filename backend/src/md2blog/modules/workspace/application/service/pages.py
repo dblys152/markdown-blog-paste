@@ -21,17 +21,20 @@ from md2blog.modules.workspace.domain.page import (
     ParentPageNotFoundError,
 )
 from md2blog.modules.workspace.domain.repositories import PageRepository
+from md2blog.shared.application.unit_of_work import UnitOfWork
 from md2blog.shared.domain.tsid import TSID
 
 
 class CreatePage:
-    def __init__(self, pages: PageRepository) -> None:
+    def __init__(self, pages: PageRepository, unit_of_work: UnitOfWork) -> None:
         self._pages = pages
+        self._unit_of_work = unit_of_work
 
     async def execute(self, command: CreatePageCommand) -> PageDetail:
-        page = Page.create(command)
-        await self._pages.add(page)
-        return PageDetail.from_domain(page)
+        async with self._unit_of_work:
+            page = Page.create(command)
+            await self._pages.add(page)
+            return PageDetail.from_domain(page)
 
 
 class ListPages:
@@ -65,40 +68,44 @@ class GetPage:
 
 
 class UpdatePage:
-    def __init__(self, pages: PageRepository) -> None:
+    def __init__(self, pages: PageRepository, unit_of_work: UnitOfWork) -> None:
         self._pages = pages
+        self._unit_of_work = unit_of_work
 
     async def execute(self, command: UpdatePageCommand) -> PageDetail:
-        page = await self._pages.find_by_id(command.page_id, command.owner_id)
-        if page is None:
-            raise PageNotFoundError
-        page = page.update(command)
-        await self._pages.update(page)
-        return PageDetail.from_domain(page)
+        async with self._unit_of_work:
+            page = await self._pages.find_by_id(command.page_id, command.owner_id)
+            if page is None:
+                raise PageNotFoundError
+            page = page.update(command)
+            await self._pages.update(page)
+            return PageDetail.from_domain(page)
 
 
 class DeletePage:
-    def __init__(self, pages: PageRepository) -> None:
+    def __init__(self, pages: PageRepository, unit_of_work: UnitOfWork) -> None:
         self._pages = pages
+        self._unit_of_work = unit_of_work
 
     async def execute(self, command: DeletePageCommand) -> None:
-        page = await self._pages.find_by_id(command.page_id, command.owner_id)
-        if page is None:
-            raise PageNotFoundError
-        pages = await self._collect_descendants(page)
-        deleted_at = datetime.now(UTC)
-        await self._pages.update_all(
-            [
-                trashed_page.trash(
-                    DeletePageCommand(
-                        page_id=trashed_page.id,
-                        owner_id=trashed_page.owner_id,
-                    ),
-                    deleted_at=deleted_at,
-                )
-                for trashed_page in pages
-            ]
-        )
+        async with self._unit_of_work:
+            page = await self._pages.find_by_id(command.page_id, command.owner_id)
+            if page is None:
+                raise PageNotFoundError
+            pages = await self._collect_descendants(page)
+            deleted_at = datetime.now(UTC)
+            await self._pages.update_all(
+                [
+                    trashed_page.trash(
+                        DeletePageCommand(
+                            page_id=trashed_page.id,
+                            owner_id=trashed_page.owner_id,
+                        ),
+                        deleted_at=deleted_at,
+                    )
+                    for trashed_page in pages
+                ]
+            )
 
     async def _collect_descendants(self, root: Page) -> list[Page]:
         collected = [root]
@@ -134,34 +141,36 @@ class GetTrashedPage:
 
 
 class RestorePage:
-    def __init__(self, pages: PageRepository) -> None:
+    def __init__(self, pages: PageRepository, unit_of_work: UnitOfWork) -> None:
         self._pages = pages
+        self._unit_of_work = unit_of_work
 
     async def execute(self, command: RestorePageCommand) -> None:
-        page = await self._pages.find_trashed_by_id(command.page_id, command.owner_id)
-        if page is None:
-            raise PageNotFoundError
-        if page.parent_id is not None:
-            trashed_parent = await self._pages.find_trashed_by_id(
-                page.parent_id,
-                command.owner_id,
-            )
-            if trashed_parent is not None:
+        async with self._unit_of_work:
+            page = await self._pages.find_trashed_by_id(command.page_id, command.owner_id)
+            if page is None:
                 raise PageNotFoundError
-        pages = await self._collect_trashed_descendants(page)
-        restored_at = datetime.now(UTC)
-        await self._pages.update_all(
-            [
-                trashed_page.restore(
-                    RestorePageCommand(
-                        page_id=trashed_page.id,
-                        owner_id=trashed_page.owner_id,
-                    ),
-                    restored_at=restored_at,
+            if page.parent_id is not None:
+                trashed_parent = await self._pages.find_trashed_by_id(
+                    page.parent_id,
+                    command.owner_id,
                 )
-                for trashed_page in pages
-            ]
-        )
+                if trashed_parent is not None:
+                    raise PageNotFoundError
+            pages = await self._collect_trashed_descendants(page)
+            restored_at = datetime.now(UTC)
+            await self._pages.update_all(
+                [
+                    trashed_page.restore(
+                        RestorePageCommand(
+                            page_id=trashed_page.id,
+                            owner_id=trashed_page.owner_id,
+                        ),
+                        restored_at=restored_at,
+                    )
+                    for trashed_page in pages
+                ]
+            )
 
     async def _collect_trashed_descendants(self, root: Page) -> list[Page]:
         collected = [root]
@@ -178,37 +187,46 @@ class RestorePage:
 
 
 class PermanentlyDeletePage:
-    def __init__(self, pages: PageRepository) -> None:
+    def __init__(self, pages: PageRepository, unit_of_work: UnitOfWork) -> None:
         self._pages = pages
+        self._unit_of_work = unit_of_work
 
     async def execute(self, command: PermanentlyDeletePageCommand) -> None:
-        page = await self._pages.find_trashed_by_id(command.page_id, command.owner_id)
-        if page is None:
-            raise PageNotFoundError
-        if page.parent_id is not None:
-            trashed_parent = await self._pages.find_trashed_by_id(
-                page.parent_id,
-                command.owner_id,
-            )
-            if trashed_parent is not None:
+        async with self._unit_of_work:
+            page = await self._pages.find_trashed_by_id(command.page_id, command.owner_id)
+            if page is None:
                 raise PageNotFoundError
-        await self._pages.delete(page)
+            if page.parent_id is not None:
+                trashed_parent = await self._pages.find_trashed_by_id(
+                    page.parent_id,
+                    command.owner_id,
+                )
+                if trashed_parent is not None:
+                    raise PageNotFoundError
+            await self._pages.delete(page)
 
 
 class PurgeExpiredPages:
-    def __init__(self, pages: PageRepository) -> None:
+    def __init__(self, pages: PageRepository, unit_of_work: UnitOfWork) -> None:
         self._pages = pages
+        self._unit_of_work = unit_of_work
 
     async def execute(self, *, now: datetime | None = None) -> int:
-        threshold = (now or datetime.now(UTC)) - timedelta(days=30)
-        return await self._pages.delete_expired(threshold)
+        async with self._unit_of_work:
+            threshold = (now or datetime.now(UTC)) - timedelta(days=30)
+            return await self._pages.delete_expired(threshold)
 
 
 class MovePage:
-    def __init__(self, pages: PageRepository) -> None:
+    def __init__(self, pages: PageRepository, unit_of_work: UnitOfWork) -> None:
         self._pages = pages
+        self._unit_of_work = unit_of_work
 
     async def execute(self, command: MovePageCommand) -> PageDetail:
+        async with self._unit_of_work:
+            return await self._execute(command)
+
+    async def _execute(self, command: MovePageCommand) -> PageDetail:
         page = await self._pages.find_by_id(command.page_id, command.owner_id)
         if page is None:
             raise PageNotFoundError

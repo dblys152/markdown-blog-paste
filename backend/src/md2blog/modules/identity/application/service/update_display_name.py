@@ -3,6 +3,7 @@ from md2blog.modules.identity.domain.commands import UpdateDisplayNameCommand
 from md2blog.modules.identity.domain.nickname_policy import NicknameUniquenessPolicy
 from md2blog.modules.identity.domain.repositories import UserRepository
 from md2blog.modules.identity.domain.user import User
+from md2blog.shared.application.unit_of_work import UnitOfWork
 
 
 class UpdateDisplayName:
@@ -11,12 +12,22 @@ class UpdateDisplayName:
         users: UserRepository,
         nickname_policy: NicknameUniquenessPolicy,
         clock: Clock,
+        unit_of_work: UnitOfWork,
     ) -> None:
         self._users = users
         self._nickname_policy = nickname_policy
         self._clock = clock
+        self._unit_of_work = unit_of_work
 
     async def execute(
+        self,
+        user: User,
+        command: UpdateDisplayNameCommand,
+    ) -> User:
+        async with self._unit_of_work:
+            return await self._execute(user, command)
+
+    async def _execute(
         self,
         user: User,
         command: UpdateDisplayNameCommand,

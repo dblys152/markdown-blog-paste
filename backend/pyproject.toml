@@ -31,6 +31,7 @@ md2blog-process-outbox = "md2blog.jobs.process_outbox:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
 asyncio_mode = "auto"
 
 [tool.ruff]

@@ -14,6 +14,7 @@ from md2blog.modules.identity.domain.auth_session import (
 from md2blog.modules.identity.domain.repositories import UserRepository
 from md2blog.modules.identity.domain.session_repositories import AuthSessionRepository
 from md2blog.modules.identity.domain.user import User
+from md2blog.shared.application.unit_of_work import UnitOfWork
 from md2blog.shared.domain.tsid import TSID
 
 
@@ -39,6 +40,7 @@ class RefreshSessionService:
         access_tokens: AccessTokenIssuer,
         clock: Clock,
         refresh_ttl: timedelta,
+        unit_of_work: UnitOfWork,
     ) -> None:
         self._sessions = sessions
         self._users = users
@@ -46,8 +48,13 @@ class RefreshSessionService:
         self._access_tokens = access_tokens
         self._clock = clock
         self._refresh_ttl = refresh_ttl
+        self._unit_of_work = unit_of_work
 
     async def create(self, user: User, metadata: SessionMetadata) -> TokenPairResult:
+        async with self._unit_of_work:
+            return await self._create(user, metadata)
+
+    async def _create(self, user: User, metadata: SessionMetadata) -> TokenPairResult:
         now = self._clock.now()
         user = user.record_login(now)
         await self._users.save(user)
@@ -66,6 +73,19 @@ class RefreshSessionService:
         return TokenPairResult(user, self._access_tokens.issue(user), token.raw)
 
     async def rotate(self, raw_token: str, metadata: SessionMetadata) -> TokenPairResult:
+        reuse_error: RefreshTokenReuseDetectedError | None = None
+        result: TokenPairResult | None = None
+        async with self._unit_of_work:
+            try:
+                result = await self._rotate(raw_token, metadata)
+            except RefreshTokenReuseDetectedError as error:
+                reuse_error = error
+        if reuse_error is not None:
+            raise reuse_error
+        assert result is not None
+        return result
+
+    async def _rotate(self, raw_token: str, metadata: SessionMetadata) -> TokenPairResult:
         now = self._clock.now()
         token_hash = self._refresh_tokens.hash(raw_token)
         previous = await self._sessions.find_by_token_hash_for_update(token_hash)

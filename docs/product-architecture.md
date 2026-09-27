@@ -215,6 +215,17 @@ backend/
 - DB 조회가 필요한 Command 조립은 `application/factory`가 담당합니다.
 - 조회 결과인 `PageListItem`, `PageDetail`은 `application/model`에 둡니다.
 
+쓰기 유스케이스는 Application Port인 `UnitOfWork`로 트랜잭션 경계를 명시합니다.
+Infrastructure의 `SqlAlchemyUnitOfWork`가 성공 시 commit, 예외 발생 시 rollback을
+수행하며 API, 내부 Scheduler와 Worker가 같은 정책을 사용합니다. DB Session 제공자는
+연결 생명주기만 관리하고 요청 종료 시 자동 commit하지 않습니다. 조회 유스케이스는
+`UnitOfWork` 없이 읽기 전용 Repository를 사용합니다.
+
+하나의 쓰기 유스케이스가 다른 쓰기 유스케이스를 호출할 때는 같은 `UnitOfWork`를
+공유하고 가장 바깥 경계에서 한 번만 commit합니다. 로그인 실패 횟수 기록이나 교체된
+Refresh Token 재사용 감지처럼 실패 응답 자체가 저장해야 할 상태 변경을 포함하는 경우에는
+해당 상태를 commit한 뒤 애플리케이션 오류를 반환합니다.
+
 아키텍처는 특정 배포 환경을 기준으로 역산하지 않습니다. Cloud Run, Cloud Logging,
 Cloud Scheduler, Gmail SMTP, Neon은 도메인과 애플리케이션에서 정의한 요구사항을
 구현하는 Infrastructure Adapter입니다. 배포 대상이나 외부 제품을 교체하더라도

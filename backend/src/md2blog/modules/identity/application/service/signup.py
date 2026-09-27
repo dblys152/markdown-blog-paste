@@ -8,6 +8,7 @@ from md2blog.modules.identity.domain.commands import SignUpCommand
 from md2blog.modules.identity.domain.nickname_policy import NicknameUniquenessPolicy
 from md2blog.modules.identity.domain.repositories import UserRepository
 from md2blog.modules.identity.domain.user import User
+from md2blog.shared.application.unit_of_work import UnitOfWork
 
 
 class EmailAlreadyExistsError(Exception):
@@ -28,14 +29,20 @@ class SignUp:
         email_verification: IssueEmailVerificationUseCase,
         nickname_policy: NicknameUniquenessPolicy,
         clock: Clock,
+        unit_of_work: UnitOfWork,
     ) -> None:
         self._users = users
         self._token_issuer = token_issuer
         self._email_verification = email_verification
         self._nickname_policy = nickname_policy
         self._clock = clock
+        self._unit_of_work = unit_of_work
 
     async def execute(self, command: SignUpCommand) -> SignUpResult:
+        async with self._unit_of_work:
+            return await self._execute(command)
+
+    async def _execute(self, command: SignUpCommand) -> SignUpResult:
         self._nickname_policy.ensure_available(
             is_already_used=await self._users.exists_by_display_name(command.display_name)
         )

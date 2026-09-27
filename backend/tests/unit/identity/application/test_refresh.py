@@ -14,6 +14,7 @@ from md2blog.modules.identity.domain.auth_session import (
 from md2blog.modules.identity.domain.user import User
 from md2blog.modules.identity.domain.value_objects import DisplayName, Email, PasswordHash
 from md2blog.shared.domain.tsid import TSID
+from tests.fakes.unit_of_work import InMemoryUnitOfWork
 
 
 class Sessions:
@@ -102,6 +103,7 @@ def make_user() -> User:
 async def test_refresh_rotates_token_and_rejects_reuse() -> None:
     now = datetime.now(UTC)
     sessions = Sessions()
+    unit_of_work = InMemoryUnitOfWork()
     service = RefreshSessionService(
         sessions,
         Users(make_user()),
@@ -109,6 +111,7 @@ async def test_refresh_rotates_token_and_rejects_reuse() -> None:
         AccessTokens(),
         FixedClock(now),
         timedelta(days=14),
+        unit_of_work,
     )
     created = await service.create(make_user(), SessionMetadata(None, None))
     assert created.user.last_login_at == now
@@ -118,11 +121,14 @@ async def test_refresh_rotates_token_and_rejects_reuse() -> None:
     assert rotated.refresh_token == "raw-2"
     assert sessions.current is not None
     assert sessions.current.user_agent == "agent"
+    unit_of_work.committed = False
     with pytest.raises(RefreshTokenReuseDetectedError):
         await service.rotate(created.refresh_token, SessionMetadata(None, None))
 
     assert sessions.current is not None
     assert sessions.current.revoked_at == now
+    assert unit_of_work.committed
+    assert not unit_of_work.rolled_back
 
 
 async def test_reusing_old_token_revokes_entire_replacement_chain() -> None:
@@ -135,6 +141,7 @@ async def test_reusing_old_token_revokes_entire_replacement_chain() -> None:
         AccessTokens(),
         FixedClock(now),
         timedelta(days=14),
+        InMemoryUnitOfWork(),
     )
     first = await service.create(make_user(), SessionMetadata(None, None))
     second = await service.rotate(first.refresh_token, SessionMetadata(None, None))
