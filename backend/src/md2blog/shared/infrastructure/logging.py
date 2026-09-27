@@ -20,6 +20,7 @@ _SAFE_EXTRA_FIELDS: Final = (
     "event_type",
     "retry_count",
     "max_retries",
+    "job_id",
 )
 
 

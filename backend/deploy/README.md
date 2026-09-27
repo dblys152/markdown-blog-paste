@@ -76,6 +76,9 @@ Outbox 재처리와 만료된 휴지통 정리는 FastAPI 프로세스의 내부
 내부 Scheduler 배포와 동작을 확인한 뒤 기존 Cloud Scheduler와 Cloud Run Job은 제거할
 수 있습니다.
 
+운영 오류, 지연과 내부 작업 실패의 관찰 신호 및 초기 알림 기준은
+[`monitoring.md`](./monitoring.md)를 따릅니다.
+
 ```bash
 gcloud scheduler jobs delete md2blog-purge-expired-pages-daily \
   --project md2blog-505805 \
