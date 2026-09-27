@@ -85,6 +85,15 @@ function collectTrashSubtreeIds(pages: TrashedWorkspacePage[], rootId: string): 
   return subtreeIds;
 }
 
+function PageDocumentIcon() {
+  return (
+    <svg className="workspace-page-document-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <path d="M5.5 2.5h5.8l3.2 3.2v11.8h-9z" />
+      <path d="M11.3 2.5v3.2h3.2M7.7 9h4.6M7.7 12h4.6M7.7 15h3.2" />
+    </svg>
+  );
+}
+
 export function WorkspaceGatePage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -110,6 +119,7 @@ export function WorkspaceGatePage() {
   const [trashLoadState, setTrashLoadState] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const pageContentCache = useRef(new Map<string, string>());
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
+  const [expandedPageIds, setExpandedPageIds] = useState<Set<string>>(() => new Set());
   const [draggedPageId, setDraggedPageId] = useState<string | null>(null);
   const [dropHint, setDropHint] = useState<{ pageId: string; placement: DropPlacement } | null>(null);
   const [openPageMenuId, setOpenPageMenuId] = useState<string | null>(null);
@@ -140,6 +150,9 @@ export function WorkspaceGatePage() {
   const selectedPage = pages.find((page) => page.id === selectedPageId) ?? null;
   const selectedTrashedPage = trashedPages.find((page) => page.id === selectedTrashedPageId) ?? null;
   const pageById = useMemo(() => new Map(pages.map((page) => [page.id, page])), [pages]);
+  const childPageIds = useMemo(() => new Set(
+    pages.flatMap((page) => page.parent_id === null ? [] : [page.parent_id]),
+  ), [pages]);
   const getPagePath = useCallback((page: WorkspacePageListItem) => {
     const path = [page.title];
     const visitedIds = new Set([page.id]);
@@ -166,6 +179,24 @@ export function WorkspaceGatePage() {
   }, []);
 
   useEffect(() => () => window.clearTimeout(toastTimer.current), []);
+
+  useEffect(() => {
+    if (!selectedPageId) return;
+    const ancestorIds: string[] = [];
+    const visitedIds = new Set([selectedPageId]);
+    let parentId = pageById.get(selectedPageId)?.parent_id ?? null;
+    while (parentId !== null && !visitedIds.has(parentId)) {
+      visitedIds.add(parentId);
+      ancestorIds.push(parentId);
+      parentId = pageById.get(parentId)?.parent_id ?? null;
+    }
+    if (ancestorIds.length === 0) return;
+    setExpandedPageIds((current) => {
+      const next = new Set(current);
+      ancestorIds.forEach((id) => next.add(id));
+      return next;
+    });
+  }, [pageById, selectedPageId]);
 
   useEffect(() => {
     if (openPageMenuId === null) return;
@@ -376,6 +407,9 @@ export function WorkspaceGatePage() {
       });
       pageContentCache.current.set(created.id, created.contents);
       setPages((current) => [...current, created]);
+      if (parentId !== null) {
+        setExpandedPageIds((current) => new Set(current).add(parentId));
+      }
       await selectPage(created);
     } catch {
       showToast("페이지를 만들지 못했습니다.");
@@ -591,6 +625,9 @@ export function WorkspaceGatePage() {
         parentId: moved.parent_id,
         sortOrder: moved.sort_order,
       }));
+      if (moved.parent_id !== null) {
+        setExpandedPageIds((current) => new Set(current).add(moved.parent_id as string));
+      }
     } catch {
       showToast("페이지를 이동하지 못했습니다.");
     }
@@ -600,8 +637,11 @@ export function WorkspaceGatePage() {
     return pages
       .filter((page) => page.parent_id === parentId)
       .sort((left, right) => left.sort_order - right.sort_order)
-      .map((page) => (
-        <div key={page.id} className="workspace-page-node">
+      .map((page) => {
+        const hasChildren = childPageIds.has(page.id);
+        const isExpanded = expandedPageIds.has(page.id);
+        return (
+          <div key={page.id} className="workspace-page-node">
           <div
             className={`workspace-page-item ${page.id === selectedPageId ? "is-active" : ""} ${draggedPageId === page.id ? "is-dragging" : ""} ${dropHint?.pageId === page.id ? `drop-${dropHint.placement}` : ""}`}
             style={{ paddingLeft: `${16 + Math.min(depth, 6) * 16}px` }}
@@ -629,6 +669,26 @@ export function WorkspaceGatePage() {
             }}
             onDrop={(event) => void handlePageDrop(event, page)}
           >
+            <button
+              type="button"
+              className={`workspace-page-disclosure ${isExpanded ? "is-expanded" : ""}`}
+              aria-label={`${page.title} 하위 페이지 ${isExpanded ? "접기" : "펼치기"}`}
+              aria-expanded={isExpanded}
+              onClick={(event) => {
+                event.stopPropagation();
+                setExpandedPageIds((current) => {
+                  const next = new Set(current);
+                  if (next.has(page.id)) next.delete(page.id);
+                  else next.add(page.id);
+                  return next;
+                });
+              }}
+            >
+              <PageDocumentIcon />
+              <svg className="workspace-page-chevron" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                <path d="m7 5 5 5-5 5" />
+              </svg>
+            </button>
             {renamingPageId === page.id ? (
               <input
                 className="workspace-page-rename-input"
@@ -648,7 +708,7 @@ export function WorkspaceGatePage() {
                 type="button"
                 className="workspace-page-select"
               >
-                <span aria-hidden="true">▤</span><span>{page.title}</span>
+                <span>{page.title}</span>
               </button>
             )}
             <div
@@ -691,9 +751,14 @@ export function WorkspaceGatePage() {
               )}
             </div>
           </div>
-          {renderPageTree(page.id, depth + 1)}
+          {isExpanded && (
+            hasChildren
+              ? renderPageTree(page.id, depth + 1)
+              : <p className="workspace-page-empty-child" style={{ paddingLeft: `${48 + Math.min(depth, 6) * 16}px` }}>하위 페이지 없음</p>
+          )}
         </div>
-      ));
+        );
+      });
   };
 
   const trashedPageIds = useMemo(() => new Set(trashedPages.map((page) => page.id)), [trashedPages]);
@@ -713,8 +778,9 @@ export function WorkspaceGatePage() {
               style={{ marginLeft: `${Math.min(depth, 6) * 14}px` }}
               onClick={() => void selectTrashedPage(page)}
             >
+              <span className="workspace-page-icon"><PageDocumentIcon /></span>
               <button type="button" className="workspace-page-select">
-                <span aria-hidden="true">▤</span><span>{page.title}</span>
+                <span>{page.title}</span>
               </button>
               {isRoot && (
                 <div

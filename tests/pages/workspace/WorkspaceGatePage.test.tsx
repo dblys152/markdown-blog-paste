@@ -172,6 +172,31 @@ describe("WorkspaceGatePage", () => {
     expect(getWorkspacePage).not.toHaveBeenCalledWith("10");
   });
 
+  it("페이지를 기본으로 접고 아이콘에서 하위 페이지를 펼치거나 다시 접는다", async () => {
+    useAuth.mockReturnValue({ status: "authenticated", user: { id: "1", email_verified: true } });
+    listWorkspacePages.mockResolvedValue([
+      { id: "10", owner_id: "1", title: "개발 노트", parent_id: null, sort_order: 0 },
+      { id: "20", owner_id: "1", title: "API 설계", parent_id: "10", sort_order: 0 },
+    ]);
+    const user = userEvent.setup();
+
+    renderPage();
+
+    const expandButton = await screen.findByRole("button", { name: "개발 노트 하위 페이지 펼치기" });
+    expect(screen.queryByRole("button", { name: "API 설계" })).toBeNull();
+
+    await user.click(expandButton);
+    expect(screen.getByRole("button", { name: "API 설계" })).not.toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "API 설계 하위 페이지 펼치기" }));
+    expect(screen.getByText("하위 페이지 없음")).not.toBeNull();
+    await user.click(screen.getByRole("button", { name: "API 설계 하위 페이지 접기" }));
+    expect(screen.queryByText("하위 페이지 없음")).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "개발 노트 하위 페이지 접기" }));
+    expect(screen.queryByRole("button", { name: "API 설계" })).toBeNull();
+  });
+
   it("페이지 탭에서 임시 페이지를 선택하면 Markdown 탭으로 이동한다", async () => {
     const user = userEvent.setup();
     renderPage();
@@ -477,6 +502,7 @@ describe("WorkspaceGatePage", () => {
     const user = userEvent.setup();
     renderPage();
 
+    await user.click(await screen.findByRole("button", { name: "개발 노트 하위 페이지 펼치기" }));
     await user.click(await screen.findByRole("button", { name: "API 설계 메뉴" }));
     await user.click(screen.getByRole("menuitem", { name: "휴지통" }));
     expect(screen.getByText("'API 설계' 페이지를 휴지통으로 이동할까요?")).not.toBeNull();

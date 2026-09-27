@@ -288,14 +288,24 @@ export const APP_LAYOUT_CSS = `
 .workspace-page-item:hover { background: #f2f4f8; }
 .workspace-page-item.is-active { background: #edf0ff; color: #2949df; font-weight: 750; }
 .workspace-page-item.is-active:hover { background: #e7ebff; }
-.workspace-page-node > .workspace-page-item { grid-template-columns: minmax(0,1fr) auto; gap: 4px; cursor: pointer; }
+.workspace-page-node > .workspace-page-item { grid-template-columns: 22px minmax(0,1fr) auto; gap: 4px; cursor: pointer; }
 .workspace-page-node > .workspace-page-item.is-dragging { opacity: .45; }
 .workspace-page-node > .workspace-page-item.drop-before { box-shadow: inset 0 2px #4263eb; }
 .workspace-page-node > .workspace-page-item.drop-after { box-shadow: inset 0 -2px #4263eb; }
 .workspace-page-node > .workspace-page-item.drop-inside { outline: 2px solid #8095ff; outline-offset: -2px; background: #edf0ff; }
-.workspace-page-select { position: relative; display: flex; min-width: 0; align-items: center; gap: 8px; overflow: visible; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.workspace-page-icon, .workspace-page-disclosure { display: grid; width: 22px; height: 28px; place-items: center; color: #7b8494; }
+.workspace-page-disclosure { position: relative; padding: 0; border: 0; border-radius: 5px; background: transparent; cursor: pointer; }
+.workspace-page-disclosure:hover, .workspace-page-disclosure:focus-visible { background: #dfe3ea; color: #4b5565; box-shadow: none; transform: none; }
+.workspace-page-document-icon, .workspace-page-chevron { position: absolute; width: 17px; height: 17px; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.6; }
+.workspace-page-chevron { opacity: 0; transition: transform .12s ease; }
+.workspace-page-disclosure:hover .workspace-page-document-icon, .workspace-page-disclosure:focus-visible .workspace-page-document-icon { opacity: 0; }
+.workspace-page-disclosure:hover .workspace-page-chevron, .workspace-page-disclosure:focus-visible .workspace-page-chevron { opacity: 1; }
+.workspace-page-disclosure.is-expanded .workspace-page-chevron { transform: rotate(90deg); }
+.workspace-page-item.is-active .workspace-page-icon, .workspace-page-item.is-active .workspace-page-disclosure { color: currentColor; }
+.workspace-page-empty-child { height: 30px; margin: 0 10px; color: #98a2b3; font-size: 12px; line-height: 30px; }
+.workspace-page-select { position: relative; display: flex; min-width: 0; align-items: center; overflow: visible; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .workspace-page-select:hover, .workspace-page-select:active { border-color: transparent; box-shadow: none; transform: none; }
-.workspace-page-select span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.workspace-page-select span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .workspace-page-actions { position: relative; display: flex; opacity: 0; }
 .workspace-page-item:hover .workspace-page-actions, .workspace-page-item:focus-within .workspace-page-actions { opacity: 1; }
 .workspace-page-actions.is-menu-open { opacity: 1; }
