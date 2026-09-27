@@ -1,7 +1,7 @@
 # Cloud Run 배포 설정
 
-`cloud-run.env`는 Cloud Run Service와 Outbox Job이 공유하는 비민감 운영 설정을
-관리합니다. 비밀번호와 암호화 키는 이 파일에 넣지 않고 Secret Manager에서 관리합니다.
+`cloud-run.env`는 Cloud Run Service의 비민감 운영 설정을 관리합니다. 비밀번호와
+암호화 키는 이 파일에 넣지 않고 Secret Manager에서 관리합니다.
 실제 파일에는 이메일 주소와 OAuth Client ID 같은 환경별 값이 있으므로 Git에서 제외하고,
 placeholder만 있는 example 파일을 커밋합니다.
 
@@ -22,7 +22,7 @@ md2blog-smtp-password
 md2blog-outbox-token-encryption-key
 ```
 
-API Service와 Job의 실행 서비스 계정에는 자신이 참조하는 Secret에 대한
+API Service 실행 서비스 계정에는 참조하는 Secret에 대한
 `roles/secretmanager.secretAccessor` 권한이 필요합니다.
 
 SMTP Secret이 없다면 최초 한 번 생성하고 Gmail 앱 비밀번호를 새 버전으로 추가합니다.
@@ -46,12 +46,7 @@ gcloud secrets add-iam-policy-binding md2blog-outbox-token-encryption-key \
   --project md2blog-505805
 
 gcloud secrets add-iam-policy-binding md2blog-smtp-password \
-  --member serviceAccount:110854299603-compute@developer.gserviceaccount.com \
-  --role roles/secretmanager.secretAccessor \
-  --project md2blog-505805
-
-gcloud secrets add-iam-policy-binding md2blog-outbox-token-encryption-key \
-  --member serviceAccount:110854299603-compute@developer.gserviceaccount.com \
+  --member serviceAccount:md2blog-api@md2blog-505805.iam.gserviceaccount.com \
   --role roles/secretmanager.secretAccessor \
   --project md2blog-505805
 ```
@@ -67,10 +62,26 @@ gcloud secrets add-iam-policy-binding md2blog-outbox-token-encryption-key \
 스크립트는 다음 순서로 동작합니다.
 
 1. 필요한 Secret의 존재 여부를 확인합니다.
-2. `md2blog-api`를 소스에서 배포합니다.
-3. 배포된 Service의 이미지 digest를 조회합니다.
-4. 같은 이미지로 `md2blog-purge-expired-pages` Job을 갱신합니다.
-5. 같은 이미지로 `md2blog-process-outbox` Job을 갱신합니다.
+2. DB, JWT, SMTP, Outbox 암호화 Secret을 Service에 연결합니다.
+3. `md2blog-api`를 소스에서 배포합니다.
 
-스케줄러는 Job과 생명주기가 다르므로 최초 한 번 별도로 생성하며, 이후 애플리케이션
-배포에서는 기존 Scheduler가 갱신된 Job을 계속 실행합니다.
+Outbox 재처리와 만료된 휴지통 정리는 FastAPI 프로세스의 내부 Scheduler가 수행합니다.
+인스턴스 시작 시 누락 작업을 즉시 확인하므로 비활성 기간에 정해진 실행 시각을 놓쳐도
+다음 활성화 시 처리합니다.
+
+내부 Scheduler 배포와 동작을 확인한 뒤 기존 Cloud Scheduler와 Cloud Run Job은 제거할
+수 있습니다.
+
+```bash
+gcloud scheduler jobs delete md2blog-purge-expired-pages-daily \
+  --project md2blog-505805 \
+  --location asia-southeast1
+
+gcloud run jobs delete md2blog-purge-expired-pages \
+  --project md2blog-505805 \
+  --region asia-southeast1
+
+gcloud run jobs delete md2blog-process-outbox \
+  --project md2blog-505805 \
+  --region asia-southeast1
+```

@@ -1,7 +1,11 @@
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from md2blog.jobs.scheduler import build_scheduler
 from md2blog.modules.identity.presentation.router import router as identity_router
 from md2blog.modules.workspace.presentation.router import router as workspace_router
 from md2blog.modules.workspace.presentation.trash_router import router as workspace_trash_router
@@ -10,9 +14,20 @@ from md2blog.settings import Settings, get_settings
 from md2blog.shared.presentation.exception_handlers import register_exception_handlers
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    scheduler = build_scheduler()
+    scheduler.start()
+    app.state.scheduler = scheduler
+    try:
+        yield
+    finally:
+        scheduler.shutdown(wait=False)
+
+
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
-    app = FastAPI(title=settings.app_name)
+    app = FastAPI(title=settings.app_name, lifespan=lifespan)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_allowed_origins,
