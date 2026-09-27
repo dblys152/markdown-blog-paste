@@ -68,6 +68,26 @@ describe("이메일 인증 화면", () => {
     expect(screen.getByRole("link", { name: "내 기록장 열기" })).not.toBeNull();
   });
 
+  it("세션 복원이 끝난 뒤 인증 토큰을 확인한다", async () => {
+    auth.state.status = "loading";
+    auth.confirmEmailVerification.mockResolvedValue({ ...auth.state.user, email_verified: true });
+    const view = renderPage("/verify-email?token=verification-token");
+
+    expect(auth.confirmEmailVerification).not.toHaveBeenCalled();
+
+    auth.state.status = "authenticated";
+    view.rerender(
+      <MemoryRouter initialEntries={["/verify-email?token=verification-token"]}>
+        <Routes>
+          <Route path="verify-email" element={<VerifyEmailPage />} />
+          <Route path="login" element={<main>로그인 화면</main>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(auth.confirmEmailVerification).toHaveBeenCalledWith("verification-token"));
+  });
+
   it("인증 대기 탭이 다시 활성화되면 사용자 정보를 갱신한다", async () => {
     renderPage();
 

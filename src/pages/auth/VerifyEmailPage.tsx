@@ -21,7 +21,9 @@ export function VerifyEmailPage() {
   const [isResending, setIsResending] = useState(false);
 
   useEffect(() => {
-    if (!token || confirmationStarted.current) return;
+    // 세션 복원이 끝난 뒤 인증을 확정해야 AuthProvider가 현재 사용자의
+    // email_verified 상태도 함께 갱신할 수 있다.
+    if (!token || status === "loading" || confirmationStarted.current) return;
     confirmationStarted.current = true;
     void confirmEmailVerification(token)
       .then(() => {
@@ -32,7 +34,7 @@ export function VerifyEmailPage() {
         setVerificationState("error");
         setMessage(error instanceof ApiError ? error.message : "이메일 인증 링크를 확인하지 못했습니다.");
       });
-  }, [confirmEmailVerification, token]);
+  }, [confirmEmailVerification, status, token]);
 
   useEffect(() => {
     if (token || status !== "authenticated" || user?.email_verified) return;
