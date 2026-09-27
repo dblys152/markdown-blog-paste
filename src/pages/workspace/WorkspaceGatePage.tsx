@@ -85,11 +85,23 @@ function collectTrashSubtreeIds(pages: TrashedWorkspacePage[], rootId: string): 
   return subtreeIds;
 }
 
+function compareTrashRoots(left: TrashedWorkspacePage, right: TrashedWorkspacePage): number {
+  const deletedAtDifference = Date.parse(right.deleted_at) - Date.parse(left.deleted_at);
+  if (deletedAtDifference !== 0) return deletedAtDifference;
+  if (left.sort_order !== right.sort_order) return left.sort_order - right.sort_order;
+  return left.id.localeCompare(right.id);
+}
+
+function comparePageOrder(left: TrashedWorkspacePage, right: TrashedWorkspacePage): number {
+  if (left.sort_order !== right.sort_order) return left.sort_order - right.sort_order;
+  return left.id.localeCompare(right.id);
+}
+
 function PageDocumentIcon() {
   return (
     <svg className="workspace-page-document-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-      <path d="M5.5 2.5h5.8l3.2 3.2v11.8h-9z" />
-      <path d="M11.3 2.5v3.2h3.2M7.7 9h4.6M7.7 12h4.6M7.7 15h3.2" />
+      <path d="M3.5 2.5h9l4 4v11h-13z" />
+      <path d="M12.5 2.5v4h4M6.5 9.5h7M6.5 12.5h7M6.5 15.5h5" />
     </svg>
   );
 }
@@ -120,6 +132,7 @@ export function WorkspaceGatePage() {
   const pageContentCache = useRef(new Map<string, string>());
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
   const [expandedPageIds, setExpandedPageIds] = useState<Set<string>>(() => new Set());
+  const [expandedTrashPageIds, setExpandedTrashPageIds] = useState<Set<string>>(() => new Set());
   const [draggedPageId, setDraggedPageId] = useState<string | null>(null);
   const [dropHint, setDropHint] = useState<{ pageId: string; placement: DropPlacement } | null>(null);
   const [openPageMenuId, setOpenPageMenuId] = useState<string | null>(null);
@@ -419,8 +432,8 @@ export function WorkspaceGatePage() {
   const removePage = useCallback(async (page: WorkspacePageListItem) => {
     const hasChildren = pages.some((candidate) => candidate.parent_id === page.id);
     const message = hasChildren
-      ? `'${page.title}' 페이지와 모든 하위 페이지를 휴지통으로 이동할까요?`
-      : `'${page.title}' 페이지를 휴지통으로 이동할까요?`;
+      ? `'${page.title}'\n페이지와 모든 하위 페이지를 휴지통으로 이동할까요?`
+      : `'${page.title}'\n페이지를 휴지통으로 이동할까요?`;
     const confirmed = await requestConfirmation({
       title: "휴지통으로 이동",
       message,
@@ -473,7 +486,7 @@ export function WorkspaceGatePage() {
       const loadedPageIds = new Set(loadedPages.map((page) => page.id));
       const firstPage = loadedPages
         .filter((page) => page.parent_id === null || !loadedPageIds.has(page.parent_id))
-        .sort((left, right) => left.sort_order - right.sort_order)[0];
+        .sort(compareTrashRoots)[0];
       if (firstPage) {
         setSelectedTrashedPageId(firstPage.id);
         setSaveState("loading");
@@ -511,8 +524,8 @@ export function WorkspaceGatePage() {
     setOpenTrashMenuId(null);
     const hasChildren = trashedPages.some((candidate) => candidate.parent_id === page.id);
     const message = hasChildren
-      ? `'${page.title}' 페이지와 모든 하위 페이지를 복원할까요?`
-      : `'${page.title}' 페이지를 복원할까요?`;
+      ? `'${page.title}'\n페이지와 모든 하위 페이지를 복원할까요?`
+      : `'${page.title}'\n페이지를 복원할까요?`;
     const confirmed = await requestConfirmation({
       title: "페이지 복원",
       message,
@@ -550,8 +563,8 @@ export function WorkspaceGatePage() {
     setOpenTrashMenuId(null);
     const hasChildren = trashedPages.some((candidate) => candidate.parent_id === page.id);
     const message = hasChildren
-      ? `'${page.title}' 페이지와 모든 하위 페이지를 영구 삭제할까요?\n이 작업은 되돌릴 수 없습니다.`
-      : `'${page.title}' 페이지를 영구 삭제할까요?\n이 작업은 되돌릴 수 없습니다.`;
+      ? `'${page.title}'\n페이지와 모든 하위 페이지를 영구 삭제할까요?\n이 작업은 되돌릴 수 없습니다.`
+      : `'${page.title}'\n페이지를 영구 삭제할까요?\n이 작업은 되돌릴 수 없습니다.`;
     const confirmed = await requestConfirmation({
       title: "페이지 영구 삭제",
       message,
@@ -762,15 +775,20 @@ export function WorkspaceGatePage() {
   };
 
   const trashedPageIds = useMemo(() => new Set(trashedPages.map((page) => page.id)), [trashedPages]);
+  const trashChildPageIds = useMemo(() => new Set(
+    trashedPages.flatMap((page) => page.parent_id === null ? [] : [page.parent_id]),
+  ), [trashedPages]);
   const renderTrashTree = (parentId: string | null, depth = 0): ReactNode => {
     return trashedPages
       .filter((page) => {
         if (parentId !== null) return page.parent_id === parentId;
         return page.parent_id === null || !trashedPageIds.has(page.parent_id);
       })
-      .sort((left, right) => left.sort_order - right.sort_order)
+      .sort(parentId === null ? compareTrashRoots : comparePageOrder)
       .map((page) => {
         const isRoot = page.parent_id === null || !trashedPageIds.has(page.parent_id);
+        const hasChildren = trashChildPageIds.has(page.id);
+        const isExpanded = expandedTrashPageIds.has(page.id);
         return (
           <div className="workspace-page-node" key={page.id}>
             <div
@@ -778,7 +796,26 @@ export function WorkspaceGatePage() {
               style={{ marginLeft: `${Math.min(depth, 6) * 14}px` }}
               onClick={() => void selectTrashedPage(page)}
             >
-              <span className="workspace-page-icon"><PageDocumentIcon /></span>
+              <button
+                type="button"
+                className={`workspace-page-disclosure ${isExpanded ? "is-expanded" : ""}`}
+                aria-label={`${page.title} 하위 페이지 ${isExpanded ? "접기" : "펼치기"}`}
+                aria-expanded={isExpanded}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setExpandedTrashPageIds((current) => {
+                    const next = new Set(current);
+                    if (next.has(page.id)) next.delete(page.id);
+                    else next.add(page.id);
+                    return next;
+                  });
+                }}
+              >
+                <PageDocumentIcon />
+                <svg className="workspace-page-chevron" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                  <path d="m7 5 5 5-5 5" />
+                </svg>
+              </button>
               <button type="button" className="workspace-page-select">
                 <span>{page.title}</span>
               </button>
@@ -819,7 +856,11 @@ export function WorkspaceGatePage() {
                 </div>
               )}
             </div>
-            {renderTrashTree(page.id, depth + 1)}
+            {isExpanded && (
+              hasChildren
+                ? renderTrashTree(page.id, depth + 1)
+                : <p className="workspace-page-empty-child" style={{ paddingLeft: `${48 + Math.min(depth, 6) * 16}px` }}>하위 페이지 없음</p>
+            )}
           </div>
         );
       });
@@ -1030,7 +1071,7 @@ export function WorkspaceGatePage() {
                 key={page.id}
                 onClick={() => void selectPage(page)}
               >
-                <span aria-hidden="true">▤</span>
+                <span className="workspace-page-icon"><PageDocumentIcon /></span>
                 <span><strong>{page.title}</strong><small>{getPagePath(page)}</small></span>
               </button>
             ))}
@@ -1053,7 +1094,7 @@ export function WorkspaceGatePage() {
           </div>
         ) : (
           <button className="workspace-page-item is-active" type="button" onClick={() => setMobilePane("editor")}>
-            <span aria-hidden="true">▤</span>
+            <span className="workspace-page-icon"><PageDocumentIcon /></span>
             <span>{title}</span>
           </button>
         )}

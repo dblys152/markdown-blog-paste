@@ -201,6 +201,7 @@ describe("WorkspaceGatePage", () => {
     const user = userEvent.setup();
     renderPage();
 
+    expect(screen.getByRole("button", { name: "임시 페이지" }).querySelector(".workspace-page-document-icon")).not.toBeNull();
     expect(screen.getByRole("tab", { name: "페이지" }).getAttribute("aria-selected")).toBe("true");
     await user.click(screen.getByRole("button", { name: "임시 페이지" }));
 
@@ -514,6 +515,31 @@ describe("WorkspaceGatePage", () => {
     await user.click(screen.getByRole("button", { name: "취소" }));
   });
 
+  it("휴지통 최상위 묶음은 최근 삭제 순이고 하위 페이지는 기존 순서를 유지한다", async () => {
+    useAuth.mockReturnValue({ status: "authenticated", user: { id: "1", email_verified: true } });
+    listWorkspacePages.mockResolvedValue([]);
+    listTrashedWorkspacePages.mockResolvedValue([
+      { id: "10", parent_id: null, title: "이전에 삭제", sort_order: 0, deleted_at: "2026-08-01T00:00:00Z", expires_at: "2026-08-31T00:00:00Z" },
+      { id: "30", parent_id: null, title: "최근 삭제", sort_order: 5, deleted_at: "2026-09-01T00:00:00Z", expires_at: "2026-10-01T00:00:00Z" },
+      { id: "31", parent_id: "30", title: "두 번째 하위", sort_order: 1, deleted_at: "2026-09-01T00:00:00Z", expires_at: "2026-10-01T00:00:00Z" },
+      { id: "32", parent_id: "30", title: "첫 번째 하위", sort_order: 0, deleted_at: "2026-09-01T00:00:00Z", expires_at: "2026-10-01T00:00:00Z" },
+    ]);
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "휴지통" }));
+    await waitFor(() => expect(getTrashedWorkspacePage).toHaveBeenCalledWith("30"));
+
+    const recentPage = screen.getByRole("button", { name: "최근 삭제" });
+    const olderPage = screen.getByRole("button", { name: "이전에 삭제" });
+    expect(recentPage.compareDocumentPosition(olderPage) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+
+    await user.click(screen.getByRole("button", { name: "최근 삭제 하위 페이지 펼치기" }));
+    const firstChild = screen.getByRole("button", { name: "첫 번째 하위" });
+    const secondChild = screen.getByRole("button", { name: "두 번째 하위" });
+    expect(firstChild.compareDocumentPosition(secondChild) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+  });
+
   it("휴지통에서 삭제한 페이지를 조회하고 복원한다", async () => {
     useAuth.mockReturnValue({ status: "authenticated", user: { id: "1", email_verified: true } });
     listWorkspacePages.mockResolvedValue([]);
@@ -546,6 +572,13 @@ describe("WorkspaceGatePage", () => {
         .toBe("# 삭제한 페이지");
     });
     expect((screen.getByRole("textbox", { name: "Markdown 내용" }) as HTMLTextAreaElement).readOnly).toBe(true);
+
+    expect(screen.queryByRole("button", { name: "삭제한 하위 페이지" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "삭제한 페이지 하위 페이지 펼치기" }));
+    expect(screen.getByRole("button", { name: "삭제한 하위 페이지" })).not.toBeNull();
+    await user.click(screen.getByRole("button", { name: "삭제한 하위 페이지 하위 페이지 펼치기" }));
+    expect(screen.getByText("하위 페이지 없음")).not.toBeNull();
+    await user.click(screen.getByRole("button", { name: "삭제한 하위 페이지 하위 페이지 접기" }));
 
     await user.click(screen.getByRole("button", { name: "삭제한 페이지 메뉴" }));
     await user.click(screen.getByRole("menuitem", { name: "영구 삭제" }));

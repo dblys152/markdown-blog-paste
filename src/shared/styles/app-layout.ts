@@ -99,7 +99,7 @@ export const APP_LAYOUT_CSS = `
 @keyframes app-auth-spin { to { transform: rotate(360deg); } }
 
 .confirm-dialog-backdrop { position: fixed; z-index: 140; inset: 0; display: grid; padding: 20px; place-items: center; background: rgba(15, 23, 42, .48); }
-.confirm-dialog { display: grid; width: min(100%, 360px); padding: 22px; grid-template-columns: 32px minmax(0, 1fr); column-gap: 12px; row-gap: 16px; border-radius: 11px; background: #fff; box-shadow: 0 24px 70px rgba(15, 23, 42, .25); }
+.confirm-dialog { display: grid; width: min(100%, 420px); padding: 22px; grid-template-columns: 32px minmax(0, 1fr); column-gap: 12px; row-gap: 16px; border-radius: 11px; background: #fff; box-shadow: 0 24px 70px rgba(15, 23, 42, .25); }
 .confirm-dialog-icon { display: grid; width: 32px; height: 32px; place-items: center; border-radius: 50%; background: #eef2ff; color: #3f5bea; font-size: 14px; font-weight: 900; }
 .confirm-dialog.is-danger .confirm-dialog-icon { background: #fee2e2; color: #dc2626; }
 .confirm-dialog-content h2 { margin: 1px 0 0; color: #111827; font-size: 16px; letter-spacing: -.02em; }
