@@ -4,6 +4,7 @@ from md2blog.modules.identity.application.models.google_auth import (
     GoogleLoginStatus,
 )
 from md2blog.modules.identity.application.port.outbound.google_identity import (
+    GoogleCredentialFailureReason,
     GoogleIdentityClaims,
     GoogleIdentityVerifier,
     InvalidGoogleCredentialError,
@@ -36,7 +37,7 @@ async def verified_claims(
 ) -> GoogleIdentityClaims:
     claims = await verifier.verify(credential)
     if not claims.email_verified:
-        raise InvalidGoogleCredentialError
+        raise InvalidGoogleCredentialError(GoogleCredentialFailureReason.EMAIL_NOT_VERIFIED)
     return claims
 
 

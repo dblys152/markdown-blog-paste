@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Mapping
 
 from fastapi import FastAPI, HTTPException, Request, status
@@ -43,6 +44,27 @@ from md2blog.modules.workspace.domain.page import (
 )
 from md2blog.shared.presentation.errors import ErrorCode, ErrorResponse, FieldError
 
+logger = logging.getLogger(__name__)
+
+
+def log_security_event(
+    request: Request,
+    *,
+    event: str,
+    level: int,
+    error: Exception,
+) -> None:
+    logger.log(
+        level,
+        "security request rejected",
+        extra={
+            "event": event,
+            "request_method": request.method,
+            "request_path": request.url.path,
+            "error_type": type(error).__name__,
+        },
+    )
+
 
 def error_response(
     status_code: int,
@@ -60,7 +82,13 @@ def error_response(
     )
 
 
-async def handle_invalid_credentials(_: Request, __: Exception) -> JSONResponse:
+async def handle_invalid_credentials(request: Request, error: Exception) -> JSONResponse:
+    log_security_event(
+        request,
+        event="security.authentication.failed",
+        level=logging.WARNING,
+        error=error,
+    )
     return error_response(
         status.HTTP_401_UNAUTHORIZED,
         ErrorCode.AUTH_INVALID_CREDENTIALS,
@@ -68,7 +96,13 @@ async def handle_invalid_credentials(_: Request, __: Exception) -> JSONResponse:
     )
 
 
-async def handle_authentication_required(_: Request, __: Exception) -> JSONResponse:
+async def handle_authentication_required(request: Request, error: Exception) -> JSONResponse:
+    log_security_event(
+        request,
+        event="security.authentication.required",
+        level=logging.INFO,
+        error=error,
+    )
     return error_response(
         status.HTTP_401_UNAUTHORIZED,
         ErrorCode.AUTH_REQUIRED,
@@ -77,7 +111,13 @@ async def handle_authentication_required(_: Request, __: Exception) -> JSONRespo
     )
 
 
-async def handle_invalid_refresh_token(_: Request, __: Exception) -> JSONResponse:
+async def handle_invalid_refresh_token(request: Request, error: Exception) -> JSONResponse:
+    log_security_event(
+        request,
+        event="security.refresh_token.invalid",
+        level=logging.WARNING,
+        error=error,
+    )
     return error_response(
         status.HTTP_401_UNAUTHORIZED,
         ErrorCode.AUTH_INVALID_REFRESH_TOKEN,
@@ -110,9 +150,15 @@ async def handle_invalid_email_verification(_: Request, __: Exception) -> JSONRe
 
 
 async def handle_email_verification_rate_limit(
-    _: Request,
+    request: Request,
     error: Exception,
 ) -> JSONResponse:
+    log_security_event(
+        request,
+        event="security.email_verification.rate_limited",
+        level=logging.WARNING,
+        error=error,
+    )
     retry_after = (
         str(error.retry_after_seconds)
         if isinstance(error, EmailVerificationCooldownError)
@@ -126,7 +172,18 @@ async def handle_email_verification_rate_limit(
     )
 
 
-async def handle_email_delivery_error(_: Request, __: Exception) -> JSONResponse:
+async def handle_email_delivery_error(request: Request, error: Exception) -> JSONResponse:
+    provider_code = error.provider_code if isinstance(error, EmailDeliveryError) else None
+    logger.error(
+        "email delivery failed",
+        extra={
+            "event": "email.delivery.failed",
+            "request_method": request.method,
+            "request_path": request.url.path,
+            "error_type": type(error).__name__,
+            "provider_code": provider_code,
+        },
+    )
     return error_response(
         status.HTTP_503_SERVICE_UNAVAILABLE,
         ErrorCode.SERVICE_UNAVAILABLE,
@@ -134,7 +191,13 @@ async def handle_email_delivery_error(_: Request, __: Exception) -> JSONResponse
     )
 
 
-async def handle_email_verification_required(_: Request, __: Exception) -> JSONResponse:
+async def handle_email_verification_required(request: Request, error: Exception) -> JSONResponse:
+    log_security_event(
+        request,
+        event="security.email_verification.required",
+        level=logging.INFO,
+        error=error,
+    )
     return error_response(
         status.HTTP_403_FORBIDDEN,
         ErrorCode.AUTH_EMAIL_NOT_VERIFIED,
@@ -143,9 +206,15 @@ async def handle_email_verification_required(_: Request, __: Exception) -> JSONR
 
 
 async def handle_account_deletion_password_mismatch(
-    _: Request,
-    __: Exception,
+    request: Request,
+    error: Exception,
 ) -> JSONResponse:
+    log_security_event(
+        request,
+        event="security.account_deletion.reauthentication_failed",
+        level=logging.WARNING,
+        error=error,
+    )
     return error_response(
         status.HTTP_400_BAD_REQUEST,
         ErrorCode.AUTH_ACCOUNT_PASSWORD_MISMATCH,
@@ -153,7 +222,13 @@ async def handle_account_deletion_password_mismatch(
     )
 
 
-async def handle_invalid_password_reset(_: Request, __: Exception) -> JSONResponse:
+async def handle_invalid_password_reset(request: Request, error: Exception) -> JSONResponse:
+    log_security_event(
+        request,
+        event="security.password_reset.invalid",
+        level=logging.WARNING,
+        error=error,
+    )
     return error_response(
         status.HTTP_400_BAD_REQUEST,
         ErrorCode.AUTH_PASSWORD_RESET_INVALID,
@@ -161,7 +236,19 @@ async def handle_invalid_password_reset(_: Request, __: Exception) -> JSONRespon
     )
 
 
-async def handle_invalid_google_credential(_: Request, __: Exception) -> JSONResponse:
+async def handle_invalid_google_credential(request: Request, error: Exception) -> JSONResponse:
+    logger.warning(
+        "security request rejected",
+        extra={
+            "event": "security.google_credential.invalid",
+            "request_method": request.method,
+            "request_path": request.url.path,
+            "error_type": type(error).__name__,
+            "reason": error.reason.value
+            if isinstance(error, InvalidGoogleCredentialError)
+            else "invalid_token",
+        },
+    )
     return error_response(
         status.HTTP_401_UNAUTHORIZED,
         ErrorCode.AUTH_GOOGLE_INVALID,

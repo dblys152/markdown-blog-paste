@@ -11,7 +11,9 @@ from md2blog.modules.workspace.presentation.router import router as workspace_ro
 from md2blog.modules.workspace.presentation.trash_router import router as workspace_trash_router
 from md2blog.presentation.health import router as health_router
 from md2blog.settings import Settings, get_settings
+from md2blog.shared.infrastructure.logging import configure_logging
 from md2blog.shared.presentation.exception_handlers import register_exception_handlers
+from md2blog.shared.presentation.request_logging import RequestLoggingMiddleware
 
 
 @asynccontextmanager
@@ -27,7 +29,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
+    configure_logging(settings.log_level)
     app = FastAPI(title=settings.app_name, lifespan=lifespan)
+    app.add_middleware(RequestLoggingMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_allowed_origins,
@@ -47,4 +51,4 @@ app = create_app()
 
 
 def run() -> None:
-    uvicorn.run("md2blog.main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("md2blog.main:app", host="0.0.0.0", port=8000, reload=True, log_config=None)

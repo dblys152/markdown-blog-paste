@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import and_, or_, select
@@ -7,6 +8,7 @@ from md2blog.modules.identity.application.outbox_handlers import (
     EmailVerificationMessageHandler,
     PasswordResetMessageHandler,
 )
+from md2blog.modules.identity.application.port.outbound.email import EmailDeliveryError
 from md2blog.modules.identity.infrastructure.email import GmailSmtpEmailSender
 from md2blog.settings import get_settings
 from md2blog.shared.application.event_records import OutboxMessageStatus
@@ -20,6 +22,13 @@ from md2blog.shared.infrastructure.sensitive_value_cipher import (
 MAX_RETRIES = 5
 LOCK_TIMEOUT = timedelta(minutes=10)
 BATCH_SIZE = 20
+logger = logging.getLogger(__name__)
+
+
+def safe_error_detail(error: Exception) -> tuple[str, int | None]:
+    if isinstance(error, EmailDeliveryError):
+        return str(error), error.provider_code
+    return type(error).__name__, None
 
 
 async def claim_messages(now: datetime) -> list[OutboxMessageModel]:
@@ -108,7 +117,21 @@ async def mark_failed(message_id: int, error: Exception, now: datetime) -> None:
             )
             message.available_at = now + timedelta(minutes=2 ** (message.retry_count - 1))
             message.locked_at = None
-            message.last_error = str(error)[:2000]
+            error_detail, provider_code = safe_error_detail(error)
+            message.last_error = error_detail[:2000]
+            log = logger.error if message.retry_count >= MAX_RETRIES else logger.warning
+            log(
+                "outbox message failed",
+                extra={
+                    "event": "outbox.message.failed",
+                    "message_id": str(message.id),
+                    "event_type": message.event_type,
+                    "error_type": type(error).__name__,
+                    "provider_code": provider_code,
+                    "retry_count": message.retry_count,
+                    "max_retries": MAX_RETRIES,
+                },
+            )
 
 
 async def run() -> None:

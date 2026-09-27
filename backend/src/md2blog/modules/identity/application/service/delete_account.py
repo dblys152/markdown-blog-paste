@@ -1,4 +1,5 @@
 from md2blog.modules.identity.application.port.outbound.google_identity import (
+    GoogleCredentialFailureReason,
     GoogleIdentityVerifier,
     InvalidGoogleCredentialError,
 )
@@ -60,7 +61,7 @@ class DeleteAccount:
 
     async def _confirm_google_account(self, user: User, credential: str | None) -> None:
         if credential is None or self._google_verifier is None:
-            raise InvalidGoogleCredentialError
+            raise InvalidGoogleCredentialError(GoogleCredentialFailureReason.CREDENTIAL_MISSING)
         claims = await self._google_verifier.verify(credential)
         identity = await self._identities.find_by_user_and_provider(
             user.id,
@@ -71,5 +72,5 @@ class DeleteAccount:
             or identity is None
             or identity.provider_subject != claims.subject
         ):
-            raise InvalidGoogleCredentialError
+            raise InvalidGoogleCredentialError(GoogleCredentialFailureReason.IDENTITY_MISMATCH)
         user.confirm_account_deletion(password_matches=True)

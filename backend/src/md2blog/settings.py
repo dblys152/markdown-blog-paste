@@ -24,6 +24,7 @@ class Settings(BaseSettings):
 
     app_name: str = "MD2Blog API"
     environment: str = "local"
+    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
     database_url: str = "postgresql://md2blog:md2blog@localhost:5432/md2blog"
     migration_database_url: str = "postgresql://md2blog:md2blog@localhost:5432/md2blog"
     jwt_secret_key: SecretStr = SecretStr("local-development-secret-change-me")

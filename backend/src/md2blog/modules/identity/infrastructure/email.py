@@ -14,6 +14,24 @@ from md2blog.modules.identity.application.port.outbound.email import (
 SMTP_TIMEOUT_SECONDS = 10.0
 
 
+def to_delivery_error(error: OSError | smtplib.SMTPException) -> EmailDeliveryError:
+    if isinstance(error, smtplib.SMTPAuthenticationError):
+        return EmailDeliveryError("authentication_failed", error.smtp_code)
+    if isinstance(error, smtplib.SMTPRecipientsRefused):
+        return EmailDeliveryError("recipient_rejected")
+    if isinstance(error, smtplib.SMTPSenderRefused):
+        return EmailDeliveryError("sender_rejected", error.smtp_code)
+    if isinstance(error, smtplib.SMTPDataError):
+        return EmailDeliveryError("message_rejected", error.smtp_code)
+    if isinstance(error, (TimeoutError, smtplib.SMTPServerDisconnected)):
+        return EmailDeliveryError("connection_unavailable")
+    if isinstance(error, OSError):
+        return EmailDeliveryError("connection_failed")
+    if isinstance(error, smtplib.SMTPResponseException):
+        return EmailDeliveryError("smtp_error", error.smtp_code)
+    return EmailDeliveryError("smtp_error")
+
+
 class SmtpClient(Protocol):
     def __enter__(self) -> Self: ...
 
@@ -76,4 +94,4 @@ class GmailSmtpEmailSender:
                 client.login(self._username, self._password)
                 client.send_message(message)
         except (OSError, smtplib.SMTPException) as error:
-            raise EmailDeliveryError from error
+            raise to_delivery_error(error) from None
