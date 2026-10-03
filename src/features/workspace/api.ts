@@ -1,4 +1,4 @@
-import { authenticatedRequest } from "../auth/api";
+import { authenticatedBlobRequest, authenticatedRequest } from "../auth/api";
 
 export type WorkspacePageListItem = {
   id: string;
@@ -6,10 +6,15 @@ export type WorkspacePageListItem = {
   title: string;
   parent_id: string | null;
   sort_order: number;
+  type?: PageType;
 };
 
+export type PageType = "MARKDOWN" | "HTML" | "PDF";
+
 export type WorkspacePage = WorkspacePageListItem & {
-  contents: string;
+  contents: string | null;
+  file_name?: string | null;
+  file_size?: number | null;
 };
 
 export type TrashedWorkspacePage = {
@@ -19,12 +24,14 @@ export type TrashedWorkspacePage = {
   sort_order: number;
   deleted_at: string;
   expires_at: string;
+  type?: PageType;
 };
 
 export type CreateWorkspacePageInput = {
   title: string;
   content?: string;
   parent_id?: string | null;
+  type?: Exclude<PageType, "PDF">;
 };
 
 export type UpdateWorkspacePageInput = {
@@ -47,6 +54,29 @@ export function listWorkspacePages(): Promise<WorkspacePageListItem[]> {
       });
   }
   return listPagesPromise;
+}
+
+export function createPdfWorkspacePage(input: {
+  title: string;
+  file: File;
+  parent_id?: string | null;
+}): Promise<WorkspacePage> {
+  const body = new FormData();
+  body.set("title", input.title);
+  body.set("file", input.file);
+  if (input.parent_id) body.set("parent_id", input.parent_id);
+  return authenticatedRequest<WorkspacePage>("/workspace/pages/pdf", {
+    method: "POST",
+    body,
+  });
+}
+
+export function getWorkspacePdfUrl(pageId: string): Promise<{ url: string; expires_in: string }> {
+  return authenticatedRequest<{ url: string; expires_in: string }>(`/workspace/pages/${pageId}/pdf`);
+}
+
+export function getWorkspacePdfBlob(path: string): Promise<Blob> {
+  return authenticatedBlobRequest(path);
 }
 
 export function searchWorkspacePages(query: string): Promise<WorkspacePageListItem[]> {

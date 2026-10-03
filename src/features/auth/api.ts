@@ -1,4 +1,5 @@
-import { apiRequest } from "../../shared/api/http";
+import { ApiError, apiRequest } from "../../shared/api/http";
+import { API_BASE_URL } from "../../shared/config/env";
 
 export type AuthUser = {
   id: string;
@@ -194,6 +195,25 @@ export async function authenticatedRequest<T>(path: string, init: RequestInit = 
     if (!session) {
       throw error;
     }
+    return request();
+  }
+}
+
+export async function authenticatedBlobRequest(path: string): Promise<Blob> {
+  const request = async (): Promise<Blob> => {
+    const headers = new Headers();
+    if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
+    const response = await fetch(`${API_BASE_URL}${path}`, { headers, credentials: "include" });
+    if (!response.ok) throw new ApiError(response.status, {});
+    return response.blob();
+  };
+
+  try {
+    return await request();
+  } catch (error) {
+    if (!(error instanceof ApiError) || error.status !== 401) throw error;
+    const session = await restoreSession();
+    if (!session) throw error;
     return request();
   }
 }

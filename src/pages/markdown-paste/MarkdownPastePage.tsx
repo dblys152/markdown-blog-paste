@@ -213,7 +213,7 @@ export function MarkdownPastePage() {
       setSaveMode("replace");
       if (isAuthenticated) {
         const pages = await listWorkspacePages();
-        setWorkspacePages(pages);
+        setWorkspacePages(pages.filter((page) => (page.type ?? "MARKDOWN") === "MARKDOWN"));
         setWorkspaceSaveTarget("new");
       } else {
         setExistingGuestDraft(await loadGuestDraft());
@@ -240,7 +240,7 @@ export function MarkdownPastePage() {
           const targetPage = workspacePages.find((page) => page.id === workspaceSaveTarget);
           if (!targetPage) throw new Error("저장 대상을 찾을 수 없습니다.");
           const existingMarkdown = saveMode === "append"
-            ? (await getWorkspacePage(targetPage.id)).contents.trimEnd()
+            ? ((await getWorkspacePage(targetPage.id)).contents ?? "").trimEnd()
             : "";
           const nextMarkdown = saveMode === "append" && existingMarkdown
             ? `${existingMarkdown}\n\n${markdownText}`

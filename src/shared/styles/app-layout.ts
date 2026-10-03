@@ -449,6 +449,25 @@ export const APP_LAYOUT_CSS = `
 .save-dialog-actions button.is-primary { border-color: #3f5bea; background: #3f5bea; color: #fff; }
 .save-dialog-actions button:disabled { cursor: not-allowed; opacity: .55; }
 
+.page-create-dialog { display: grid; width: min(100%, 560px); gap: 20px; padding: 26px; border-radius: 12px; background: #fff; box-shadow: 0 24px 70px rgba(15,23,42,.25); }
+.page-type-cards { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; margin: 0; padding: 0; border: 0; }
+.page-type-cards legend { grid-column: 1 / -1; margin-bottom: 8px; color: #374151; font-size: 13px; font-weight: 800; }
+.page-type-cards label { display: grid; min-height: 86px; align-content: center; gap: 5px; padding: 14px; border: 1px solid #dfe3eb; border-radius: 9px; color: #344054; cursor: pointer; }
+.page-type-cards label.is-selected { border-color: #526fe8; background: #f4f6ff; color: #2949df; box-shadow: 0 0 0 2px rgba(82,111,232,.1); }
+.page-type-cards input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.page-type-cards strong { font-size: 13px; }
+.page-type-cards small { color: #667085; font-size: 11px; font-weight: 600; }
+.page-create-field { display: grid; gap: 7px; color: #374151; font-size: 13px; font-weight: 800; }
+.page-create-field input { min-height: 42px; padding: 8px 11px; border: 1px solid #d8dde6; border-radius: 7px; background: #fff; color: #1f2937; font: inherit; font-weight: 500; }
+.page-create-field input:focus { border-color: #637df2; outline: 2px solid #e5e9ff; }
+.page-create-field small { color: #667085; font-size: 11px; font-weight: 600; }
+.workspace-page-select { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 6px; }
+.workspace-page-type-badge { flex: none; padding: 2px 4px; border-radius: 4px; background: #e9edf5; color: #667085; font-size: 9px; font-weight: 800; }
+.workspace-page-item.is-active .workspace-page-type-badge { background: rgba(63,91,234,.12); color: currentColor; }
+.workspace-external-resource-note { margin: 0; padding: 7px 14px; border-bottom: 1px solid #eef0f4; background: #fffaf0; color: #9a6700; font-size: 11px; line-height: 1.45; }
+.workspace-pdf-viewer { grid-column: 2 / -1; }
+.workspace-pdf-viewer iframe { width: 100%; height: 100%; border: 0; }
+
 @media (max-width: 1180px) {
   .workspace-shell { --workspace-sidebar-width: 200px; grid-template-columns: var(--workspace-sidebar-width) minmax(300px, var(--workspace-editor-size)) 14px minmax(390px, 1fr); }
 }
@@ -520,5 +539,8 @@ export const APP_LAYOUT_CSS = `
   .account-deletion-dialog, .account-management-dialog { padding: 22px; }
   .route-page { padding: 20px; }
   .auth-card, .not-found-card { padding: 26px 22px; }
+  .page-create-dialog { padding: 22px; }
+  .page-type-cards { grid-template-columns: 1fr; }
+  .page-type-cards label { min-height: 64px; }
 }
 `;

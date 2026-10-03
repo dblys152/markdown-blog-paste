@@ -3,8 +3,11 @@ import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../features/auth/AuthProvider";
 import {
   createWorkspacePage,
+  createPdfWorkspacePage,
   deleteWorkspacePage,
   getWorkspacePage,
+  getWorkspacePdfBlob,
+  getWorkspacePdfUrl,
   getTrashedWorkspacePage,
   listTrashedWorkspacePages,
   listWorkspacePages,
@@ -15,6 +18,7 @@ import {
   updateWorkspacePage,
   type TrashedWorkspacePage,
   type WorkspacePageListItem,
+  type PageType,
 } from "../../features/workspace/api";
 import {
   applyPageMove,
@@ -142,6 +146,13 @@ export function WorkspaceGatePage() {
   const [renamingPageId, setRenamingPageId] = useState<string | null>(null);
   const [renameTitle, setRenameTitle] = useState("");
   const [markdown, setMarkdown] = useState(SAMPLE_MARKDOWN);
+  const [pdfUrl, setPdfUrl] = useState("");
+  const [createDialog, setCreateDialog] = useState<{ parentId: string | null } | null>(null);
+  const [newPageType, setNewPageType] = useState<PageType>("MARKDOWN");
+  const [newPageTitle, setNewPageTitle] = useState("");
+  const [newPageFile, setNewPageFile] = useState<File | null>(null);
+  const [newPageTitleEdited, setNewPageTitleEdited] = useState(false);
+  const [isCreatingPage, setIsCreatingPage] = useState(false);
   const [result, setResult] = useState<ConversionResult | null>(null);
   const [isConverting, setIsConverting] = useState(true);
   const [toast, setToast] = useState("");
@@ -184,6 +195,9 @@ export function WorkspaceGatePage() {
       ? (selectedTrashedPage?.title ?? "삭제된 페이지를 선택하세요")
       : (selectedPage?.title ?? "페이지를 선택하세요")
     : "임시 페이지";
+  const selectedPageType: PageType = sidebarView === "trash"
+    ? (selectedTrashedPage?.type ?? "MARKDOWN")
+    : (selectedPage?.type ?? "MARKDOWN");
 
   const showToast = useCallback((message: string) => {
     window.clearTimeout(toastTimer.current);
@@ -302,8 +316,8 @@ export function WorkspaceGatePage() {
           getWorkspacePage(initialPage.id)
             .then((detail) => {
               if (cancelled) return;
-              pageContentCache.current.set(detail.id, detail.contents);
-              setMarkdown(detail.contents);
+              pageContentCache.current.set(detail.id, detail.contents ?? "");
+              setMarkdown(detail.contents ?? "");
               skipNextServerSave.current = true;
               serverHydrated.current = true;
               setSaveState("saved");
@@ -347,6 +361,32 @@ export function WorkspaceGatePage() {
   }, [markdown, title]);
 
   useEffect(() => {
+    if (!isAuthenticated || sidebarView !== "pages" || !selectedPageId || selectedPageType !== "PDF") {
+      setPdfUrl("");
+      return;
+    }
+    let cancelled = false;
+    let objectUrl = "";
+    getWorkspacePdfUrl(selectedPageId)
+      .then(async ({ url }) => {
+        if (!url.startsWith("/")) return url;
+        const blob = await getWorkspacePdfBlob(url);
+        objectUrl = URL.createObjectURL(blob);
+        return objectUrl;
+      })
+      .then((url) => {
+        if (!cancelled) setPdfUrl(url);
+      })
+      .catch(() => {
+        if (!cancelled) showToast("PDF를 불러오지 못했습니다.");
+      });
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [isAuthenticated, selectedPageId, selectedPageType, showToast, sidebarView]);
+
+  useEffect(() => {
     if (authStatus !== "guest" || !hydrated.current) return;
     setSaveState("saving");
     const timer = window.setTimeout(() => {
@@ -369,16 +409,19 @@ export function WorkspaceGatePage() {
     }
     setSaveState("saving");
     const timer = window.setTimeout(() => {
-      updateWorkspacePage(selectedPageId, { title, content: markdown })
+      updateWorkspacePage(
+        selectedPageId,
+        selectedPageType === "PDF" ? { title } : { title, content: markdown },
+      )
         .then((updatedPage) => {
-          pageContentCache.current.set(updatedPage.id, updatedPage.contents);
+          pageContentCache.current.set(updatedPage.id, updatedPage.contents ?? "");
           setPages((current) => current.map((page) => page.id === updatedPage.id ? updatedPage : page));
           setSaveState("saved");
         })
         .catch(() => setSaveState("error"));
     }, 600);
     return () => window.clearTimeout(timer);
-  }, [isAuthenticated, markdown, selectedPageId, sidebarView, title]);
+  }, [isAuthenticated, markdown, selectedPageId, selectedPageType, sidebarView, title]);
 
   const selectPage = useCallback(async (page: WorkspacePageListItem) => {
     setOpenPageMenuId(null);
@@ -400,8 +443,8 @@ export function WorkspaceGatePage() {
     try {
       const detail = await getWorkspacePage(page.id);
       if (pageRequestId.current !== requestId) return;
-      pageContentCache.current.set(detail.id, detail.contents);
-      setMarkdown(detail.contents);
+      pageContentCache.current.set(detail.id, detail.contents ?? "");
+      setMarkdown(detail.contents ?? "");
       serverHydrated.current = true;
       setSaveState("saved");
     } catch {
@@ -412,22 +455,64 @@ export function WorkspaceGatePage() {
   }, [showToast]);
 
   const addPage = useCallback(async (parentId: string | null = null) => {
-    try {
-      const created = await createWorkspacePage({
-        title: "새 페이지",
-        content: "# 새 페이지\n",
-        parent_id: parentId,
-      });
-      pageContentCache.current.set(created.id, created.contents);
-      setPages((current) => [...current, created]);
-      if (parentId !== null) {
-        setExpandedPageIds((current) => new Set(current).add(parentId));
+    setCreateDialog({ parentId });
+    setNewPageType("MARKDOWN");
+    setNewPageTitle("");
+    setNewPageFile(null);
+    setNewPageTitleEdited(false);
+  }, []);
+
+  const submitNewPage = useCallback(async () => {
+    if (!createDialog || !newPageTitle.trim()) return;
+    if (newPageType === "PDF" && !newPageFile) return;
+    if (newPageFile) {
+      const extension = newPageFile.name.split(".").pop()?.toLowerCase();
+      const validExtension = newPageType === "MARKDOWN"
+        ? extension === "md"
+        : newPageType === "HTML"
+          ? extension === "html" || extension === "htm"
+          : extension === "pdf";
+      const maxBytes = newPageType === "PDF" ? 20 * 1024 * 1024 : 5 * 1024 * 1024;
+      if (!validExtension) {
+        showToast("선택한 페이지 타입에 맞는 파일을 선택해 주세요.");
+        return;
       }
+      if (newPageFile.size > maxBytes) {
+        showToast(`${newPageType === "PDF" ? "PDF" : "텍스트"} 파일 크기 제한을 초과했습니다.`);
+        return;
+      }
+    }
+    setIsCreatingPage(true);
+    try {
+      let created;
+      if (newPageType === "PDF") {
+        created = await createPdfWorkspacePage({
+          title: newPageTitle.trim(),
+          file: newPageFile as File,
+          parent_id: createDialog.parentId,
+        });
+      } else {
+        const content = newPageFile ? await newPageFile.text() : "";
+        created = await createWorkspacePage({
+          title: newPageTitle.trim(),
+          content,
+          parent_id: createDialog.parentId,
+          type: newPageType,
+        });
+      }
+      pageContentCache.current.set(created.id, created.contents ?? "");
+      setPages((current) => [...current, created]);
+      if (createDialog.parentId !== null) {
+        setExpandedPageIds((current) => new Set(current).add(createDialog.parentId as string));
+      }
+      setCreateDialog(null);
       await selectPage(created);
     } catch {
       showToast("페이지를 만들지 못했습니다.");
+    } finally {
+      setIsCreatingPage(false);
     }
-  }, [selectPage, showToast]);
+  }, [createDialog, newPageFile, newPageTitle, newPageType, selectPage, showToast]);
 
   const removePage = useCallback(async (page: WorkspacePageListItem) => {
     const hasChildren = pages.some((candidate) => candidate.parent_id === page.id);
@@ -492,7 +577,7 @@ export function WorkspaceGatePage() {
         setSaveState("loading");
         serverHydrated.current = false;
         const detail = await getTrashedWorkspacePage(firstPage.id);
-        setMarkdown(detail.contents);
+        setMarkdown(detail.contents ?? "");
         setSaveState("saved");
       } else {
         setMarkdown("");
@@ -512,7 +597,7 @@ export function WorkspaceGatePage() {
     serverHydrated.current = false;
     try {
       const detail = await getTrashedWorkspacePage(page.id);
-      setMarkdown(detail.contents);
+      setMarkdown(detail.contents ?? "");
       setSaveState("saved");
     } catch {
       setSaveState("error");
@@ -719,9 +804,10 @@ export function WorkspaceGatePage() {
             ) : (
               <button
                 type="button"
-                className="workspace-page-select"
+              className="workspace-page-select"
               >
                 <span>{page.title}</span>
+                <small className="workspace-page-type-badge" aria-hidden="true">{page.type === "HTML" ? "HTML" : page.type === "PDF" ? "PDF" : "MD"}</small>
               </button>
             )}
             <div
@@ -977,7 +1063,9 @@ export function WorkspaceGatePage() {
     <main ref={workspaceRef} className={`workspace-shell mobile-pane-${mobilePane} ${isResizing ? "is-resizing" : ""}`} style={workspaceStyle}>
       <div className="workspace-mobile-tabs" role="tablist" aria-label="기록장 화면">
         <button type="button" role="tab" aria-selected={mobilePane === "pages"} onClick={() => setMobilePane("pages")}>페이지</button>
-        <button type="button" role="tab" aria-selected={mobilePane === "editor"} onClick={() => setMobilePane("editor")}>Markdown</button>
+        <button type="button" role="tab" aria-selected={mobilePane === "editor"} onClick={() => setMobilePane("editor")}>
+          {selectedPageType === "HTML" ? "HTML" : selectedPageType === "PDF" ? "PDF" : "Markdown"}
+        </button>
         <button type="button" role="tab" aria-selected={mobilePane === "preview"} onClick={() => setMobilePane("preview")}>미리보기</button>
       </div>
       <aside className="workspace-sidebar" aria-label="기록장 페이지">
@@ -1120,9 +1208,18 @@ export function WorkspaceGatePage() {
         </div>}
       </aside>
 
-      <section className="workspace-editor" aria-label="Markdown 편집기">
+      {selectedPageType === "PDF" ? (
+        <section className="workspace-preview workspace-pdf-viewer" aria-label="PDF Viewer">
+          <div className="workspace-preview-heading">
+            <strong>PDF Viewer</strong>
+            <span className="workspace-external-resource-note">원본 PDF · 최대 20MB</span>
+          </div>
+          {pdfUrl ? <iframe title={`${title} PDF`} src={pdfUrl} /> : <div className="workspace-empty-state">PDF를 불러오는 중입니다.</div>}
+        </section>
+      ) : <>
+      <section className="workspace-editor" aria-label={`${selectedPageType === "HTML" ? "HTML" : "Markdown"} 편집기`}>
         <div className="workspace-editor-heading">
-          <div><span aria-hidden="true">✎</span><strong>Markdown</strong></div>
+          <div><span aria-hidden="true">✎</span><strong>{selectedPageType === "HTML" ? "HTML" : "Markdown"}</strong></div>
           <div className="workspace-document-state">
             {isAuthenticated && sidebarView === "pages" && selectedPage ? (
               <input
@@ -1149,7 +1246,7 @@ export function WorkspaceGatePage() {
             {Array.from({ length: Math.max(lineCount, 32) }, (_, index) => <span key={index}>{index + 1}</span>)}
           </div>
           <textarea
-            aria-label="Markdown 내용"
+            aria-label={`${selectedPageType === "HTML" ? "HTML" : "Markdown"} 내용`}
             spellCheck={false}
             value={markdown}
             onChange={(event) => setMarkdown(event.target.value)}
@@ -1158,7 +1255,7 @@ export function WorkspaceGatePage() {
           />
         </div>
         <footer className="workspace-statusbar">
-          <span>줄 1, 열 1</span><span>Markdown</span><span>{markdown.length.toLocaleString("ko-KR")}자</span>
+          <span>줄 1, 열 1</span><span>{selectedPageType === "HTML" ? "HTML" : "Markdown"}</span><span>{markdown.length.toLocaleString("ko-KR")}자</span>
         </footer>
       </section>
 
@@ -1183,11 +1280,64 @@ export function WorkspaceGatePage() {
       <section className="workspace-preview" aria-labelledby="workspace-preview-title">
         <div className="workspace-preview-heading">
           <strong id="workspace-preview-title">미리보기</strong>
-          <DocumentActions result={isConverting ? null : result} markdown={markdown} title={title} onMessage={showToast} />
+          {selectedPageType === "MARKDOWN" && <DocumentActions result={isConverting ? null : result} markdown={markdown} title={title} onMessage={showToast} />}
         </div>
-        <iframe title={`${title} 미리보기`} srcDoc={result?.fullHtml ?? ""} />
+        {selectedPageType === "HTML" && <p className="workspace-external-resource-note">외부 이미지를 불러오면 이미지 서버에 현재 사용자의 IP가 전달될 수 있습니다.</p>}
+        <iframe
+          title={`${title} 미리보기`}
+          sandbox=""
+          referrerPolicy="no-referrer"
+          srcDoc={selectedPageType === "HTML" ? `<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data: blob:; style-src 'unsafe-inline'; font-src data:"></head><body>${markdown}</body></html>` : (result?.fullHtml ?? "")}
+        />
         <footer className="workspace-statusbar is-preview"><span>{markdown.length.toLocaleString("ko-KR")}자</span><span>미리보기</span></footer>
       </section>
+      </>}
+      {createDialog && (
+        <div className="confirm-dialog-backdrop" role="presentation" onMouseDown={(event) => {
+          if (event.target === event.currentTarget) setCreateDialog(null);
+        }}>
+          <form className="page-create-dialog" role="dialog" aria-modal="true" aria-labelledby="page-create-title" onSubmit={(event) => {
+            event.preventDefault();
+            void submitNewPage();
+          }}>
+            <div className="account-dialog-heading">
+              <div><span>내 기록장</span><h2 id="page-create-title">새 페이지</h2></div>
+              <button type="button" aria-label="닫기" onClick={() => setCreateDialog(null)}>×</button>
+            </div>
+            <fieldset className="page-type-cards">
+              <legend>페이지 타입</legend>
+              {(["MARKDOWN", "HTML", "PDF"] as PageType[]).map((type) => (
+                <label key={type} className={newPageType === type ? "is-selected" : ""}>
+                  <input type="radio" name="page-type" value={type} checked={newPageType === type} onChange={() => {
+                    setNewPageType(type);
+                    setNewPageFile(null);
+                  }} />
+                  <strong>{type === "MARKDOWN" ? "Markdown" : type}</strong>
+                  <small>{type === "PDF" ? "보관 및 열람" : "작성 및 미리보기"}</small>
+                </label>
+              ))}
+            </fieldset>
+            <label className="page-create-field">제목
+              <input value={newPageTitle} maxLength={200} autoFocus onChange={(event) => {
+                setNewPageTitle(event.target.value);
+                setNewPageTitleEdited(true);
+              }} />
+            </label>
+            <label className="page-create-field">{newPageType === "PDF" ? "PDF 파일 *" : "파일 가져오기 (선택)"}
+              <input type="file" accept={newPageType === "MARKDOWN" ? ".md,text/markdown,text/plain" : newPageType === "HTML" ? ".html,.htm,text/html" : ".pdf,application/pdf"} onChange={(event) => {
+                const file = event.target.files?.[0] ?? null;
+                setNewPageFile(file);
+                if (file && !newPageTitleEdited) setNewPageTitle(file.name.replace(/\.[^.]+$/, ""));
+              }} />
+              <small>{newPageType === "PDF" ? "최대 20MB" : "최대 5MB"}</small>
+            </label>
+            <div className="save-dialog-actions">
+              <button type="button" onClick={() => setCreateDialog(null)}>취소</button>
+              <button type="submit" className="is-primary" disabled={isCreatingPage || !newPageTitle.trim() || (newPageType === "PDF" && !newPageFile)}>추가</button>
+            </div>
+          </form>
+        </div>
+      )}
       {toast && <div className="toast">{toast}</div>}
       {confirmationDialog}
     </main>

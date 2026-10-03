@@ -12,6 +12,9 @@ const {
   getWorkspacePage,
   getTrashedWorkspacePage,
   createWorkspacePage,
+  createPdfWorkspacePage,
+  getWorkspacePdfBlob,
+  getWorkspacePdfUrl,
   updateWorkspacePage,
   deleteWorkspacePage,
   moveWorkspacePage,
@@ -28,6 +31,9 @@ const {
   getWorkspacePage: vi.fn(),
   getTrashedWorkspacePage: vi.fn(),
   createWorkspacePage: vi.fn(),
+  createPdfWorkspacePage: vi.fn(),
+  getWorkspacePdfBlob: vi.fn(),
+  getWorkspacePdfUrl: vi.fn(),
   updateWorkspacePage: vi.fn(),
   deleteWorkspacePage: vi.fn(),
   moveWorkspacePage: vi.fn(),
@@ -45,6 +51,9 @@ vi.mock("../../../src/features/workspace/api", () => ({
   getWorkspacePage,
   getTrashedWorkspacePage,
   createWorkspacePage,
+  createPdfWorkspacePage,
+  getWorkspacePdfBlob,
+  getWorkspacePdfUrl,
   updateWorkspacePage,
   deleteWorkspacePage,
   moveWorkspacePage,
@@ -110,6 +119,18 @@ describe("WorkspaceGatePage", () => {
       parent_id: null,
       sort_order: 0,
     });
+    createPdfWorkspacePage.mockResolvedValue({
+      id: "30",
+      title: "문서",
+      type: "PDF",
+      contents: null,
+      file_name: "document.pdf",
+      file_size: 8,
+      parent_id: null,
+      sort_order: 0,
+    });
+    getWorkspacePdfBlob.mockResolvedValue(new Blob(["%PDF-1.7"], { type: "application/pdf" }));
+    getWorkspacePdfUrl.mockResolvedValue({ url: "https://example.test/document.pdf", expires_in: "900" });
     updateWorkspacePage.mockImplementation(async (id, input) => ({
       id,
       title: input.title ?? "페이지",
@@ -334,14 +355,68 @@ describe("WorkspaceGatePage", () => {
 
     await user.click(screen.getByRole("button", { name: "새 페이지 추가" }));
 
+    expect(screen.getByRole("dialog", { name: "새 페이지" })).not.toBeNull();
+    await user.type(screen.getByRole("textbox", { name: "제목" }), "새 페이지");
+    await user.click(screen.getByRole("button", { name: "추가" }));
+
     await waitFor(() => {
       expect(createWorkspacePage).toHaveBeenCalledWith({
         title: "새 페이지",
-        content: "# 새 페이지\n",
+        content: "",
         parent_id: null,
+        type: "MARKDOWN",
       });
     });
     expect(await screen.findByRole("button", { name: "새 페이지" })).not.toBeNull();
+  });
+
+  it("HTML 파일을 가져와 HTML 페이지를 만든다", async () => {
+    useAuth.mockReturnValue({ status: "authenticated", user: { id: "1", email_verified: true } });
+    createWorkspacePage.mockResolvedValue({
+      id: "20",
+      title: "intro",
+      type: "HTML",
+      contents: "<h1>소개</h1>",
+      parent_id: null,
+      sort_order: 0,
+    });
+    const user = userEvent.setup();
+    renderPage();
+    await waitFor(() => expect(listWorkspacePages).toHaveBeenCalled());
+
+    await user.click(screen.getByRole("button", { name: "새 페이지 추가" }));
+    await user.click(screen.getByRole("radio", { name: /HTML/ }));
+    const file = new File(["<h1>소개</h1>"], "intro.html", { type: "text/html" });
+    Object.defineProperty(file, "text", { value: vi.fn().mockResolvedValue("<h1>소개</h1>") });
+    await user.upload(screen.getByLabelText(/^파일 가져오기 \(선택\)/), file);
+    expect((screen.getByRole("textbox", { name: "제목" }) as HTMLInputElement).value).toBe("intro");
+    await user.click(screen.getByRole("button", { name: "추가" }));
+
+    await waitFor(() => expect(createWorkspacePage).toHaveBeenCalledWith({
+      title: "intro",
+      content: "<h1>소개</h1>",
+      parent_id: null,
+      type: "HTML",
+    }));
+  });
+
+  it("PDF 파일을 multipart 생성 API로 전달한다", async () => {
+    useAuth.mockReturnValue({ status: "authenticated", user: { id: "1", email_verified: true } });
+    const user = userEvent.setup();
+    renderPage();
+    await waitFor(() => expect(listWorkspacePages).toHaveBeenCalled());
+
+    await user.click(screen.getByRole("button", { name: "새 페이지 추가" }));
+    await user.click(screen.getByRole("radio", { name: /PDF/ }));
+    const file = new File(["%PDF-1.7"], "document.pdf", { type: "application/pdf" });
+    await user.upload(screen.getByLabelText(/^PDF 파일 \*/), file);
+    await user.click(screen.getByRole("button", { name: "추가" }));
+
+    await waitFor(() => expect(createPdfWorkspacePage).toHaveBeenCalledWith({
+      title: "document",
+      file,
+      parent_id: null,
+    }));
   });
 
   it("페이지 가운데에 드롭하면 하위 페이지로 이동한다", async () => {
