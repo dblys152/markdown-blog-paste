@@ -1,10 +1,14 @@
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from hashlib import sha256
+from uuid import uuid4
 
 from md2blog.modules.workspace.application.model.pages import (
     PageDetail,
     PageListItem,
     TrashedPageListItem,
 )
+from md2blog.modules.workspace.application.port.outbound.object_storage import ObjectStorage
 from md2blog.modules.workspace.application.port.outbound.pages import PageQueryRepository
 from md2blog.modules.workspace.domain.commands import (
     CreatePageCommand,
@@ -20,6 +24,7 @@ from md2blog.modules.workspace.domain.page import (
     PageNotFoundError,
     ParentPageNotFoundError,
 )
+from md2blog.modules.workspace.domain.page_types import PageType
 from md2blog.modules.workspace.domain.repositories import PageRepository
 from md2blog.shared.application.unit_of_work import UnitOfWork
 from md2blog.shared.domain.tsid import TSID
@@ -35,6 +40,103 @@ class CreatePage:
             page = Page.create(command)
             await self._pages.add(page)
             return PageDetail.from_domain(page)
+
+
+class PdfFileTooLargeError(Exception):
+    pass
+
+
+class PdfStorageQuotaExceededError(Exception):
+    pass
+
+
+class InvalidPdfFileError(Exception):
+    pass
+
+
+class CreatePdfPage:
+    MAX_FILE_BYTES = 20 * 1024 * 1024
+    MAX_OWNER_BYTES = 200 * 1024 * 1024
+
+    def __init__(
+        self,
+        pages: PageRepository,
+        unit_of_work: UnitOfWork,
+        storage: ObjectStorage,
+    ) -> None:
+        self._pages = pages
+        self._unit_of_work = unit_of_work
+        self._storage = storage
+
+    async def execute(
+        self,
+        *,
+        owner_id: TSID,
+        title: str,
+        parent_id: TSID | None,
+        filename: str,
+        data: bytes,
+    ) -> PageDetail:
+        if not data.startswith(b"%PDF-"):
+            raise InvalidPdfFileError
+        if len(data) > self.MAX_FILE_BYTES:
+            raise PdfFileTooLargeError
+
+        storage_key = f"users/{owner_id}/pdf/{uuid4().hex}.pdf"
+        await self._storage.put(storage_key, data, "application/pdf")
+        try:
+            async with self._unit_of_work:
+                used_bytes = await self._pages.total_file_bytes(owner_id)
+                if used_bytes + len(data) > self.MAX_OWNER_BYTES:
+                    raise PdfStorageQuotaExceededError
+                sort_order = await self._pages.next_sort_order(owner_id, parent_id)
+                if sort_order is None:
+                    raise ParentPageNotFoundError
+                page = Page.create(
+                    CreatePageCommand(
+                        owner_id=owner_id,
+                        title=title,
+                        content="",
+                        parent_id=parent_id,
+                        sort_order=sort_order,
+                        page_type=PageType.PDF,
+                    )
+                )
+                await self._pages.add(page)
+                await self._pages.add_file(
+                    page_id=page.id,
+                    storage_key=storage_key,
+                    original_filename=filename,
+                    media_type="application/pdf",
+                    byte_size=len(data),
+                    checksum_sha256=sha256(data).hexdigest(),
+                )
+            return replace(
+                PageDetail.from_domain(page),
+                file_name=filename,
+                file_size=len(data),
+            )
+        except Exception:
+            await self._storage.delete(storage_key)
+            raise
+
+
+class GetPdfFile:
+    def __init__(self, pages: PageRepository, storage: ObjectStorage) -> None:
+        self._pages = pages
+        self._storage = storage
+
+    async def create_url(self, *, page_id: TSID, owner_id: TSID) -> str:
+        key = await self._pages.find_file_key(page_id, owner_id)
+        if key is None:
+            raise PageNotFoundError
+        return await self._storage.create_download_url(key, expires_seconds=900)
+
+    async def read(self, *, page_id: TSID, owner_id: TSID) -> bytes:
+        key = await self._pages.find_file_key(page_id, owner_id)
+        if key is None:
+            raise PageNotFoundError
+        return await self._storage.get(key)
 
 
 class ListPages:

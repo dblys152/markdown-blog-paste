@@ -1,5 +1,6 @@
 from md2blog.modules.workspace.domain.commands import CreatePageCommand
 from md2blog.modules.workspace.domain.page import ParentPageNotFoundError
+from md2blog.modules.workspace.domain.page_types import PageType
 from md2blog.modules.workspace.domain.repositories import PageRepository
 from md2blog.shared.domain.tsid import TSID
 
@@ -15,6 +16,7 @@ class CreatePageCommandFactory:
         title: str,
         content: str,
         parent_id: TSID | None,
+        page_type: PageType = PageType.MARKDOWN,
     ) -> CreatePageCommand:
         sort_order = await self._pages.next_sort_order(owner_id, parent_id)
         if sort_order is None:
@@ -26,4 +28,5 @@ class CreatePageCommandFactory:
             content=content,
             parent_id=parent_id,
             sort_order=sort_order,
+            page_type=page_type,
         )

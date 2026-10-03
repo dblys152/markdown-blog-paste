@@ -35,6 +35,7 @@ from md2blog.modules.workspace.domain.page import (
     ParentPageNotFoundError,
 )
 from md2blog.modules.workspace.domain.page import Page as DomainPage
+from md2blog.modules.workspace.domain.page_types import PageType
 from md2blog.shared.domain.tsid import TSID
 
 
@@ -63,6 +64,7 @@ class Page(DomainPage):
         created_at: datetime | None = None,
         updated_at: datetime | None = None,
         deleted_at: datetime | None = None,
+        page_type: PageType = PageType.MARKDOWN,
     ) -> None:
         super().__init__(
             id=id,
@@ -78,6 +80,7 @@ class Page(DomainPage):
             created_at=created_at or datetime(2026, 1, 1, tzinfo=UTC),
             updated_at=updated_at or datetime(2026, 1, 1, tzinfo=UTC),
             deleted_at=deleted_at,
+            page_type=page_type,
         )
 
 
@@ -164,6 +167,7 @@ class InMemoryPages:
                 parent_id=page.parent_id,
                 title=page.title,
                 sort_order=page.sort_order,
+                page_type=page.page_type,
             )
             for page in self.pages
             if page.owner_id == owner_id
@@ -179,6 +183,7 @@ class InMemoryPages:
                 parent_id=page.parent_id,
                 title=page.title,
                 sort_order=page.sort_order,
+                page_type=page.page_type,
             )
             for page in self.pages
             if page.owner_id == owner_id
@@ -205,6 +210,7 @@ class InMemoryPages:
                 sort_order=page.sort_order,
                 deleted_at=page.deleted_at,
                 expires_at=page.deleted_at + timedelta(days=30),
+                page_type=page.page_type,
             )
             for page in self.pages
             if page.owner_id == owner_id and page.deleted_at is not None

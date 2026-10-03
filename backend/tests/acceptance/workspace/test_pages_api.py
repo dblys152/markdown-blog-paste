@@ -20,6 +20,7 @@ from md2blog.modules.workspace.domain.commands import (
     RestorePageCommand,
     UpdatePageCommand,
 )
+from md2blog.modules.workspace.domain.page_types import PageType
 from md2blog.modules.workspace.presentation.dependencies import (
     get_create_page,
     get_create_page_command_factory,
@@ -113,9 +114,16 @@ async def test_create_page_uses_authenticated_user() -> None:
         "contents": "# 개발 노트",
         "parent_id": None,
         "sort_order": 0,
+        "type": "MARKDOWN",
+        "file_name": None,
+        "file_size": None,
     }
     command_factory.create.assert_awaited_once_with(
-        owner_id=TSID(1), title="개발 노트", content="# 개발 노트", parent_id=None
+        owner_id=TSID(1),
+        title="개발 노트",
+        content="# 개발 노트",
+        parent_id=None,
+        page_type=PageType.MARKDOWN,
     )
     use_case.execute.assert_awaited_once_with(command)
 
@@ -321,6 +329,7 @@ async def test_search_pages_uses_authenticated_user_and_query() -> None:
             "parent_id": "3",
             "title": "API 설계",
             "sort_order": 0,
+            "type": "MARKDOWN",
         }
     ]
     use_case.execute.assert_awaited_once_with(owner_id=TSID(1), query="API")

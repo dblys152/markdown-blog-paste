@@ -41,6 +41,12 @@ class Settings(BaseSettings):
     email_from: str | None = None
     frontend_url: str = "http://localhost:5173"
     google_client_id: str | None = None
+    object_storage_backend: Literal["filesystem", "r2"] = "filesystem"
+    object_storage_local_root: str = ".data/page-files"
+    r2_endpoint_url: str | None = None
+    r2_access_key_id: str | None = None
+    r2_secret_access_key: SecretStr | None = None
+    r2_bucket: str | None = None
 
     @property
     def async_database_url(self) -> URL:

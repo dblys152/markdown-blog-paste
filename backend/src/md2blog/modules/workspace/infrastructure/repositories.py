@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 
-from sqlalchemy import case, delete, func, insert, literal, or_, select, update
+from sqlalchemy import case, delete, func, insert, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -10,7 +10,12 @@ from md2blog.modules.workspace.application.model.pages import (
     TrashedPageListItem,
 )
 from md2blog.modules.workspace.domain.page import Page, PageContent
-from md2blog.modules.workspace.infrastructure.models import PageContentModel, PageModel
+from md2blog.modules.workspace.domain.page_types import PageType
+from md2blog.modules.workspace.infrastructure.models import (
+    PageContentModel,
+    PageFileModel,
+    PageModel,
+)
 from md2blog.shared.domain.tsid import TSID
 
 
@@ -19,26 +24,26 @@ class SqlAlchemyPageRepository:
         self._session = session
 
     async def add(self, page: Page) -> None:
-        inserted_page = (
-            insert(PageModel)
-            .values(
+        await self._session.execute(
+            insert(PageModel).values(
                 id=page.id.value,
                 owner_id=page.owner_id.value,
                 parent_id=page.parent_id.value if page.parent_id else None,
                 title=page.title,
+                page_type=page.page_type.value,
                 sort_order=page.sort_order,
                 created_at=page.created_at,
                 updated_at=page.updated_at,
                 deleted_at=page.deleted_at,
             )
-            .returning(PageModel.id)
-            .cte("inserted_page")
         )
-        statement = insert(PageContentModel).from_select(
-            [PageContentModel.page_id, PageContentModel.content],
-            select(inserted_page.c.id, literal(page.content.content)),
-        )
-        await self._session.execute(statement)
+        if page.content is not None:
+            await self._session.execute(
+                insert(PageContentModel).values(
+                    page_id=page.id.value,
+                    content=page.content.content,
+                )
+            )
 
     async def update(self, page: Page) -> None:
         statement = (
@@ -49,6 +54,7 @@ class SqlAlchemyPageRepository:
             )
             .values(
                 title=page.title,
+                page_type=page.page_type.value,
                 parent_id=page.parent_id.value if page.parent_id else None,
                 sort_order=page.sort_order,
                 updated_at=page.updated_at,
@@ -56,12 +62,13 @@ class SqlAlchemyPageRepository:
             )
         )
         await self._session.execute(statement)
-        content_statement = (
-            update(PageContentModel)
-            .where(PageContentModel.page_id == page.content.page_id.value)
-            .values(content=page.content.content)
-        )
-        await self._session.execute(content_statement)
+        if page.content is not None:
+            content_statement = (
+                update(PageContentModel)
+                .where(PageContentModel.page_id == page.content.page_id.value)
+                .values(content=page.content.content)
+            )
+            await self._session.execute(content_statement)
         await self._session.flush()
 
     async def update_all(self, pages: list[Page]) -> None:
@@ -97,7 +104,7 @@ class SqlAlchemyPageRepository:
             filters.append(PageModel.id != exclude_id.value)
         statement = (
             select(PageModel, PageContentModel.content)
-            .join(PageContentModel, PageContentModel.page_id == PageModel.id)
+            .outerjoin(PageContentModel, PageContentModel.page_id == PageModel.id)
             .where(
                 *filters,
             )
@@ -110,7 +117,7 @@ class SqlAlchemyPageRepository:
     async def find_by_id(self, page_id: TSID, owner_id: TSID) -> Page | None:
         statement = (
             select(PageModel, PageContentModel.content)
-            .join(PageContentModel, PageContentModel.page_id == PageModel.id)
+            .outerjoin(PageContentModel, PageContentModel.page_id == PageModel.id)
             .where(
                 PageModel.id == page_id.value,
                 PageModel.owner_id == owner_id.value,
@@ -123,7 +130,7 @@ class SqlAlchemyPageRepository:
     async def find_trashed_by_id(self, page_id: TSID, owner_id: TSID) -> Page | None:
         statement = (
             select(PageModel, PageContentModel.content)
-            .join(PageContentModel, PageContentModel.page_id == PageModel.id)
+            .outerjoin(PageContentModel, PageContentModel.page_id == PageModel.id)
             .where(
                 PageModel.id == page_id.value,
                 PageModel.owner_id == owner_id.value,
@@ -140,7 +147,7 @@ class SqlAlchemyPageRepository:
     ) -> list[Page]:
         statement = (
             select(PageModel, PageContentModel.content)
-            .join(PageContentModel, PageContentModel.page_id == PageModel.id)
+            .outerjoin(PageContentModel, PageContentModel.page_id == PageModel.id)
             .where(
                 PageModel.owner_id == owner_id.value,
                 PageModel.parent_id == parent_id.value,
@@ -188,17 +195,22 @@ class SqlAlchemyPageRepository:
         return None if value is None else int(value)
 
     @staticmethod
-    def _to_domain(model: PageModel, content: str) -> Page:
+    def _to_domain(model: PageModel, content: str | None) -> Page:
         return Page(
             id=TSID(model.id),
             owner_id=TSID(model.owner_id),
             parent_id=TSID(model.parent_id) if model.parent_id is not None else None,
             title=model.title,
-            content=PageContent(page_id=TSID(model.id), content=content),
+            content=(
+                PageContent(page_id=TSID(model.id), content=content)
+                if content is not None
+                else None
+            ),
             sort_order=model.sort_order,
             created_at=model.created_at,
             updated_at=model.updated_at,
             deleted_at=model.deleted_at,
+            page_type=PageType(model.page_type),
         )
 
     async def delete_expired(self, threshold: datetime) -> int:
@@ -213,6 +225,44 @@ class SqlAlchemyPageRepository:
         await self._session.flush()
         return len(page_ids)
 
+    async def add_file(
+        self,
+        *,
+        page_id: TSID,
+        storage_key: str,
+        original_filename: str,
+        media_type: str,
+        byte_size: int,
+        checksum_sha256: str,
+    ) -> None:
+        await self._session.execute(
+            insert(PageFileModel).values(
+                page_id=page_id.value,
+                storage_key=storage_key,
+                original_filename=original_filename,
+                media_type=media_type,
+                byte_size=byte_size,
+                checksum_sha256=checksum_sha256,
+            )
+        )
+
+    async def total_file_bytes(self, owner_id: TSID) -> int:
+        statement = (
+            select(func.coalesce(func.sum(PageFileModel.byte_size), 0))
+            .join(PageModel, PageModel.id == PageFileModel.page_id)
+            .where(PageModel.owner_id == owner_id.value)
+        )
+        return int(await self._session.scalar(statement))
+
+    async def find_file_key(self, page_id: TSID, owner_id: TSID) -> str | None:
+        statement = (
+            select(PageFileModel.storage_key)
+            .join(PageModel, PageModel.id == PageFileModel.page_id)
+            .where(PageModel.id == page_id.value, PageModel.owner_id == owner_id.value)
+        )
+        value = await self._session.scalar(statement)
+        return str(value) if value is not None else None
+
 
 class SqlAlchemyPageQueryRepository:
     def __init__(self, session: AsyncSession) -> None:
@@ -226,6 +276,7 @@ class SqlAlchemyPageQueryRepository:
                 PageModel.parent_id,
                 PageModel.title,
                 PageModel.sort_order,
+                PageModel.page_type,
             )
             .where(
                 PageModel.owner_id == owner_id.value,
@@ -241,6 +292,7 @@ class SqlAlchemyPageQueryRepository:
                 parent_id=TSID(row.parent_id) if row.parent_id is not None else None,
                 title=row.title,
                 sort_order=row.sort_order,
+                page_type=PageType(row.page_type),
             )
             for row in rows
         ]
@@ -261,8 +313,9 @@ class SqlAlchemyPageQueryRepository:
                 PageModel.parent_id,
                 PageModel.title,
                 PageModel.sort_order,
+                PageModel.page_type,
             )
-            .join(PageContentModel, PageContentModel.page_id == PageModel.id)
+            .outerjoin(PageContentModel, PageContentModel.page_id == PageModel.id)
             .where(
                 PageModel.owner_id == owner_id.value,
                 PageModel.deleted_at.is_(None),
@@ -283,6 +336,7 @@ class SqlAlchemyPageQueryRepository:
                 parent_id=TSID(row.parent_id) if row.parent_id is not None else None,
                 title=row.title,
                 sort_order=row.sort_order,
+                page_type=PageType(row.page_type),
             )
             for row in rows
         ]
@@ -290,7 +344,7 @@ class SqlAlchemyPageQueryRepository:
     async def find_detail_by_id(self, page_id: TSID, owner_id: TSID) -> PageDetail | None:
         statement = (
             select(PageModel, PageContentModel.content)
-            .join(PageContentModel, PageContentModel.page_id == PageModel.id)
+            .outerjoin(PageContentModel, PageContentModel.page_id == PageModel.id)
             .where(
                 PageModel.id == page_id.value,
                 PageModel.owner_id == owner_id.value,
@@ -301,6 +355,12 @@ class SqlAlchemyPageQueryRepository:
         if row is None:
             return None
         model, contents = row
+        file_row = await self._session.execute(
+            select(PageFileModel.original_filename, PageFileModel.byte_size).where(
+                PageFileModel.page_id == model.id
+            )
+        )
+        file_metadata = file_row.one_or_none()
         return PageDetail(
             id=TSID(model.id),
             owner_id=TSID(model.owner_id),
@@ -308,6 +368,9 @@ class SqlAlchemyPageQueryRepository:
             title=model.title,
             contents=contents,
             sort_order=model.sort_order,
+            page_type=PageType(model.page_type),
+            file_name=file_metadata.original_filename if file_metadata else None,
+            file_size=file_metadata.byte_size if file_metadata else None,
         )
 
     async def find_all_trashed_by_owner_id(
@@ -321,6 +384,7 @@ class SqlAlchemyPageQueryRepository:
                 PageModel.title,
                 PageModel.sort_order,
                 PageModel.deleted_at,
+                PageModel.page_type,
             )
             .where(
                 PageModel.owner_id == owner_id.value,
@@ -337,6 +401,7 @@ class SqlAlchemyPageQueryRepository:
                 sort_order=row.sort_order,
                 deleted_at=row.deleted_at,
                 expires_at=row.deleted_at + timedelta(days=30),
+                page_type=PageType(row.page_type),
             )
             for row in rows
             if row.deleted_at is not None
@@ -349,7 +414,7 @@ class SqlAlchemyPageQueryRepository:
     ) -> PageDetail | None:
         statement = (
             select(PageModel, PageContentModel.content)
-            .join(PageContentModel, PageContentModel.page_id == PageModel.id)
+            .outerjoin(PageContentModel, PageContentModel.page_id == PageModel.id)
             .where(
                 PageModel.id == page_id.value,
                 PageModel.owner_id == owner_id.value,
@@ -360,6 +425,12 @@ class SqlAlchemyPageQueryRepository:
         if row is None:
             return None
         model, contents = row
+        file_row = await self._session.execute(
+            select(PageFileModel.original_filename, PageFileModel.byte_size).where(
+                PageFileModel.page_id == model.id
+            )
+        )
+        file_metadata = file_row.one_or_none()
         return PageDetail(
             id=TSID(model.id),
             owner_id=TSID(model.owner_id),
@@ -367,4 +438,7 @@ class SqlAlchemyPageQueryRepository:
             title=model.title,
             contents=contents,
             sort_order=model.sort_order,
+            page_type=PageType(model.page_type),
+            file_name=file_metadata.original_filename if file_metadata else None,
+            file_size=file_metadata.byte_size if file_metadata else None,
         )

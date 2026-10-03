@@ -12,7 +12,7 @@ class RecordingSession:
         self.events.append(("execute", statement))
 
 
-async def test_add_inserts_page_and_content_with_one_statement() -> None:
+async def test_add_inserts_page_and_content_in_one_transaction() -> None:
     session = RecordingSession()
     repository = SqlAlchemyPageRepository(session)  # type: ignore[arg-type]
     page = Page.create(
@@ -27,8 +27,6 @@ async def test_add_inserts_page_and_content_with_one_statement() -> None:
 
     await repository.add(page)
 
-    assert [event for event, _ in session.events] == ["execute"]
-    sql = str(session.events[0][1])
-    assert "WITH inserted_page AS" in sql
-    assert "INSERT INTO pages" in sql
-    assert "INSERT INTO page_contents" in sql
+    assert [event for event, _ in session.events] == ["execute", "execute"]
+    assert "INSERT INTO pages" in str(session.events[0][1])
+    assert "INSERT INTO page_contents" in str(session.events[1][1])

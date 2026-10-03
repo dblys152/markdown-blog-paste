@@ -8,6 +8,7 @@ from md2blog.modules.workspace.domain.commands import (
     RestorePageCommand,
     UpdatePageCommand,
 )
+from md2blog.modules.workspace.domain.page_types import PageType
 from md2blog.shared.domain.tsid import TSID
 
 
@@ -26,11 +27,12 @@ class Page:
     owner_id: TSID
     parent_id: TSID | None
     title: str
-    content: PageContent
+    content: PageContent | None
     sort_order: int
     created_at: datetime
     updated_at: datetime
     deleted_at: datetime | None = None
+    page_type: PageType = PageType.MARKDOWN
 
     def __post_init__(self) -> None:
         normalized_title = self.title.strip()
@@ -42,7 +44,10 @@ class Page:
             raise InvalidPageSortOrderError
         if self.parent_id == self.id:
             raise InvalidPageParentError
-        if self.content.page_id != self.id:
+        if self.page_type is PageType.PDF:
+            if self.content is not None:
+                raise InvalidPageContentError
+        elif self.content is None or self.content.page_id != self.id:
             raise InvalidPageContentError
         object.__setattr__(self, "title", normalized_title)
 
@@ -59,12 +64,17 @@ class Page:
             id=page_id,
             owner_id=command.owner_id,
             title=command.title,
-            content=PageContent(page_id=page_id, content=command.content),
+            content=(
+                None
+                if command.page_type is PageType.PDF
+                else PageContent(page_id=page_id, content=command.content)
+            ),
             parent_id=command.parent_id,
             sort_order=command.sort_order,
             created_at=now,
             updated_at=now,
             deleted_at=None,
+            page_type=command.page_type,
         )
 
     def update(
@@ -80,6 +90,8 @@ class Page:
         if command.title is not None:
             page = replace(page, title=command.title, updated_at=now)
         if command.content is not None:
+            if page.content is None:
+                raise InvalidPageContentError
             page = replace(
                 page,
                 content=page.content.revise(command.content),
@@ -100,6 +112,8 @@ class Page:
         *,
         changed_at: datetime | None = None,
     ) -> "Page":
+        if self.content is None:
+            raise InvalidPageContentError
         return replace(
             self,
             content=self.content.revise(content),

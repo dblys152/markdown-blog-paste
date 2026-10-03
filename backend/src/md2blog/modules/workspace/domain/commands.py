@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+from md2blog.modules.workspace.domain.page_types import PageType
 from md2blog.shared.domain.tsid import TSID
 
 
@@ -10,6 +11,7 @@ class CreatePageCommand:
     content: str
     parent_id: TSID | None
     sort_order: int
+    page_type: PageType = PageType.MARKDOWN
 
 
 @dataclass(frozen=True, slots=True)
