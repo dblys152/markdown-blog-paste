@@ -1,7 +1,12 @@
 import asyncio
+from datetime import UTC, datetime
+from functools import lru_cache
 from pathlib import Path
 
 import boto3  # type: ignore[import-untyped]
+
+from md2blog.modules.workspace.application.port.outbound.object_storage import StoredObject
+from md2blog.settings import Settings, get_settings
 
 
 class FileSystemObjectStorage:
@@ -23,6 +28,20 @@ class FileSystemObjectStorage:
 
     async def create_download_url(self, key: str, *, expires_seconds: int) -> str:
         return f"local://{key}"
+
+    async def list(self, prefix: str) -> list[StoredObject]:
+        root = self._path(prefix)
+        if not root.exists():
+            return []
+        paths = await asyncio.to_thread(lambda: list(root.rglob("*")))
+        return [
+            StoredObject(
+                key=str(path.relative_to(self._root)),
+                last_modified=datetime.fromtimestamp(path.stat().st_mtime, tz=UTC),
+            )
+            for path in paths
+            if path.is_file()
+        ]
 
     def _path(self, key: str) -> Path:
         path = (self._root / key).resolve()
@@ -74,3 +93,43 @@ class R2ObjectStorage:
             Params={"Bucket": self._bucket, "Key": key},
             ExpiresIn=expires_seconds,
         )
+
+    async def list(self, prefix: str) -> list[StoredObject]:
+        def collect() -> list[StoredObject]:
+            paginator = self._client.get_paginator("list_objects_v2")
+            return [
+                StoredObject(key=item["Key"], last_modified=item["LastModified"])
+                for page in paginator.paginate(Bucket=self._bucket, Prefix=prefix)
+                for item in page.get("Contents", [])
+            ]
+
+        return await asyncio.to_thread(collect)
+
+
+@lru_cache
+def get_configured_object_storage() -> FileSystemObjectStorage | R2ObjectStorage:
+    return build_object_storage(get_settings())
+
+
+def build_object_storage(settings: Settings) -> FileSystemObjectStorage | R2ObjectStorage:
+    if settings.object_storage_backend == "r2":
+        if not all(
+            [
+                settings.r2_endpoint_url,
+                settings.r2_access_key_id,
+                settings.r2_secret_access_key,
+                settings.r2_bucket,
+            ]
+        ):
+            raise RuntimeError("R2 object storage settings are incomplete")
+        return R2ObjectStorage(
+            endpoint_url=settings.r2_endpoint_url or "",
+            access_key_id=settings.r2_access_key_id or "",
+            secret_access_key=(
+                settings.r2_secret_access_key.get_secret_value()
+                if settings.r2_secret_access_key
+                else ""
+            ),
+            bucket=settings.r2_bucket or "",
+        )
+    return FileSystemObjectStorage(Path(settings.object_storage_local_root))

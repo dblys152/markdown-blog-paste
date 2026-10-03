@@ -139,6 +139,27 @@ class GetPdfFile:
         return await self._storage.get(key)
 
 
+class CleanupOrphanPageFiles:
+    GRACE_PERIOD = timedelta(hours=24)
+
+    def __init__(self, pages: PageRepository, storage: ObjectStorage) -> None:
+        self._pages = pages
+        self._storage = storage
+
+    async def execute(self, *, now: datetime | None = None) -> int:
+        cutoff = (now or datetime.now(UTC)) - self.GRACE_PERIOD
+        referenced_keys = await self._pages.list_file_keys()
+        stored_objects = await self._storage.list("users/")
+        orphan_keys = [
+            stored.key
+            for stored in stored_objects
+            if stored.last_modified <= cutoff and stored.key not in referenced_keys
+        ]
+        for key in orphan_keys:
+            await self._storage.delete(key)
+        return len(orphan_keys)
+
+
 class ListPages:
     def __init__(self, page_queries: PageQueryRepository) -> None:
         self._page_queries = page_queries

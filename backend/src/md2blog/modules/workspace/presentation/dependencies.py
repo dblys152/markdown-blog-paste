@@ -1,6 +1,3 @@
-from functools import lru_cache
-from pathlib import Path
-
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,15 +18,11 @@ from md2blog.modules.workspace.application.service.pages import (
     SearchPages,
     UpdatePage,
 )
-from md2blog.modules.workspace.infrastructure.object_storage import (
-    FileSystemObjectStorage,
-    R2ObjectStorage,
-)
+from md2blog.modules.workspace.infrastructure.object_storage import get_configured_object_storage
 from md2blog.modules.workspace.infrastructure.repositories import (
     SqlAlchemyPageQueryRepository,
     SqlAlchemyPageRepository,
 )
-from md2blog.settings import get_settings
 from md2blog.shared.infrastructure.database import (
     SqlAlchemyUnitOfWork,
     get_session,
@@ -45,30 +38,8 @@ def get_create_page(
     )
 
 
-@lru_cache
 def get_object_storage() -> ObjectStorage:
-    settings = get_settings()
-    if settings.object_storage_backend == "r2":
-        if not all(
-            [
-                settings.r2_endpoint_url,
-                settings.r2_access_key_id,
-                settings.r2_secret_access_key,
-                settings.r2_bucket,
-            ]
-        ):
-            raise RuntimeError("R2 object storage settings are incomplete")
-        return R2ObjectStorage(
-            endpoint_url=settings.r2_endpoint_url or "",
-            access_key_id=settings.r2_access_key_id or "",
-            secret_access_key=(
-                settings.r2_secret_access_key.get_secret_value()
-                if settings.r2_secret_access_key
-                else ""
-            ),
-            bucket=settings.r2_bucket or "",
-        )
-    return FileSystemObjectStorage(Path(settings.object_storage_local_root))
+    return get_configured_object_storage()
 
 
 def get_create_pdf_page(

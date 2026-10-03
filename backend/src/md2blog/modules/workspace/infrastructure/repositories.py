@@ -263,6 +263,9 @@ class SqlAlchemyPageRepository:
         value = await self._session.scalar(statement)
         return str(value) if value is not None else None
 
+    async def list_file_keys(self) -> set[str]:
+        return set(await self._session.scalars(select(PageFileModel.storage_key)))
+
 
 class SqlAlchemyPageQueryRepository:
     def __init__(self, session: AsyncSession) -> None:

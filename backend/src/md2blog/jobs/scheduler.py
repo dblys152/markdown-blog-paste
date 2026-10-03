@@ -8,11 +8,13 @@ from apscheduler.events import (  # type: ignore[import-untyped]
 )
 from apscheduler.schedulers.asyncio import AsyncIOScheduler  # type: ignore[import-untyped]
 
+from md2blog.jobs.cleanup_orphan_page_files import cleanup_orphan_page_files
 from md2blog.jobs.process_outbox import run as process_outbox
 from md2blog.jobs.purge_expired_pages import purge_expired_pages
 
 OUTBOX_PROCESS_INTERVAL_SECONDS = 5
 TRASH_PURGE_HOUR_UTC = 19  # Asia/Seoul 04:00
+ORPHAN_FILE_CLEANUP_HOUR_UTC = 20  # Asia/Seoul 05:00
 logger = logging.getLogger(__name__)
 
 
@@ -55,6 +57,17 @@ def build_scheduler() -> AsyncIOScheduler:
         hour=TRASH_PURGE_HOUR_UTC,
         minute=0,
         id="purge-expired-pages",
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=None,
+        next_run_time=startup_time,
+    )
+    scheduler.add_job(
+        cleanup_orphan_page_files,
+        trigger="cron",
+        hour=ORPHAN_FILE_CLEANUP_HOUR_UTC,
+        minute=0,
+        id="cleanup-orphan-page-files",
         max_instances=1,
         coalesce=True,
         misfire_grace_time=None,
