@@ -109,7 +109,7 @@ class SqlAlchemyPageRepository:
                 *filters,
             )
             .order_by(PageModel.sort_order, PageModel.id)
-            .with_for_update()
+            .with_for_update(of=PageModel)
         )
         rows = (await self._session.execute(statement)).all()
         return [self._to_domain(model, content) for model, content in rows]
