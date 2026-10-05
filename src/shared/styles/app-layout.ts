@@ -300,6 +300,8 @@ export const APP_LAYOUT_CSS = `
 .workspace-page-type-icon.is-html { color: #c35a21; }
 .workspace-page-type-icon.is-pdf { color: #c2414b; }
 .workspace-page-type-icon.is-markdown { color: #52657a; }
+.workspace-page-type-text { fill: currentColor; stroke: none; text-anchor: middle; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 5.2px; font-weight: 800; letter-spacing: -.15px; }
+.workspace-page-type-text.is-markdown { font-size: 6px; letter-spacing: 0; }
 .workspace-page-chevron { opacity: 0; transition: transform .12s ease; }
 .workspace-page-disclosure:hover .workspace-page-type-icon, .workspace-page-disclosure:focus-visible .workspace-page-type-icon { opacity: 0; }
 .workspace-page-disclosure:hover .workspace-page-chevron, .workspace-page-disclosure:focus-visible .workspace-page-chevron { opacity: 1; }

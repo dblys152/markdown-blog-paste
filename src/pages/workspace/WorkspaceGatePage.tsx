@@ -121,8 +121,8 @@ function PageTypeIcon({ pageType }: { pageType: PageType | undefined }) {
       <path d="M3.5 2.5h9l4 4v11h-13z" />
       <path d="M12.5 2.5v4h4" />
       {resolvedType === "HTML" && <path d="m8 9-2.5 2 2.5 2M12 9l2.5 2-2.5 2" />}
-      {resolvedType === "PDF" && <path d="M6 14V9h2a1.5 1.5 0 0 1 0 3H6M11 9v5M11 9h1.5a2 2 0 0 1 0 4H11" />}
-      {resolvedType === "MARKDOWN" && <path d="M5.5 13V9l2 2 2-2v4M12 9v4m-1.5-1.5L12 13l1.5-1.5" />}
+      {resolvedType === "PDF" && <text className="workspace-page-type-text is-pdf" x="10" y="13.5">PDF</text>}
+      {resolvedType === "MARKDOWN" && <text className="workspace-page-type-text is-markdown" x="10" y="13.5">MD</text>}
     </svg>
   );
 }
