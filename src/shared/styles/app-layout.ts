@@ -293,12 +293,15 @@ export const APP_LAYOUT_CSS = `
 .workspace-page-node > .workspace-page-item.drop-before { box-shadow: inset 0 2px #4263eb; }
 .workspace-page-node > .workspace-page-item.drop-after { box-shadow: inset 0 -2px #4263eb; }
 .workspace-page-node > .workspace-page-item.drop-inside { outline: 2px solid #8095ff; outline-offset: -2px; background: #edf0ff; }
-.workspace-page-icon, .workspace-page-disclosure { display: grid; width: 22px; height: 28px; place-items: center; color: #7b8494; }
-.workspace-page-disclosure { position: relative; padding: 0; border: 0; border-radius: 5px; background: transparent; cursor: pointer; }
+.workspace-page-icon, .workspace-page-disclosure { position: relative; display: grid; width: 22px; height: 28px; place-items: center; color: #7b8494; }
+.workspace-page-disclosure { padding: 0; border: 0; border-radius: 5px; background: transparent; cursor: pointer; }
 .workspace-page-disclosure:hover, .workspace-page-disclosure:focus-visible { background: #dfe3ea; color: #4b5565; box-shadow: none; transform: none; }
-.workspace-page-document-icon, .workspace-page-chevron { position: absolute; width: 17px; height: 17px; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.6; }
+.workspace-page-type-icon, .workspace-page-chevron { position: absolute; width: 17px; height: 17px; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.45; }
+.workspace-page-type-icon.is-html { color: #c35a21; }
+.workspace-page-type-icon.is-pdf { color: #c2414b; }
+.workspace-page-type-icon.is-markdown { color: #52657a; }
 .workspace-page-chevron { opacity: 0; transition: transform .12s ease; }
-.workspace-page-disclosure:hover .workspace-page-document-icon, .workspace-page-disclosure:focus-visible .workspace-page-document-icon { opacity: 0; }
+.workspace-page-disclosure:hover .workspace-page-type-icon, .workspace-page-disclosure:focus-visible .workspace-page-type-icon { opacity: 0; }
 .workspace-page-disclosure:hover .workspace-page-chevron, .workspace-page-disclosure:focus-visible .workspace-page-chevron { opacity: 1; }
 .workspace-page-disclosure.is-expanded .workspace-page-chevron { transform: rotate(90deg); }
 .workspace-page-item.is-active .workspace-page-icon, .workspace-page-item.is-active .workspace-page-disclosure { color: currentColor; }
@@ -461,9 +464,7 @@ export const APP_LAYOUT_CSS = `
 .page-create-field input { min-height: 42px; padding: 8px 11px; border: 1px solid #d8dde6; border-radius: 7px; background: #fff; color: #1f2937; font: inherit; font-weight: 500; }
 .page-create-field input:focus { border-color: #637df2; outline: 2px solid #e5e9ff; }
 .page-create-field small { color: #667085; font-size: 11px; font-weight: 600; }
-.workspace-page-select { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 6px; }
-.workspace-page-type-badge { flex: none; padding: 2px 4px; border-radius: 4px; background: #e9edf5; color: #667085; font-size: 9px; font-weight: 800; }
-.workspace-page-item.is-active .workspace-page-type-badge { background: rgba(63,91,234,.12); color: currentColor; }
+.workspace-page-select { display: flex; min-width: 0; align-items: center; }
 .workspace-external-resource-note { margin: 0; padding: 7px 14px; border-bottom: 1px solid #eef0f4; background: #fffaf0; color: #9a6700; font-size: 11px; line-height: 1.45; }
 .workspace-pdf-viewer { grid-column: 2 / -1; }
 .workspace-pdf-viewer iframe { width: 100%; height: 100%; border: 0; }

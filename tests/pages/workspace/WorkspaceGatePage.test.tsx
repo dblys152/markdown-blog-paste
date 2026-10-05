@@ -222,7 +222,7 @@ describe("WorkspaceGatePage", () => {
     const user = userEvent.setup();
     renderPage();
 
-    expect(screen.getByRole("button", { name: "임시 페이지" }).querySelector(".workspace-page-document-icon")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "임시 페이지" }).querySelector(".workspace-page-type-icon.is-markdown")).not.toBeNull();
     expect(screen.getByRole("tab", { name: "페이지" }).getAttribute("aria-selected")).toBe("true");
     await user.click(screen.getByRole("button", { name: "임시 페이지" }));
 
@@ -617,13 +617,19 @@ describe("WorkspaceGatePage", () => {
 
   it("휴지통에서 삭제한 페이지를 조회하고 복원한다", async () => {
     useAuth.mockReturnValue({ status: "authenticated", user: { id: "1", email_verified: true } });
-    listWorkspacePages.mockResolvedValue([]);
-    listTrashedWorkspacePages.mockResolvedValue([
+    listWorkspacePages
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        { id: "10", owner_id: "1", parent_id: null, title: "삭제한 페이지", sort_order: 0, type: "MARKDOWN" },
+        { id: "20", owner_id: "1", parent_id: "10", title: "삭제한 하위 페이지", sort_order: 0, type: "PDF" },
+      ]);
+    listTrashedWorkspacePages.mockResolvedValueOnce([
       {
         id: "10",
         parent_id: null,
         title: "삭제한 페이지",
         sort_order: 0,
+        type: "MARKDOWN",
         deleted_at: "2026-08-01T00:00:00Z",
         expires_at: "2026-08-31T00:00:00Z",
       },
@@ -632,15 +638,17 @@ describe("WorkspaceGatePage", () => {
         parent_id: "10",
         title: "삭제한 하위 페이지",
         sort_order: 0,
+        type: "PDF",
         deleted_at: "2026-08-01T00:00:00Z",
         expires_at: "2026-08-31T00:00:00Z",
       },
-    ]);
+    ]).mockResolvedValueOnce([]);
     const user = userEvent.setup();
     renderPage();
 
     await user.click(await screen.findByRole("button", { name: "휴지통" }));
     expect(screen.getByText("휴지통의 페이지는 30일 후 영구 삭제됩니다.")).toBeTruthy();
+    expect(screen.getByRole("img", { name: "Markdown 문서" })).not.toBeNull();
     await waitFor(() => {
       expect(getTrashedWorkspacePage).toHaveBeenCalledWith("10");
       expect((screen.getByRole("textbox", { name: "Markdown 내용" }) as HTMLTextAreaElement).value)
@@ -667,13 +675,17 @@ describe("WorkspaceGatePage", () => {
     await user.click(screen.getByRole("button", { name: "복원" }));
     await waitFor(() => {
       expect(restoreWorkspacePage).toHaveBeenCalledWith("10");
+      expect(listWorkspacePages).toHaveBeenCalledTimes(2);
+      expect(listTrashedWorkspacePages).toHaveBeenCalledTimes(2);
     });
     expect(screen.queryByText("삭제한 페이지")).toBeNull();
     expect(screen.getByRole("region", { name: "휴지통 목록" })).toBeTruthy();
-    expect(listWorkspacePages).toHaveBeenCalledTimes(1);
 
     await user.click(screen.getByRole("button", { name: "페이지 목록으로 돌아가기" }));
     expect(await screen.findByText("삭제한 페이지")).toBeTruthy();
+    expect(screen.getByRole("img", { name: "Markdown 문서" })).not.toBeNull();
+    await user.click(screen.getByRole("button", { name: "삭제한 페이지 하위 페이지 펼치기" }));
+    expect(screen.getByRole("img", { name: "PDF 문서" })).not.toBeNull();
   });
 
   it("페이지 검색 API 결과에 계층 경로를 표시하고 페이지를 선택한다", async () => {

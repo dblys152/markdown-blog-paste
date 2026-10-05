@@ -101,11 +101,27 @@ function comparePageOrder(left: TrashedWorkspacePage, right: TrashedWorkspacePag
   return left.id.localeCompare(right.id);
 }
 
-function PageDocumentIcon() {
+function pageTypeLabel(pageType: PageType | undefined): string {
+  if (pageType === "HTML") return "HTML 문서";
+  if (pageType === "PDF") return "PDF 문서";
+  return "Markdown 문서";
+}
+
+function PageTypeIcon({ pageType }: { pageType: PageType | undefined }) {
+  const resolvedType = pageType ?? "MARKDOWN";
   return (
-    <svg className="workspace-page-document-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+    <svg
+      className={`workspace-page-type-icon is-${resolvedType.toLowerCase()}`}
+      viewBox="0 0 20 20"
+      fill="none"
+      role="img"
+      aria-label={pageTypeLabel(resolvedType)}
+    >
       <path d="M3.5 2.5h9l4 4v11h-13z" />
-      <path d="M12.5 2.5v4h4M6.5 9.5h7M6.5 12.5h7M6.5 15.5h5" />
+      <path d="M12.5 2.5v4h4" />
+      {resolvedType === "HTML" && <path d="m8 9-2.5 2 2.5 2M12 9l2.5 2-2.5 2" />}
+      {resolvedType === "PDF" && <path d="M6 14V9h2a1.5 1.5 0 0 1 0 3H6M11 9v5M11 9h1.5a2 2 0 0 1 0 4H11" />}
+      {resolvedType === "MARKDOWN" && <path d="M5.5 13V9l2 2 2-2v4M12 9v4m-1.5-1.5L12 13l1.5-1.5" />}
     </svg>
   );
 }
@@ -361,13 +377,14 @@ export function WorkspaceGatePage() {
   }, [markdown, title]);
 
   useEffect(() => {
-    if (!isAuthenticated || sidebarView !== "pages" || !selectedPageId || selectedPageType !== "PDF") {
+    const activePageId = sidebarView === "trash" ? selectedTrashedPageId : selectedPageId;
+    if (!isAuthenticated || !activePageId || selectedPageType !== "PDF") {
       setPdfUrl("");
       return;
     }
     let cancelled = false;
     let objectUrl = "";
-    getWorkspacePdfUrl(selectedPageId)
+    getWorkspacePdfUrl(activePageId)
       .then(async ({ url }) => {
         if (!url.startsWith("/")) return url;
         const blob = await getWorkspacePdfBlob(url);
@@ -384,7 +401,7 @@ export function WorkspaceGatePage() {
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [isAuthenticated, selectedPageId, selectedPageType, showToast, sidebarView]);
+  }, [isAuthenticated, selectedPageId, selectedPageType, selectedTrashedPageId, showToast, sidebarView]);
 
   useEffect(() => {
     if (authStatus !== "guest" || !hydrated.current) return;
@@ -429,7 +446,7 @@ export function WorkspaceGatePage() {
     skipNextServerSave.current = true;
     serverHydrated.current = false;
     setSelectedPageId(page.id);
-    setMobilePane("editor");
+    setMobilePane(page.type === "PDF" ? "preview" : "editor");
     const cachedContent = pageContentCache.current.get(page.id);
     if (cachedContent !== undefined) {
       setMarkdown(cachedContent);
@@ -592,7 +609,7 @@ export function WorkspaceGatePage() {
   const selectTrashedPage = useCallback(async (page: TrashedWorkspacePage) => {
     setOpenTrashMenuId(null);
     setSelectedTrashedPageId(page.id);
-    setMobilePane("editor");
+    setMobilePane(page.type === "PDF" ? "preview" : "editor");
     setSaveState("loading");
     serverHydrated.current = false;
     try {
@@ -619,30 +636,24 @@ export function WorkspaceGatePage() {
     if (!confirmed) return;
     try {
       await restoreWorkspacePage(page.id);
-      const restoredIds = collectTrashSubtreeIds(trashedPages, page.id);
-      const restoredPages = trashedPages
-        .filter((candidate) => restoredIds.has(candidate.id))
-        .map<WorkspacePageListItem>((candidate) => ({
-          id: candidate.id,
-          owner_id: authUser?.id ?? "",
-          parent_id: candidate.parent_id,
-          title: candidate.title,
-          sort_order: candidate.sort_order,
-        }));
-      setPages((current) => [
-        ...current.filter((candidate) => !restoredIds.has(candidate.id)),
-        ...restoredPages,
+    } catch {
+      showToast("페이지를 복원하지 못했습니다.");
+      return;
+    }
+    try {
+      const [refreshedPages, refreshedTrash] = await Promise.all([
+        listWorkspacePages(),
+        listTrashedWorkspacePages(),
       ]);
-      setTrashedPages((current) => {
-        return current.filter((candidate) => !restoredIds.has(candidate.id));
-      });
+      setPages(refreshedPages);
+      setTrashedPages(refreshedTrash);
       setSelectedTrashedPageId(null);
       setMarkdown("");
       showToast("페이지를 복원했습니다.");
     } catch {
-      showToast("페이지를 복원하지 못했습니다.");
+      showToast("페이지는 복원했지만 목록을 새로고침하지 못했습니다.");
     }
-  }, [authUser?.id, requestConfirmation, showToast, trashedPages]);
+  }, [requestConfirmation, showToast, trashedPages]);
 
   const permanentlyDeletePage = useCallback(async (page: TrashedWorkspacePage) => {
     setOpenTrashMenuId(null);
@@ -782,7 +793,7 @@ export function WorkspaceGatePage() {
                 });
               }}
             >
-              <PageDocumentIcon />
+              <PageTypeIcon pageType={page.type} />
               <svg className="workspace-page-chevron" viewBox="0 0 20 20" fill="none" aria-hidden="true">
                 <path d="m7 5 5 5-5 5" />
               </svg>
@@ -807,7 +818,6 @@ export function WorkspaceGatePage() {
               className="workspace-page-select"
               >
                 <span>{page.title}</span>
-                <small className="workspace-page-type-badge" aria-hidden="true">{page.type === "HTML" ? "HTML" : page.type === "PDF" ? "PDF" : "MD"}</small>
               </button>
             )}
             <div
@@ -897,7 +907,7 @@ export function WorkspaceGatePage() {
                   });
                 }}
               >
-                <PageDocumentIcon />
+                <PageTypeIcon pageType={page.type} />
                 <svg className="workspace-page-chevron" viewBox="0 0 20 20" fill="none" aria-hidden="true">
                   <path d="m7 5 5 5-5 5" />
                 </svg>
@@ -1159,7 +1169,7 @@ export function WorkspaceGatePage() {
                 key={page.id}
                 onClick={() => void selectPage(page)}
               >
-                <span className="workspace-page-icon"><PageDocumentIcon /></span>
+                <span className="workspace-page-icon"><PageTypeIcon pageType={page.type} /></span>
                 <span><strong>{page.title}</strong><small>{getPagePath(page)}</small></span>
               </button>
             ))}
@@ -1181,8 +1191,8 @@ export function WorkspaceGatePage() {
             )}
           </div>
         ) : (
-          <button className="workspace-page-item is-active" type="button" onClick={() => setMobilePane("editor")}>
-            <span className="workspace-page-icon"><PageDocumentIcon /></span>
+          <button className="workspace-page-item is-active" type="button" aria-label={title} onClick={() => setMobilePane("editor")}>
+            <span className="workspace-page-icon"><PageTypeIcon pageType="MARKDOWN" /></span>
             <span>{title}</span>
           </button>
         )}
