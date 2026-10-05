@@ -24,6 +24,8 @@ md2blog-database-url
 md2blog-jwt-secret-key
 md2blog-smtp-password
 md2blog-outbox-token-encryption-key
+md2blog-r2-access-key-id
+md2blog-r2-secret-access-key
 ```
 
 API Service 실행 서비스 계정에는 참조하는 Secret에 대한
@@ -41,6 +43,25 @@ gcloud secrets versions add md2blog-smtp-password \
   --project md2blog-505805
 ```
 
+R2의 Access Key ID와 Secret Access Key도 파일에 기록하지 않고 각각 Secret Manager에
+등록합니다. Cloudflare에서 발급받은 값을 각 명령의 표준 입력으로 전달합니다.
+
+```bash
+gcloud secrets create md2blog-r2-access-key-id \
+  --replication-policy automatic \
+  --project md2blog-505805
+gcloud secrets versions add md2blog-r2-access-key-id \
+  --data-file=- \
+  --project md2blog-505805
+
+gcloud secrets create md2blog-r2-secret-access-key \
+  --replication-policy automatic \
+  --project md2blog-505805
+gcloud secrets versions add md2blog-r2-secret-access-key \
+  --data-file=- \
+  --project md2blog-505805
+```
+
 실행 서비스 계정에는 필요한 Secret만 허용합니다.
 
 ```bash
@@ -50,6 +71,16 @@ gcloud secrets add-iam-policy-binding md2blog-outbox-token-encryption-key \
   --project md2blog-505805
 
 gcloud secrets add-iam-policy-binding md2blog-smtp-password \
+  --member serviceAccount:md2blog-api@md2blog-505805.iam.gserviceaccount.com \
+  --role roles/secretmanager.secretAccessor \
+  --project md2blog-505805
+
+gcloud secrets add-iam-policy-binding md2blog-r2-access-key-id \
+  --member serviceAccount:md2blog-api@md2blog-505805.iam.gserviceaccount.com \
+  --role roles/secretmanager.secretAccessor \
+  --project md2blog-505805
+
+gcloud secrets add-iam-policy-binding md2blog-r2-secret-access-key \
   --member serviceAccount:md2blog-api@md2blog-505805.iam.gserviceaccount.com \
   --role roles/secretmanager.secretAccessor \
   --project md2blog-505805
@@ -66,7 +97,7 @@ gcloud secrets add-iam-policy-binding md2blog-smtp-password \
 스크립트는 다음 순서로 동작합니다.
 
 1. 필요한 Secret의 존재 여부를 확인합니다.
-2. DB, JWT, SMTP, Outbox 암호화 Secret을 Service에 연결합니다.
+2. DB, JWT, SMTP, Outbox 암호화와 R2 자격 증명 Secret을 Service에 연결합니다.
 3. `md2blog-api`를 소스에서 배포합니다.
 
 Outbox 재처리와 만료된 휴지통 정리는 FastAPI 프로세스의 내부 Scheduler가 수행합니다.
