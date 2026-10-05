@@ -372,7 +372,8 @@ export const APP_LAYOUT_CSS = `
 
 .workspace-preview-heading { display: flex; align-items: center; justify-content: space-between; padding: 0 22px; border-bottom: 1px solid #dfe3eb; }
 .workspace-preview-heading strong { font-size: 13px; }
-.workspace-preview iframe { width: 100%; height: 100%; border: 0; background: #fff; }
+.workspace-preview.is-html-preview { grid-template-rows: 52px auto minmax(0,1fr) 36px; }
+.workspace-preview iframe { width: 100%; height: 100%; min-height: 0; border: 0; background: #fff; }
 .workspace-statusbar.is-preview { justify-content: flex-end; }
 .workspace-statusbar.is-preview span:last-child { margin-left: 0; }
 

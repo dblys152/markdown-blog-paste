@@ -25,6 +25,7 @@ import {
   resolvePageMoveDestination,
   type DropPlacement,
 } from "../../features/workspace/page-tree";
+import { buildHtmlPreviewDocument } from "../../features/workspace/html-preview";
 import { convertMarkdown } from "../../shared/markdown/converter-core";
 import type { ConversionResult } from "../../shared/markdown/types";
 import { DocumentActions } from "../../shared/ui/DocumentActions";
@@ -214,6 +215,10 @@ export function WorkspaceGatePage() {
   const selectedPageType: PageType = sidebarView === "trash"
     ? (selectedTrashedPage?.type ?? "MARKDOWN")
     : (selectedPage?.type ?? "MARKDOWN");
+  const htmlPreviewDocument = useMemo(
+    () => selectedPageType === "HTML" ? buildHtmlPreviewDocument(markdown) : "",
+    [markdown, selectedPageType],
+  );
 
   const showToast = useCallback((message: string) => {
     window.clearTimeout(toastTimer.current);
@@ -1287,7 +1292,7 @@ export function WorkspaceGatePage() {
         onDoubleClick={() => applyEditorRatio(DEFAULT_EDITOR_RATIO)}
       ><span aria-hidden="true">⠿</span></div>
 
-      <section className="workspace-preview" aria-labelledby="workspace-preview-title">
+      <section className={`workspace-preview${selectedPageType === "HTML" ? " is-html-preview" : ""}`} aria-labelledby="workspace-preview-title">
         <div className="workspace-preview-heading">
           <strong id="workspace-preview-title">미리보기</strong>
           {selectedPageType === "MARKDOWN" && <DocumentActions result={isConverting ? null : result} markdown={markdown} title={title} onMessage={showToast} />}
@@ -1297,7 +1302,7 @@ export function WorkspaceGatePage() {
           title={`${title} 미리보기`}
           sandbox=""
           referrerPolicy="no-referrer"
-          srcDoc={selectedPageType === "HTML" ? `<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data: blob:; style-src 'unsafe-inline'; font-src data:"></head><body>${markdown}</body></html>` : (result?.fullHtml ?? "")}
+          srcDoc={selectedPageType === "HTML" ? htmlPreviewDocument : (result?.fullHtml ?? "")}
         />
         <footer className="workspace-statusbar is-preview"><span>{markdown.length.toLocaleString("ko-KR")}자</span><span>미리보기</span></footer>
       </section>
