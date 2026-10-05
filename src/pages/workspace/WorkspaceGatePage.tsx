@@ -26,6 +26,7 @@ import {
   type DropPlacement,
 } from "../../features/workspace/page-tree";
 import { buildHtmlPreviewDocument } from "../../features/workspace/html-preview";
+import { bindMarkdownPreviewNavigation } from "../../features/workspace/markdown-preview-navigation";
 import { convertMarkdown } from "../../shared/markdown/converter-core";
 import type { ConversionResult } from "../../shared/markdown/types";
 import { DocumentActions } from "../../shared/ui/DocumentActions";
@@ -1300,9 +1301,14 @@ export function WorkspaceGatePage() {
         {selectedPageType === "HTML" && <p className="workspace-external-resource-note">외부 이미지를 불러오면 이미지 서버에 현재 사용자의 IP가 전달될 수 있습니다.</p>}
         <iframe
           title={`${title} 미리보기`}
-          sandbox=""
+          sandbox={selectedPageType === "MARKDOWN" ? "allow-same-origin" : ""}
           referrerPolicy="no-referrer"
           srcDoc={selectedPageType === "HTML" ? htmlPreviewDocument : (result?.fullHtml ?? "")}
+          onLoad={(event) => {
+            if (selectedPageType === "MARKDOWN" && event.currentTarget.contentDocument) {
+              bindMarkdownPreviewNavigation(event.currentTarget.contentDocument);
+            }
+          }}
         />
         <footer className="workspace-statusbar is-preview"><span>{markdown.length.toLocaleString("ko-KR")}자</span><span>미리보기</span></footer>
       </section>
