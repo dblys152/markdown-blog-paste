@@ -65,3 +65,8 @@ def configure_logging(level: str) -> None:
     access_logger.handlers.clear()
     access_logger.propagate = False
     access_logger.disabled = True
+
+    # APScheduler logs every job start and successful completion at INFO.
+    # Keep warnings and failures without flooding production logs for the
+    # five-second outbox polling job.
+    logging.getLogger("apscheduler").setLevel(logging.WARNING)

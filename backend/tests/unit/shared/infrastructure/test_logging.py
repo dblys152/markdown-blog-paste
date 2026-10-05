@@ -39,3 +39,9 @@ def test_configure_logging_disables_duplicate_uvicorn_access_log() -> None:
     configure_logging("INFO")
 
     assert logging.getLogger("uvicorn.access").disabled is True
+
+
+def test_configure_logging_suppresses_routine_apscheduler_logs() -> None:
+    configure_logging("INFO")
+
+    assert logging.getLogger("apscheduler").level == logging.WARNING
