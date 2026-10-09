@@ -26,12 +26,11 @@ import {
   type DropPlacement,
 } from "../../features/workspace/page-tree";
 import { buildHtmlPreviewDocument } from "../../features/workspace/html-preview";
-import { bindMarkdownPreviewNavigation } from "../../features/workspace/markdown-preview-navigation";
 import { convertMarkdown } from "../../shared/markdown/converter-core";
 import type { ConversionResult } from "../../shared/markdown/types";
-import { DocumentActions } from "../../shared/ui/DocumentActions";
 import { useConfirmDialog } from "../../shared/ui/ConfirmDialog";
 import { loadGuestDraft, saveGuestDraft } from "./guest-draft-store";
+import { WorkspaceDocumentView } from "./WorkspaceDocumentView";
 
 const SAMPLE_MARKDOWN = `# 임시 Markdown 페이지
 
@@ -968,8 +967,6 @@ export function WorkspaceGatePage() {
       });
   };
 
-  const lineCount = useMemo(() => markdown.split("\n").length, [markdown]);
-
   const updateEditorRatio = useCallback((clientX: number) => {
     const workspace = workspaceRef.current;
     const editor = workspace?.querySelector<HTMLElement>(".workspace-editor");
@@ -1224,95 +1221,33 @@ export function WorkspaceGatePage() {
         </div>}
       </aside>
 
-      {selectedPageType === "PDF" ? (
-        <section className="workspace-preview workspace-pdf-viewer" aria-label="PDF Viewer">
-          <div className="workspace-preview-heading">
-            <strong>PDF Viewer</strong>
-            <span className="workspace-external-resource-note">원본 PDF · 최대 20MB</span>
-          </div>
-          {pdfUrl ? <iframe title={`${title} PDF`} src={pdfUrl} /> : <div className="workspace-empty-state">PDF를 불러오는 중입니다.</div>}
-        </section>
-      ) : <>
-      <section className="workspace-editor" aria-label={`${selectedPageType === "HTML" ? "HTML" : "Markdown"} 편집기`}>
-        <div className="workspace-editor-heading">
-          <div><span aria-hidden="true">✎</span><strong>{selectedPageType === "HTML" ? "HTML" : "Markdown"}</strong></div>
-          <div className="workspace-document-state">
-            {isAuthenticated && sidebarView === "pages" && selectedPage ? (
-              <input
-                className="workspace-document-title-input"
-                aria-label="페이지 제목"
-                value={selectedPage.title}
-                maxLength={200}
-                onChange={(event) => setPages((current) => current.map((page) => (
-                  page.id === selectedPage.id ? { ...page, title: event.target.value } : page
-                )))}
-              />
-            ) : <span className="workspace-document-title">{title}</span>}
-            <span aria-hidden="true">·</span>
-            <span className={`workspace-save-label save-${saveState}`}>
-              {saveState === "loading" && "불러오는 중"}
-              {saveState === "saving" && "저장 중…"}
-              {saveState === "saved" && (isAuthenticated ? "✓ 저장됨" : "✓ 브라우저에 저장됨")}
-              {saveState === "error" && "저장 실패"}
-            </span>
-          </div>
-        </div>
-        <div className="workspace-code-area">
-          <div className="workspace-line-numbers" aria-hidden="true">
-            {Array.from({ length: Math.max(lineCount, 32) }, (_, index) => <span key={index}>{index + 1}</span>)}
-          </div>
-          <textarea
-            aria-label={`${selectedPageType === "HTML" ? "HTML" : "Markdown"} 내용`}
-            spellCheck={false}
-            value={markdown}
-            onChange={(event) => setMarkdown(event.target.value)}
-            readOnly={isAuthenticated && sidebarView === "trash"}
-            disabled={isAuthenticated && sidebarView === "pages" && !selectedPage}
-          />
-        </div>
-        <footer className="workspace-statusbar">
-          <span>줄 1, 열 1</span><span>{selectedPageType === "HTML" ? "HTML" : "Markdown"}</span><span>{markdown.length.toLocaleString("ko-KR")}자</span>
-        </footer>
-      </section>
-
-      <div
-        className="workspace-divider"
-        role="separator"
-        aria-label="에디터와 미리보기 너비 조절"
-        aria-orientation="vertical"
-        aria-valuemin={28}
-        aria-valuemax={72}
-        aria-valuenow={Math.round(editorRatio * 100)}
-        tabIndex={0}
-        onPointerDown={handleDividerPointerDown}
-        onPointerMove={handleDividerPointerMove}
-        onPointerUp={finishDividerResize}
-        onPointerCancel={finishDividerResize}
-        onLostPointerCapture={stopDividerResize}
-        onKeyDown={handleDividerKeyDown}
-        onDoubleClick={() => applyEditorRatio(DEFAULT_EDITOR_RATIO)}
-      ><span aria-hidden="true">⠿</span></div>
-
-      <section className={`workspace-preview${selectedPageType === "HTML" ? " is-html-preview" : ""}`} aria-labelledby="workspace-preview-title">
-        <div className="workspace-preview-heading">
-          <strong id="workspace-preview-title">미리보기</strong>
-          {selectedPageType === "MARKDOWN" && <DocumentActions result={isConverting ? null : result} markdown={markdown} title={title} onMessage={showToast} />}
-        </div>
-        {selectedPageType === "HTML" && <p className="workspace-external-resource-note">외부 이미지를 불러오면 이미지 서버에 현재 사용자의 IP가 전달될 수 있습니다.</p>}
-        <iframe
-          title={`${title} 미리보기`}
-          sandbox={selectedPageType === "MARKDOWN" ? "allow-same-origin" : ""}
-          referrerPolicy="no-referrer"
-          srcDoc={selectedPageType === "HTML" ? htmlPreviewDocument : (result?.fullHtml ?? "")}
-          onLoad={(event) => {
-            if (selectedPageType === "MARKDOWN" && event.currentTarget.contentDocument) {
-              bindMarkdownPreviewNavigation(event.currentTarget.contentDocument);
-            }
-          }}
-        />
-        <footer className="workspace-statusbar is-preview"><span>{markdown.length.toLocaleString("ko-KR")}자</span><span>미리보기</span></footer>
-      </section>
-      </>}
+      <WorkspaceDocumentView
+        pageType={selectedPageType}
+        title={title}
+        pdfUrl={pdfUrl}
+        content={markdown}
+        result={result}
+        isConverting={isConverting}
+        htmlPreviewDocument={htmlPreviewDocument}
+        editableTitle={isAuthenticated && sidebarView === "pages" && selectedPage ? selectedPage.title : null}
+        saveState={saveState}
+        isAuthenticated={isAuthenticated}
+        editorReadOnly={isAuthenticated && sidebarView === "trash"}
+        editorDisabled={isAuthenticated && sidebarView === "pages" && !selectedPage}
+        editorRatio={editorRatio}
+        onTitleChange={(nextTitle) => setPages((current) => current.map((page) => (
+          page.id === selectedPage?.id ? { ...page, title: nextTitle } : page
+        )))}
+        onContentChange={setMarkdown}
+        onMessage={showToast}
+        onDividerPointerDown={handleDividerPointerDown}
+        onDividerPointerMove={handleDividerPointerMove}
+        onDividerPointerUp={finishDividerResize}
+        onDividerPointerCancel={finishDividerResize}
+        onDividerLostPointerCapture={stopDividerResize}
+        onDividerKeyDown={handleDividerKeyDown}
+        onDividerReset={() => applyEditorRatio(DEFAULT_EDITOR_RATIO)}
+      />
       {createDialog && (
         <div className="confirm-dialog-backdrop" role="presentation" onMouseDown={(event) => {
           if (event.target === event.currentTarget) setCreateDialog(null);
