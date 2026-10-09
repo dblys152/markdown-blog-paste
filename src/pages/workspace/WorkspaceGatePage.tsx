@@ -6,8 +6,6 @@ import {
   createPdfWorkspacePage,
   deleteWorkspacePage,
   getWorkspacePage,
-  getWorkspacePdfBlob,
-  getWorkspacePdfUrl,
   getTrashedWorkspacePage,
   listTrashedWorkspacePages,
   listWorkspacePages,
@@ -26,11 +24,11 @@ import {
   type DropPlacement,
 } from "../../features/workspace/page-tree";
 import { buildHtmlPreviewDocument } from "../../features/workspace/html-preview";
-import { convertMarkdown } from "../../shared/markdown/converter-core";
-import type { ConversionResult } from "../../shared/markdown/types";
 import { useConfirmDialog } from "../../shared/ui/ConfirmDialog";
 import { loadGuestDraft, saveGuestDraft } from "./guest-draft-store";
 import { WorkspaceDocumentView } from "./WorkspaceDocumentView";
+import { useMarkdownConversion } from "./useMarkdownConversion";
+import { useWorkspacePdfPreview } from "./useWorkspacePdfPreview";
 
 const SAMPLE_MARKDOWN = `# 임시 Markdown 페이지
 
@@ -163,15 +161,12 @@ export function WorkspaceGatePage() {
   const [renamingPageId, setRenamingPageId] = useState<string | null>(null);
   const [renameTitle, setRenameTitle] = useState("");
   const [markdown, setMarkdown] = useState(SAMPLE_MARKDOWN);
-  const [pdfUrl, setPdfUrl] = useState("");
   const [createDialog, setCreateDialog] = useState<{ parentId: string | null } | null>(null);
   const [newPageType, setNewPageType] = useState<PageType>("MARKDOWN");
   const [newPageTitle, setNewPageTitle] = useState("");
   const [newPageFile, setNewPageFile] = useState<File | null>(null);
   const [newPageTitleEdited, setNewPageTitleEdited] = useState(false);
   const [isCreatingPage, setIsCreatingPage] = useState(false);
-  const [result, setResult] = useState<ConversionResult | null>(null);
-  const [isConverting, setIsConverting] = useState(true);
   const [toast, setToast] = useState("");
   const [saveState, setSaveState] = useState<"loading" | "saving" | "saved" | "error">("loading");
   const [isGuestInfoOpen, setIsGuestInfoOpen] = useState(true);
@@ -225,6 +220,18 @@ export function WorkspaceGatePage() {
     setToast(message);
     toastTimer.current = window.setTimeout(() => setToast(""), 2600);
   }, []);
+  const handlePdfPreviewError = useCallback(() => {
+    showToast("PDF를 불러오지 못했습니다.");
+  }, [showToast]);
+  const { result, isConverting } = useMarkdownConversion(markdown, title);
+  const activePdfPageId = isAuthenticated
+    ? (sidebarView === "trash" ? selectedTrashedPageId : selectedPageId)
+    : null;
+  const pdfUrl = useWorkspacePdfPreview({
+    pageId: activePdfPageId,
+    pageType: selectedPageType,
+    onError: handlePdfPreviewError,
+  });
 
   useEffect(() => () => window.clearTimeout(toastTimer.current), []);
 
@@ -365,48 +372,6 @@ export function WorkspaceGatePage() {
       cancelled = true;
     };
   }, [isAuthenticated, requestedPageId, showToast, workspaceReloadKey]);
-
-  useEffect(() => {
-    let cancelled = false;
-    setIsConverting(true);
-    convertMarkdown(markdown, "basic", title, undefined, (partialResult) => {
-      if (!cancelled) setResult(partialResult);
-    }).then((result) => {
-      if (cancelled) return;
-      setResult(result);
-      setIsConverting(false);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [markdown, title]);
-
-  useEffect(() => {
-    const activePageId = sidebarView === "trash" ? selectedTrashedPageId : selectedPageId;
-    if (!isAuthenticated || !activePageId || selectedPageType !== "PDF") {
-      setPdfUrl("");
-      return;
-    }
-    let cancelled = false;
-    let objectUrl = "";
-    getWorkspacePdfUrl(activePageId)
-      .then(async ({ url }) => {
-        if (!url.startsWith("/")) return url;
-        const blob = await getWorkspacePdfBlob(url);
-        objectUrl = URL.createObjectURL(blob);
-        return objectUrl;
-      })
-      .then((url) => {
-        if (!cancelled) setPdfUrl(url);
-      })
-      .catch(() => {
-        if (!cancelled) showToast("PDF를 불러오지 못했습니다.");
-      });
-    return () => {
-      cancelled = true;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [isAuthenticated, selectedPageId, selectedPageType, selectedTrashedPageId, showToast, sidebarView]);
 
   useEffect(() => {
     if (authStatus !== "guest" || !hydrated.current) return;
