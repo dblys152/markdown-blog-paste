@@ -22,11 +22,11 @@ import {
   resolvePageMoveDestination,
   type DropPlacement,
 } from "../../features/workspace/page-tree";
-import { buildHtmlPreviewDocument } from "../../features/workspace/html-preview";
 import { measureAsync } from "../../shared/performance/measureAsync";
 import { useConfirmDialog } from "../../shared/ui/ConfirmDialog";
 import { WorkspaceDocumentView } from "./WorkspaceDocumentView";
 import { useGuestDraftPersistence } from "./useGuestDraftPersistence";
+import { useHtmlPreviewDocument } from "./useHtmlPreviewDocument";
 import { useMarkdownConversion } from "./useMarkdownConversion";
 import { useWorkspaceDocumentContent } from "./useWorkspaceDocumentContent";
 import { useWorkspacePdfPreview } from "./useWorkspacePdfPreview";
@@ -239,9 +239,11 @@ export function WorkspaceGatePage() {
     setPages,
     onLoadError: handleDocumentLoadError,
   });
-  const htmlPreviewDocument = useMemo(
-    () => selectedPageType === "HTML" ? buildHtmlPreviewDocument(markdown) : "",
-    [markdown, selectedPageType],
+  const activeDocumentId = sidebarView === "trash" ? selectedTrashedPageId : selectedPageId;
+  const htmlPreviewDocument = useHtmlPreviewDocument(
+    markdown,
+    `${sidebarView}:${activeDocumentId ?? "none"}`,
+    selectedPageType === "HTML",
   );
   const { result, isConverting } = useMarkdownConversion(markdown, title, selectedPageType === "MARKDOWN");
   const activePdfPageId = isAuthenticated

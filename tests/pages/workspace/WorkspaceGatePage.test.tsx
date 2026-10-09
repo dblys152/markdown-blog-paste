@@ -271,7 +271,7 @@ describe("WorkspaceGatePage", () => {
     const preview = screen.getByTitle<HTMLIFrameElement>("HTML 문서 미리보기");
     expect(preview.getAttribute("sandbox")).toBe("");
     expect(preview.getAttribute("referrerpolicy")).toBe("no-referrer");
-    expect(preview.srcdoc).toContain("https://example.com/photo.jpg");
+    await waitFor(() => expect(preview.srcdoc).toContain("https://example.com/photo.jpg"));
   });
 
   it("HTML 페이지에서는 Markdown 변환을 실행하지 않는다", async () => {
