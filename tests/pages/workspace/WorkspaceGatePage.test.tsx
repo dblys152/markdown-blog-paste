@@ -81,6 +81,16 @@ const conversionResult = {
   fullHtml: "<!doctype html><html><body><p>미리보기</p></body></html>",
 };
 
+function createDeferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+}
+
 function renderPage(initialEntry: string | { pathname: string; state?: unknown } = "/workspace") {
   return render(
     <MemoryRouter initialEntries={[initialEntry]}>
@@ -635,6 +645,71 @@ describe("WorkspaceGatePage", () => {
     expect(secondPageRow?.classList.contains("is-active")).toBe(true);
     await waitFor(() => {
       expect((screen.getByRole("textbox", { name: "Markdown 내용" }) as HTMLTextAreaElement).value).toBe("둘째 내용");
+    });
+  });
+
+  it("페이지를 빠르게 전환해도 늦게 도착한 이전 응답이 현재 본문을 덮지 않는다", async () => {
+    useAuth.mockReturnValue({ status: "authenticated", user: { id: "1", email_verified: true } });
+    listWorkspacePages.mockResolvedValue([
+      { id: "10", owner_id: "1", title: "첫 페이지", parent_id: null, sort_order: 0, type: "MARKDOWN" },
+      { id: "20", owner_id: "1", title: "느린 페이지", parent_id: null, sort_order: 1, type: "MARKDOWN" },
+      { id: "30", owner_id: "1", title: "현재 페이지", parent_id: null, sort_order: 2, type: "MARKDOWN" },
+    ]);
+    const slowPage = createDeferred<{
+      id: string;
+      title: string;
+      contents: string;
+      parent_id: null;
+      sort_order: number;
+      type: "MARKDOWN";
+    }>();
+    const currentPage = createDeferred<{
+      id: string;
+      title: string;
+      contents: string;
+      parent_id: null;
+      sort_order: number;
+      type: "MARKDOWN";
+    }>();
+    getWorkspacePage.mockImplementation((pageId: string) => {
+      if (pageId === "20") return slowPage.promise;
+      if (pageId === "30") return currentPage.promise;
+      return Promise.resolve({
+        id: "10",
+        title: "첫 페이지",
+        contents: "첫 내용",
+        parent_id: null,
+        sort_order: 0,
+        type: "MARKDOWN",
+      });
+    });
+    const user = userEvent.setup();
+    renderPage();
+    expect(await screen.findByDisplayValue("첫 내용")).not.toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "느린 페이지" }));
+    await user.click(screen.getByRole("button", { name: "현재 페이지" }));
+    currentPage.resolve({
+      id: "30",
+      title: "현재 페이지",
+      contents: "현재 내용",
+      parent_id: null,
+      sort_order: 2,
+      type: "MARKDOWN",
+    });
+    expect(await screen.findByDisplayValue("현재 내용")).not.toBeNull();
+
+    slowPage.resolve({
+      id: "20",
+      title: "느린 페이지",
+      contents: "늦게 도착한 이전 내용",
+      parent_id: null,
+      sort_order: 1,
+      type: "MARKDOWN",
+    });
+    await waitFor(() => {
+      expect((screen.getByRole("textbox", { name: "Markdown 내용" }) as HTMLTextAreaElement).value)
+        .toBe("현재 내용");
     });
   });
 
