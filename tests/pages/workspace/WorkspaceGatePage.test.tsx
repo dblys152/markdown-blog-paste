@@ -274,6 +274,79 @@ describe("WorkspaceGatePage", () => {
     expect(preview.srcdoc).toContain("https://example.com/photo.jpg");
   });
 
+  it("HTML 페이지에서는 Markdown 변환을 실행하지 않는다", async () => {
+    useAuth.mockReturnValue({ status: "authenticated", user: { id: "1", email_verified: true } });
+    listWorkspacePages.mockResolvedValue([
+      { id: "10", owner_id: "1", title: "Markdown 문서", parent_id: null, sort_order: 0, type: "MARKDOWN" },
+      { id: "20", owner_id: "1", title: "HTML 문서", parent_id: null, sort_order: 1, type: "HTML" },
+    ]);
+    getWorkspacePage.mockImplementation(async (pageId: string) => ({
+      id: pageId,
+      title: pageId === "20" ? "HTML 문서" : "Markdown 문서",
+      type: pageId === "20" ? "HTML" : "MARKDOWN",
+      contents: pageId === "20" ? "<h1>HTML</h1>" : "# Markdown",
+      parent_id: null,
+      sort_order: pageId === "20" ? 1 : 0,
+    }));
+    const user = userEvent.setup();
+    renderPage();
+
+    await screen.findByDisplayValue("# Markdown");
+    await waitFor(() => expect(convertMarkdown).toHaveBeenCalled());
+    convertMarkdown.mockClear();
+    await user.click(screen.getByRole("button", { name: "HTML 문서" }));
+    await screen.findByTitle("HTML 문서 미리보기");
+
+    expect(convertMarkdown).not.toHaveBeenCalled();
+  });
+
+  it("페이지 행에 마우스를 올리면 상세를 선로딩하고 선택 시 같은 요청을 재사용한다", async () => {
+    useAuth.mockReturnValue({ status: "authenticated", user: { id: "1", email_verified: true } });
+    listWorkspacePages.mockResolvedValue([
+      { id: "10", owner_id: "1", title: "첫 페이지", parent_id: null, sort_order: 0, type: "MARKDOWN" },
+      { id: "20", owner_id: "1", title: "둘째 페이지", parent_id: null, sort_order: 1, type: "MARKDOWN" },
+    ]);
+    const secondPage = createDeferred<{
+      id: string;
+      title: string;
+      type: "MARKDOWN";
+      contents: string;
+      parent_id: null;
+      sort_order: number;
+    }>();
+    getWorkspacePage.mockImplementation((pageId: string) => pageId === "20"
+      ? secondPage.promise
+      : Promise.resolve({
+        id: "10",
+        title: "첫 페이지",
+        type: "MARKDOWN",
+        contents: "첫 내용",
+        parent_id: null,
+        sort_order: 0,
+      }));
+    const user = userEvent.setup();
+    renderPage();
+
+    await screen.findByDisplayValue("첫 내용");
+    const secondPageRow = screen.getByRole("button", { name: "둘째 페이지" }).closest(".workspace-page-item") as HTMLElement;
+    fireEvent.mouseEnter(secondPageRow);
+    await waitFor(() => expect(getWorkspacePage).toHaveBeenCalledWith("20"));
+    const clickPromise = user.click(secondPageRow);
+    await waitFor(() => expect(secondPageRow.classList.contains("is-active")).toBe(true));
+    expect(getWorkspacePage.mock.calls.filter(([pageId]) => pageId === "20")).toHaveLength(1);
+    secondPage.resolve({
+      id: "20",
+      title: "둘째 페이지",
+      type: "MARKDOWN",
+      contents: "둘째 내용",
+      parent_id: null,
+      sort_order: 1,
+    });
+    await clickPromise;
+    await screen.findByDisplayValue("둘째 내용");
+    expect(getWorkspacePage.mock.calls.filter(([pageId]) => pageId === "20")).toHaveLength(1);
+  });
+
   it("저장된 PDF의 상대 URL을 인증 Blob으로 불러오고 페이지 전환 시 해제한다", async () => {
     useAuth.mockReturnValue({ status: "authenticated", user: { id: "1", email_verified: true } });
     listWorkspacePages.mockResolvedValue([
@@ -759,6 +832,58 @@ describe("WorkspaceGatePage", () => {
     const firstChild = screen.getByRole("button", { name: "첫 번째 하위" });
     const secondChild = screen.getByRole("button", { name: "두 번째 하위" });
     expect(firstChild.compareDocumentPosition(secondChild) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+  });
+
+  it("휴지통 페이지에 마우스를 올리면 상세를 선로딩하고 선택 시 같은 요청을 재사용한다", async () => {
+    useAuth.mockReturnValue({ status: "authenticated", user: { id: "1", email_verified: true } });
+    listWorkspacePages.mockResolvedValue([]);
+    listTrashedWorkspacePages.mockResolvedValue([
+      { id: "10", parent_id: null, title: "첫 삭제 페이지", sort_order: 0, type: "MARKDOWN", deleted_at: "2026-09-02T00:00:00Z", expires_at: "2026-10-02T00:00:00Z" },
+      { id: "20", parent_id: null, title: "둘째 삭제 페이지", sort_order: 1, type: "MARKDOWN", deleted_at: "2026-09-01T00:00:00Z", expires_at: "2026-10-01T00:00:00Z" },
+    ]);
+    const secondPage = createDeferred<{
+      id: string;
+      owner_id: string;
+      title: string;
+      type: "MARKDOWN";
+      contents: string;
+      parent_id: null;
+      sort_order: number;
+    }>();
+    getTrashedWorkspacePage.mockImplementation((pageId: string) => pageId === "20"
+      ? secondPage.promise
+      : Promise.resolve({
+        id: "10",
+        owner_id: "1",
+        title: "첫 삭제 페이지",
+        type: "MARKDOWN",
+        contents: "첫 삭제 내용",
+        parent_id: null,
+        sort_order: 0,
+      }));
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "휴지통" }));
+    await screen.findByDisplayValue("첫 삭제 내용");
+    const secondPageRow = screen.getByRole("button", { name: "둘째 삭제 페이지" }).closest(".workspace-page-item") as HTMLElement;
+    fireEvent.mouseEnter(secondPageRow);
+    await waitFor(() => expect(getTrashedWorkspacePage).toHaveBeenCalledWith("20"));
+    const clickPromise = user.click(secondPageRow);
+    await waitFor(() => expect(secondPageRow.classList.contains("is-active")).toBe(true));
+    expect(getTrashedWorkspacePage.mock.calls.filter(([pageId]) => pageId === "20")).toHaveLength(1);
+    secondPage.resolve({
+      id: "20",
+      owner_id: "1",
+      title: "둘째 삭제 페이지",
+      type: "MARKDOWN",
+      contents: "둘째 삭제 내용",
+      parent_id: null,
+      sort_order: 1,
+    });
+    await clickPromise;
+    await screen.findByDisplayValue("둘째 삭제 내용");
+    expect(getTrashedWorkspacePage.mock.calls.filter(([pageId]) => pageId === "20")).toHaveLength(1);
   });
 
   it("휴지통에서 삭제한 페이지를 조회하고 복원한다", async () => {

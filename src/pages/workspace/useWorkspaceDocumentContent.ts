@@ -5,6 +5,7 @@ import {
   type PageType,
   type WorkspacePageListItem,
 } from "../../features/workspace/api";
+import { measureAsync } from "../../shared/performance/measureAsync";
 
 export type WorkspaceSaveState = "loading" | "saving" | "saved" | "error";
 
@@ -30,12 +31,35 @@ export function useWorkspaceDocumentContent({
   const [content, setContent] = useState(initialContent);
   const [saveState, setSaveState] = useState<WorkspaceSaveState>("loading");
   const contentCache = useRef(new Map<string, string>());
+  const pendingContentRequests = useRef(new Map<string, Promise<string>>());
   const hydrated = useRef(false);
   const skipNextSave = useRef(false);
   const requestId = useRef(0);
 
   useEffect(() => () => {
     requestId.current += 1;
+    pendingContentRequests.current.clear();
+  }, []);
+
+  const fetchPageContent = useCallback((pageId: string, useCache = true): Promise<string> => {
+    if (useCache) {
+      const cachedContent = contentCache.current.get(pageId);
+      if (cachedContent !== undefined) return Promise.resolve(cachedContent);
+    }
+
+    const pendingRequest = pendingContentRequests.current.get(pageId);
+    if (pendingRequest) return pendingRequest;
+
+    const request = measureAsync("md2blog.workspace.page-detail", async () => {
+      const detail = await getWorkspacePage(pageId);
+      const pageContent = detail.contents ?? "";
+      contentCache.current.set(detail.id, pageContent);
+      return pageContent;
+    }).finally(() => {
+      pendingContentRequests.current.delete(pageId);
+    });
+    pendingContentRequests.current.set(pageId, request);
+    return request;
   }, []);
 
   useEffect(() => {
@@ -86,10 +110,9 @@ export function useWorkspaceDocumentContent({
     setSaveState("loading");
     setContent("");
     try {
-      const detail = await getWorkspacePage(page.id);
+      const pageContent = await fetchPageContent(page.id, options.useCache !== false);
       if (requestId.current !== currentRequestId) return;
-      contentCache.current.set(detail.id, detail.contents ?? "");
-      setContent(detail.contents ?? "");
+      setContent(pageContent);
       hydrated.current = true;
       setSaveState("saved");
     } catch {
@@ -97,7 +120,14 @@ export function useWorkspaceDocumentContent({
       setSaveState("error");
       onLoadError();
     }
-  }, [onLoadError]);
+  }, [fetchPageContent, onLoadError]);
+
+  const prefetchPageContent = useCallback((page: WorkspacePageListItem) => {
+    if (page.type === "PDF" || contentCache.current.has(page.id)) return;
+    void fetchPageContent(page.id).catch(() => {
+      // 선로딩 실패는 실제 페이지 선택 시 다시 시도합니다.
+    });
+  }, [fetchPageContent]);
 
   const initializeEmptyContent = useCallback(() => {
     requestId.current += 1;
@@ -130,6 +160,7 @@ export function useWorkspaceDocumentContent({
     saveState,
     setSaveState,
     loadPageContent,
+    prefetchPageContent,
     initializeEmptyContent,
     suspendAutosave,
     cachePageContent,

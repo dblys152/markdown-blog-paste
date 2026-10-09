@@ -16,6 +16,7 @@ const {
   getWorkspacePage,
   createWorkspacePage,
   updateWorkspacePage,
+  measureAsync,
 } = vi.hoisted(() => ({
   convertMarkdown: vi.fn(),
   copyPreviewHtml: vi.fn(),
@@ -29,9 +30,11 @@ const {
   getWorkspacePage: vi.fn(),
   createWorkspacePage: vi.fn(),
   updateWorkspacePage: vi.fn(),
+  measureAsync: vi.fn((_name: string, task: () => Promise<unknown>) => task()),
 }));
 
 vi.mock("../../../src/shared/markdown/converter-core", () => ({ convertMarkdown }));
+vi.mock("../../../src/shared/performance/measureAsync", () => ({ measureAsync }));
 vi.mock("../../../src/shared/export/clipboard", () => ({
   copyMermaidPng: vi.fn(),
   copyPreviewHtml,
@@ -109,6 +112,10 @@ describe("MarkdownPastePage", () => {
       generateH2Toc: false,
       addH2Dividers: false,
     }, expect.any(Function));
+    expect(measureAsync).toHaveBeenCalledWith(
+      "md2blog.quick-conversion.markdown-conversion",
+      expect.any(Function),
+    );
     expect(preview.srcdoc).toContain("변환된 본문");
     expect(screen.getByText("sample-post.md")).not.toBeNull();
   });

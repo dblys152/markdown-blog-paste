@@ -16,6 +16,7 @@ import type {
   ModeOption,
   UploadedMarkdownFile,
 } from "../../shared/markdown/types";
+import { measureAsync } from "../../shared/performance/measureAsync";
 import { DocumentActions } from "../../shared/ui/DocumentActions";
 import { fileIcon } from "../../shared/ui/icons";
 import { loadGuestDraft, saveGuestDraft, type GuestDraft } from "../workspace/guest-draft-store";
@@ -101,18 +102,20 @@ export function MarkdownPastePage() {
     let active = true;
     setIsConverting(true);
 
-    void convertMarkdown(
-      markdownText,
-      mode,
-      outputTitle,
-      { excludeFirstH1, generateH2Toc, addH2Dividers },
-      (partialResult) => {
-        if (active) {
-          setResult(partialResult);
-          setPreviewRevision((revision) => revision + 1);
-        }
-      },
-    )
+    void measureAsync("md2blog.quick-conversion.markdown-conversion", () => (
+      convertMarkdown(
+        markdownText,
+        mode,
+        outputTitle,
+        { excludeFirstH1, generateH2Toc, addH2Dividers },
+        (partialResult) => {
+          if (active) {
+            setResult(partialResult);
+            setPreviewRevision((revision) => revision + 1);
+          }
+        },
+      )
+    ))
       .then((nextResult) => {
         if (!active) return;
         setResult(nextResult);

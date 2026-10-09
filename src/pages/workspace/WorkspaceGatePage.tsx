@@ -23,6 +23,7 @@ import {
   type DropPlacement,
 } from "../../features/workspace/page-tree";
 import { buildHtmlPreviewDocument } from "../../features/workspace/html-preview";
+import { measureAsync } from "../../shared/performance/measureAsync";
 import { useConfirmDialog } from "../../shared/ui/ConfirmDialog";
 import { WorkspaceDocumentView } from "./WorkspaceDocumentView";
 import { useGuestDraftPersistence } from "./useGuestDraftPersistence";
@@ -176,6 +177,9 @@ export function WorkspaceGatePage() {
   const workspaceRef = useRef<HTMLElement>(null);
   const resizingRef = useRef(false);
   const toastTimer = useRef<number | undefined>(undefined);
+  const trashContentCache = useRef(new Map<string, string>());
+  const pendingTrashContentRequests = useRef(new Map<string, Promise<string>>());
+  const trashContentRequestId = useRef(0);
   const selectedPage = pages.find((page) => page.id === selectedPageId) ?? null;
   const selectedTrashedPage = trashedPages.find((page) => page.id === selectedTrashedPageId) ?? null;
   const pageById = useMemo(() => new Map(pages.map((page) => [page.id, page])), [pages]);
@@ -220,6 +224,7 @@ export function WorkspaceGatePage() {
     saveState,
     setSaveState,
     loadPageContent,
+    prefetchPageContent,
     initializeEmptyContent,
     suspendAutosave,
     cachePageContent,
@@ -238,7 +243,7 @@ export function WorkspaceGatePage() {
     () => selectedPageType === "HTML" ? buildHtmlPreviewDocument(markdown) : "",
     [markdown, selectedPageType],
   );
-  const { result, isConverting } = useMarkdownConversion(markdown, title);
+  const { result, isConverting } = useMarkdownConversion(markdown, title, selectedPageType === "MARKDOWN");
   const activePdfPageId = isAuthenticated
     ? (sidebarView === "trash" ? selectedTrashedPageId : selectedPageId)
     : null;
@@ -256,6 +261,30 @@ export function WorkspaceGatePage() {
   });
 
   useEffect(() => () => window.clearTimeout(toastTimer.current), []);
+
+  const fetchTrashedPageContent = useCallback((page: TrashedWorkspacePage): Promise<string> => {
+    if (page.type === "PDF") return Promise.resolve("");
+    const cachedContent = trashContentCache.current.get(page.id);
+    if (cachedContent !== undefined) return Promise.resolve(cachedContent);
+    const pendingRequest = pendingTrashContentRequests.current.get(page.id);
+    if (pendingRequest) return pendingRequest;
+
+    const request = measureAsync("md2blog.workspace.trash-page-detail", async () => {
+      const detail = await getTrashedWorkspacePage(page.id);
+      const pageContent = detail.contents ?? "";
+      trashContentCache.current.set(page.id, pageContent);
+      return pageContent;
+    }).finally(() => pendingTrashContentRequests.current.delete(page.id));
+    pendingTrashContentRequests.current.set(page.id, request);
+    return request;
+  }, []);
+
+  const prefetchTrashedPageContent = useCallback((page: TrashedWorkspacePage) => {
+    if (page.type === "PDF" || trashContentCache.current.has(page.id)) return;
+    void fetchTrashedPageContent(page).catch(() => {
+      // 선로딩 실패는 실제 페이지 선택 시 다시 시도합니다.
+    });
+  }, [fetchTrashedPageContent]);
 
   useEffect(() => {
     if (!selectedPageId) return;
@@ -488,11 +517,13 @@ export function WorkspaceGatePage() {
         .filter((page) => page.parent_id === null || !loadedPageIds.has(page.parent_id))
         .sort(compareTrashRoots)[0];
       if (firstPage) {
+        const currentRequestId = ++trashContentRequestId.current;
         setSelectedTrashedPageId(firstPage.id);
         setSaveState("loading");
         suspendAutosave();
-        const detail = await getTrashedWorkspacePage(firstPage.id);
-        setMarkdown(detail.contents ?? "");
+        const pageContent = await fetchTrashedPageContent(firstPage);
+        if (trashContentRequestId.current !== currentRequestId) return;
+        setMarkdown(pageContent);
         setSaveState("saved");
       } else {
         setMarkdown("");
@@ -502,23 +533,25 @@ export function WorkspaceGatePage() {
       setSaveState("error");
       showToast("휴지통을 불러오지 못했습니다.");
     }
-  }, [showToast, suspendAutosave]);
+  }, [fetchTrashedPageContent, showToast, suspendAutosave]);
 
   const selectTrashedPage = useCallback(async (page: TrashedWorkspacePage) => {
+    const currentRequestId = ++trashContentRequestId.current;
     setOpenTrashMenuId(null);
     setSelectedTrashedPageId(page.id);
     setMobilePane(page.type === "PDF" ? "preview" : "editor");
     setSaveState("loading");
     suspendAutosave();
     try {
-      const detail = await getTrashedWorkspacePage(page.id);
-      setMarkdown(detail.contents ?? "");
+      const pageContent = await fetchTrashedPageContent(page);
+      if (trashContentRequestId.current !== currentRequestId) return;
+      setMarkdown(pageContent);
       setSaveState("saved");
     } catch {
       setSaveState("error");
       showToast("삭제된 페이지 내용을 불러오지 못했습니다.");
     }
-  }, [showToast, suspendAutosave]);
+  }, [fetchTrashedPageContent, showToast, suspendAutosave]);
 
   const restorePage = useCallback(async (page: TrashedWorkspacePage) => {
     setOpenTrashMenuId(null);
@@ -545,6 +578,7 @@ export function WorkspaceGatePage() {
       ]);
       setPages(refreshedPages);
       setTrashedPages(refreshedTrash);
+      trashContentCache.current.clear();
       setSelectedTrashedPageId(null);
       setMarkdown("");
       showToast("페이지를 복원했습니다.");
@@ -569,6 +603,7 @@ export function WorkspaceGatePage() {
     try {
       await permanentlyDeleteWorkspacePage(page.id);
       const deletedIds = collectTrashSubtreeIds(trashedPages, page.id);
+      deletedIds.forEach((pageId) => trashContentCache.current.delete(pageId));
       setTrashedPages((current) => current.filter((candidate) => !deletedIds.has(candidate.id)));
       if (selectedTrashedPageId !== null && deletedIds.has(selectedTrashedPageId)) {
         setSelectedTrashedPageId(null);
@@ -653,6 +688,7 @@ export function WorkspaceGatePage() {
             className={`workspace-page-item ${page.id === selectedPageId ? "is-active" : ""} ${draggedPageId === page.id ? "is-dragging" : ""} ${dropHint?.pageId === page.id ? `drop-${dropHint.placement}` : ""}`}
             style={{ paddingLeft: `${16 + Math.min(depth, 6) * 16}px` }}
             draggable
+            onMouseEnter={() => prefetchPageContent(page)}
             onClick={() => selectPage(page)}
             onDragStart={(event) => {
               setOpenPageMenuId(null);
@@ -788,6 +824,7 @@ export function WorkspaceGatePage() {
             <div
               className={`workspace-page-item ${page.id === selectedTrashedPageId ? "is-active" : ""}`}
               style={{ marginLeft: `${Math.min(depth, 6) * 14}px` }}
+              onMouseEnter={() => prefetchTrashedPageContent(page)}
               onClick={() => void selectTrashedPage(page)}
             >
               <button
@@ -859,6 +896,35 @@ export function WorkspaceGatePage() {
         );
       });
   };
+
+  const pageTree = useMemo(() => renderPageTree(null), [
+    addPage,
+    childPageIds,
+    draggedPageId,
+    dropHint,
+    expandedPageIds,
+    openPageMenuId,
+    openPageMenuUpward,
+    pages,
+    prefetchPageContent,
+    removePage,
+    renameTitle,
+    renamingPageId,
+    selectPage,
+  ]);
+  const trashTree = useMemo(() => renderTrashTree(null), [
+    expandedTrashPageIds,
+    openTrashMenuId,
+    openTrashMenuUpward,
+    permanentlyDeletePage,
+    prefetchTrashedPageContent,
+    restorePage,
+    selectTrashedPage,
+    selectedTrashedPageId,
+    trashChildPageIds,
+    trashedPageIds,
+    trashedPages,
+  ]);
 
   const updateEditorRatio = useCallback((clientX: number) => {
     const workspace = workspaceRef.current;
@@ -1063,6 +1129,7 @@ export function WorkspaceGatePage() {
                 className={`workspace-page-item workspace-search-result ${page.id === selectedPageId ? "is-active" : ""}`}
                 type="button"
                 key={page.id}
+                onMouseEnter={() => prefetchPageContent(page)}
                 onClick={() => void selectPage(page)}
               >
                 <span className="workspace-page-icon"><PageTypeIcon pageType={page.type} /></span>
@@ -1078,11 +1145,11 @@ export function WorkspaceGatePage() {
             {trashLoadState === "ready" && trashedPages.length === 0 && (
               <p className="workspace-empty-pages">휴지통이 비어 있습니다.</p>
             )}
-            {renderTrashTree(null)}
+            {trashTree}
           </div>
         ) : isAuthenticated ? (
           <div className="workspace-page-list" role="region" aria-label="페이지 목록">
-            {pages.length > 0 ? renderPageTree(null) : (
+            {pages.length > 0 ? pageTree : (
               <p className="workspace-empty-pages">아직 페이지가 없습니다.<br />+ 버튼으로 첫 페이지를 만들어보세요.</p>
             )}
           </div>
