@@ -25,8 +25,8 @@ import {
 } from "../../features/workspace/page-tree";
 import { buildHtmlPreviewDocument } from "../../features/workspace/html-preview";
 import { useConfirmDialog } from "../../shared/ui/ConfirmDialog";
-import { loadGuestDraft, saveGuestDraft } from "./guest-draft-store";
 import { WorkspaceDocumentView } from "./WorkspaceDocumentView";
+import { useGuestDraftPersistence } from "./useGuestDraftPersistence";
 import { useMarkdownConversion } from "./useMarkdownConversion";
 import { useWorkspacePdfPreview } from "./useWorkspacePdfPreview";
 
@@ -178,7 +178,6 @@ export function WorkspaceGatePage() {
   const [mobilePane, setMobilePane] = useState<"pages" | "editor" | "preview">("pages");
   const workspaceRef = useRef<HTMLElement>(null);
   const resizingRef = useRef(false);
-  const hydrated = useRef(false);
   const serverHydrated = useRef(false);
   const skipNextServerSave = useRef(false);
   const pageRequestId = useRef(0);
@@ -231,6 +230,13 @@ export function WorkspaceGatePage() {
     pageId: activePdfPageId,
     pageType: selectedPageType,
     onError: handlePdfPreviewError,
+  });
+  useGuestDraftPersistence({
+    enabled: authStatus === "guest",
+    title,
+    markdown,
+    onMarkdownLoaded: setMarkdown,
+    setSaveState,
   });
 
   useEffect(() => () => window.clearTimeout(toastTimer.current), []);
@@ -307,22 +313,6 @@ export function WorkspaceGatePage() {
   }, [isAuthenticated, isSearchOpen, searchQuery]);
 
   useEffect(() => {
-    if (authStatus !== "guest") return;
-    loadGuestDraft()
-      .then(async (draft) => {
-        if (draft?.markdown) setMarkdown(draft.markdown);
-        if (draft && draft.title !== title) {
-          await saveGuestDraft({ ...draft, title, updatedAt: Date.now() });
-        }
-      })
-      .catch(() => setSaveState("error"))
-      .finally(() => {
-        hydrated.current = true;
-        setSaveState((current) => (current === "error" ? current : "saved"));
-      });
-  }, [authStatus]);
-
-  useEffect(() => {
     if (!isAuthenticated) {
       serverHydrated.current = false;
       setWorkspaceLoadState("idle");
@@ -372,17 +362,6 @@ export function WorkspaceGatePage() {
       cancelled = true;
     };
   }, [isAuthenticated, requestedPageId, showToast, workspaceReloadKey]);
-
-  useEffect(() => {
-    if (authStatus !== "guest" || !hydrated.current) return;
-    setSaveState("saving");
-    const timer = window.setTimeout(() => {
-      saveGuestDraft({ title, markdown, updatedAt: Date.now() })
-        .then(() => setSaveState("saved"))
-        .catch(() => setSaveState("error"));
-    }, 450);
-    return () => window.clearTimeout(timer);
-  }, [authStatus, markdown, title]);
 
   useEffect(() => {
     if (!isAuthenticated || sidebarView !== "pages" || !serverHydrated.current || !selectedPageId) return;
