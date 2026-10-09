@@ -11,7 +11,9 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "html2canvas": "^1.4.1",
     "html2pdf.js": "^0.14.0",
+    "jspdf": "^4.2.1",
     "marked": "^12.0.2",
     "mermaid": "^11.16.1",
     "react": "^19.2.8",
