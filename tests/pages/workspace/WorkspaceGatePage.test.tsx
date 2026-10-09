@@ -156,6 +156,7 @@ describe("WorkspaceGatePage", () => {
     cleanup();
     vi.restoreAllMocks();
     vi.clearAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it("로그인 상태 확인 중에는 임시 페이지를 표시하지 않는다", () => {
@@ -227,6 +228,74 @@ describe("WorkspaceGatePage", () => {
     await user.click(screen.getByRole("button", { name: "임시 페이지" }));
 
     expect(screen.getByRole("tab", { name: "Markdown" }).getAttribute("aria-selected")).toBe("true");
+  });
+
+  it("페이지 유형별 아이콘을 표시하고 HTML 페이지는 격리된 미리보기와 외부 이미지 안내를 제공한다", async () => {
+    useAuth.mockReturnValue({ status: "authenticated", user: { id: "1", email_verified: true } });
+    listWorkspacePages.mockResolvedValue([
+      { id: "10", owner_id: "1", title: "Markdown 문서", parent_id: null, sort_order: 0, type: "MARKDOWN" },
+      { id: "20", owner_id: "1", title: "HTML 문서", parent_id: null, sort_order: 1, type: "HTML" },
+      { id: "30", owner_id: "1", title: "PDF 문서", parent_id: null, sort_order: 2, type: "PDF" },
+    ]);
+    getWorkspacePage.mockImplementation(async (pageId: string) => ({
+      id: pageId,
+      title: pageId === "20" ? "HTML 문서" : "Markdown 문서",
+      type: pageId === "20" ? "HTML" : "MARKDOWN",
+      contents: pageId === "20" ? '<img src="https://example.com/photo.jpg">' : "# Markdown",
+      parent_id: null,
+      sort_order: pageId === "20" ? 1 : 0,
+    }));
+    const user = userEvent.setup();
+    renderPage();
+
+    expect(await screen.findByRole("img", { name: "Markdown 문서" })).not.toBeNull();
+    expect(screen.getByRole("img", { name: "HTML 문서" })).not.toBeNull();
+    expect(screen.getByRole("img", { name: "PDF 문서" })).not.toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "HTML 문서" }));
+
+    expect(await screen.findByRole("region", { name: "HTML 편집기" })).not.toBeNull();
+    expect(screen.getByText("외부 이미지를 불러오면 이미지 서버에 현재 사용자의 IP가 전달될 수 있습니다.")).not.toBeNull();
+    const preview = screen.getByTitle<HTMLIFrameElement>("HTML 문서 미리보기");
+    expect(preview.getAttribute("sandbox")).toBe("");
+    expect(preview.getAttribute("referrerpolicy")).toBe("no-referrer");
+    expect(preview.srcdoc).toContain("https://example.com/photo.jpg");
+  });
+
+  it("저장된 PDF의 상대 URL을 인증 Blob으로 불러오고 페이지 전환 시 해제한다", async () => {
+    useAuth.mockReturnValue({ status: "authenticated", user: { id: "1", email_verified: true } });
+    listWorkspacePages.mockResolvedValue([
+      { id: "30", owner_id: "1", title: "PDF 원본", parent_id: null, sort_order: 0, type: "PDF" },
+      { id: "10", owner_id: "1", title: "Markdown 문서", parent_id: null, sort_order: 1, type: "MARKDOWN" },
+    ]);
+    getWorkspacePage.mockImplementation(async (pageId: string) => ({
+      id: pageId,
+      title: pageId === "30" ? "PDF 원본" : "Markdown 문서",
+      type: pageId === "30" ? "PDF" : "MARKDOWN",
+      contents: pageId === "30" ? null : "# Markdown",
+      parent_id: null,
+      sort_order: pageId === "30" ? 0 : 1,
+    }));
+    getWorkspacePdfUrl.mockResolvedValue({ url: "/workspace/pages/30/pdf/content", expires_in: "900" });
+    const pdfBlob = new Blob(["%PDF-1.7\nPDF contents"], { type: "application/pdf" });
+    getWorkspacePdfBlob.mockResolvedValue(pdfBlob);
+    const createObjectURL = vi.fn(() => "blob:https://md2blog.test/pdf-original");
+    const revokeObjectURL = vi.fn();
+    class MockURL extends URL {}
+    MockURL.createObjectURL = createObjectURL;
+    MockURL.revokeObjectURL = revokeObjectURL;
+    vi.stubGlobal("URL", MockURL);
+    const user = userEvent.setup();
+    renderPage();
+
+    const pdfPreview = await screen.findByTitle<HTMLIFrameElement>("PDF 원본 PDF");
+    expect(getWorkspacePdfBlob).toHaveBeenCalledWith("/workspace/pages/30/pdf/content");
+    expect(createObjectURL).toHaveBeenCalledWith(pdfBlob);
+    expect(pdfPreview.src).toBe("blob:https://md2blog.test/pdf-original");
+
+    await user.click(screen.getByRole("button", { name: "Markdown 문서" }));
+    await waitFor(() => expect(revokeObjectURL).toHaveBeenCalledWith("blob:https://md2blog.test/pdf-original"));
+    expect(screen.queryByTitle("PDF 원본 PDF")).toBeNull();
   });
 
   it("저장된 본문을 복원하되 비회원 페이지명은 임시 페이지로 유지한다", async () => {

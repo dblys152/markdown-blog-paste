@@ -169,6 +169,20 @@ describe("MarkdownPastePage", () => {
     expect(downloadMarkdown).toHaveBeenCalledWith(expect.stringContaining("# "), "sample-post");
   });
 
+  it("내보내기 메뉴에서 변환된 본문을 PDF로 다운로드한다", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByTitle("변환 결과");
+
+    await user.click(screen.getByRole("button", { name: /내보내기/ }));
+    await user.click(screen.getByRole("menuitem", { name: /PDF 다운로드/ }));
+
+    await waitFor(() => {
+      expect(downloadPdf).toHaveBeenCalledWith(conversionResult.bodyHtml, "sample-post");
+      expect(screen.getByText("PDF 파일 다운로드를 시작했습니다.")).not.toBeNull();
+    });
+  });
+
   it("내보내기 메뉴는 바깥 클릭과 Escape로 닫힌다", async () => {
     const user = userEvent.setup();
     renderPage();
