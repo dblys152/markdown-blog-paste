@@ -347,7 +347,7 @@ describe("WorkspaceGatePage", () => {
     expect(getWorkspacePage.mock.calls.filter(([pageId]) => pageId === "20")).toHaveLength(1);
   });
 
-  it("저장된 PDF의 상대 URL을 인증 Blob으로 불러오고 페이지 전환 시 해제한다", async () => {
+  it("저장된 PDF Blob을 재선택 시 재사용하고 기록장을 벗어날 때 해제한다", async () => {
     useAuth.mockReturnValue({ status: "authenticated", user: { id: "1", email_verified: true } });
     listWorkspacePages.mockResolvedValue([
       { id: "30", owner_id: "1", title: "PDF 원본", parent_id: null, sort_order: 0, type: "PDF" },
@@ -371,7 +371,7 @@ describe("WorkspaceGatePage", () => {
     MockURL.revokeObjectURL = revokeObjectURL;
     vi.stubGlobal("URL", MockURL);
     const user = userEvent.setup();
-    renderPage();
+    const view = renderPage();
 
     const pdfPreview = await screen.findByTitle<HTMLIFrameElement>("PDF 원본 PDF");
     expect(getWorkspacePdfBlob).toHaveBeenCalledWith("/workspace/pages/30/pdf/content");
@@ -379,8 +379,17 @@ describe("WorkspaceGatePage", () => {
     expect(pdfPreview.src).toBe("blob:https://md2blog.test/pdf-original");
 
     await user.click(screen.getByRole("button", { name: "Markdown 문서" }));
-    await waitFor(() => expect(revokeObjectURL).toHaveBeenCalledWith("blob:https://md2blog.test/pdf-original"));
     expect(screen.queryByTitle("PDF 원본 PDF")).toBeNull();
+    expect(revokeObjectURL).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "PDF 원본" }));
+    expect(await screen.findByTitle<HTMLIFrameElement>("PDF 원본 PDF")).not.toBeNull();
+    expect(getWorkspacePdfUrl).toHaveBeenCalledTimes(1);
+    expect(getWorkspacePdfBlob).toHaveBeenCalledTimes(1);
+    expect(createObjectURL).toHaveBeenCalledTimes(1);
+
+    view.unmount();
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:https://md2blog.test/pdf-original");
   });
 
   it("저장된 본문을 복원하되 비회원 페이지명은 임시 페이지로 유지한다", async () => {
