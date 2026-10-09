@@ -5,7 +5,6 @@ import {
   createWorkspacePage,
   createPdfWorkspacePage,
   deleteWorkspacePage,
-  getWorkspacePage,
   getTrashedWorkspacePage,
   listTrashedWorkspacePages,
   listWorkspacePages,
@@ -28,6 +27,7 @@ import { useConfirmDialog } from "../../shared/ui/ConfirmDialog";
 import { WorkspaceDocumentView } from "./WorkspaceDocumentView";
 import { useGuestDraftPersistence } from "./useGuestDraftPersistence";
 import { useMarkdownConversion } from "./useMarkdownConversion";
+import { useWorkspaceDocumentContent } from "./useWorkspaceDocumentContent";
 import { useWorkspacePdfPreview } from "./useWorkspacePdfPreview";
 
 const SAMPLE_MARKDOWN = `# 임시 Markdown 페이지
@@ -148,7 +148,6 @@ export function WorkspaceGatePage() {
   const [searchState, setSearchState] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const hasSearchQuery = searchQuery.trim().length > 0;
   const [trashLoadState, setTrashLoadState] = useState<"idle" | "loading" | "ready" | "error">("idle");
-  const pageContentCache = useRef(new Map<string, string>());
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
   const [expandedPageIds, setExpandedPageIds] = useState<Set<string>>(() => new Set());
   const [expandedTrashPageIds, setExpandedTrashPageIds] = useState<Set<string>>(() => new Set());
@@ -160,7 +159,6 @@ export function WorkspaceGatePage() {
   const [openTrashMenuUpward, setOpenTrashMenuUpward] = useState(false);
   const [renamingPageId, setRenamingPageId] = useState<string | null>(null);
   const [renameTitle, setRenameTitle] = useState("");
-  const [markdown, setMarkdown] = useState(SAMPLE_MARKDOWN);
   const [createDialog, setCreateDialog] = useState<{ parentId: string | null } | null>(null);
   const [newPageType, setNewPageType] = useState<PageType>("MARKDOWN");
   const [newPageTitle, setNewPageTitle] = useState("");
@@ -168,7 +166,6 @@ export function WorkspaceGatePage() {
   const [newPageTitleEdited, setNewPageTitleEdited] = useState(false);
   const [isCreatingPage, setIsCreatingPage] = useState(false);
   const [toast, setToast] = useState("");
-  const [saveState, setSaveState] = useState<"loading" | "saving" | "saved" | "error">("loading");
   const [isGuestInfoOpen, setIsGuestInfoOpen] = useState(true);
   const [workspaceLoadState, setWorkspaceLoadState] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [workspaceReloadKey, setWorkspaceReloadKey] = useState(0);
@@ -178,9 +175,6 @@ export function WorkspaceGatePage() {
   const [mobilePane, setMobilePane] = useState<"pages" | "editor" | "preview">("pages");
   const workspaceRef = useRef<HTMLElement>(null);
   const resizingRef = useRef(false);
-  const serverHydrated = useRef(false);
-  const skipNextServerSave = useRef(false);
-  const pageRequestId = useRef(0);
   const toastTimer = useRef<number | undefined>(undefined);
   const selectedPage = pages.find((page) => page.id === selectedPageId) ?? null;
   const selectedTrashedPage = trashedPages.find((page) => page.id === selectedTrashedPageId) ?? null;
@@ -209,11 +203,6 @@ export function WorkspaceGatePage() {
   const selectedPageType: PageType = sidebarView === "trash"
     ? (selectedTrashedPage?.type ?? "MARKDOWN")
     : (selectedPage?.type ?? "MARKDOWN");
-  const htmlPreviewDocument = useMemo(
-    () => selectedPageType === "HTML" ? buildHtmlPreviewDocument(markdown) : "",
-    [markdown, selectedPageType],
-  );
-
   const showToast = useCallback((message: string) => {
     window.clearTimeout(toastTimer.current);
     setToast(message);
@@ -222,6 +211,33 @@ export function WorkspaceGatePage() {
   const handlePdfPreviewError = useCallback(() => {
     showToast("PDF를 불러오지 못했습니다.");
   }, [showToast]);
+  const handleDocumentLoadError = useCallback(() => {
+    showToast("페이지 내용을 불러오지 못했습니다.");
+  }, [showToast]);
+  const {
+    content: markdown,
+    setContent: setMarkdown,
+    saveState,
+    setSaveState,
+    loadPageContent,
+    initializeEmptyContent,
+    suspendAutosave,
+    cachePageContent,
+    removeCachedContent,
+    preventNextSave,
+  } = useWorkspaceDocumentContent({
+    initialContent: SAMPLE_MARKDOWN,
+    autosaveEnabled: isAuthenticated && sidebarView === "pages",
+    selectedPageId,
+    pageType: selectedPageType,
+    title,
+    setPages,
+    onLoadError: handleDocumentLoadError,
+  });
+  const htmlPreviewDocument = useMemo(
+    () => selectedPageType === "HTML" ? buildHtmlPreviewDocument(markdown) : "",
+    [markdown, selectedPageType],
+  );
   const { result, isConverting } = useMarkdownConversion(markdown, title);
   const activePdfPageId = isAuthenticated
     ? (sidebarView === "trash" ? selectedTrashedPageId : selectedPageId)
@@ -314,12 +330,12 @@ export function WorkspaceGatePage() {
 
   useEffect(() => {
     if (!isAuthenticated) {
-      serverHydrated.current = false;
+      suspendAutosave();
       setWorkspaceLoadState("idle");
       return;
     }
     let cancelled = false;
-    serverHydrated.current = false;
+    suspendAutosave();
     setWorkspaceLoadState("loading");
     setSaveState("loading");
     listWorkspacePages()
@@ -330,26 +346,9 @@ export function WorkspaceGatePage() {
         setSelectedPageId(initialPage?.id ?? null);
         setWorkspaceLoadState("ready");
         if (initialPage) {
-          setMarkdown("");
-          getWorkspacePage(initialPage.id)
-            .then((detail) => {
-              if (cancelled) return;
-              pageContentCache.current.set(detail.id, detail.contents ?? "");
-              setMarkdown(detail.contents ?? "");
-              skipNextServerSave.current = true;
-              serverHydrated.current = true;
-              setSaveState("saved");
-            })
-            .catch(() => {
-              if (cancelled) return;
-              setSaveState("error");
-              showToast("페이지 내용을 불러오지 못했습니다.");
-            });
+          void loadPageContent(initialPage, { useCache: false });
         } else {
-          setMarkdown("");
-          skipNextServerSave.current = true;
-          serverHydrated.current = true;
-          setSaveState("saved");
+          initializeEmptyContent();
         }
       })
       .catch(() => {
@@ -361,64 +360,14 @@ export function WorkspaceGatePage() {
     return () => {
       cancelled = true;
     };
-  }, [isAuthenticated, requestedPageId, showToast, workspaceReloadKey]);
-
-  useEffect(() => {
-    if (!isAuthenticated || sidebarView !== "pages" || !serverHydrated.current || !selectedPageId) return;
-    if (skipNextServerSave.current) {
-      skipNextServerSave.current = false;
-      return;
-    }
-    if (!title.trim()) {
-      setSaveState("error");
-      return;
-    }
-    setSaveState("saving");
-    const timer = window.setTimeout(() => {
-      updateWorkspacePage(
-        selectedPageId,
-        selectedPageType === "PDF" ? { title } : { title, content: markdown },
-      )
-        .then((updatedPage) => {
-          pageContentCache.current.set(updatedPage.id, updatedPage.contents ?? "");
-          setPages((current) => current.map((page) => page.id === updatedPage.id ? updatedPage : page));
-          setSaveState("saved");
-        })
-        .catch(() => setSaveState("error"));
-    }, 600);
-    return () => window.clearTimeout(timer);
-  }, [isAuthenticated, markdown, selectedPageId, selectedPageType, sidebarView, title]);
+  }, [initializeEmptyContent, isAuthenticated, loadPageContent, requestedPageId, setSaveState, suspendAutosave, workspaceReloadKey]);
 
   const selectPage = useCallback(async (page: WorkspacePageListItem) => {
     setOpenPageMenuId(null);
-    const requestId = ++pageRequestId.current;
-    skipNextServerSave.current = true;
-    serverHydrated.current = false;
     setSelectedPageId(page.id);
     setMobilePane(page.type === "PDF" ? "preview" : "editor");
-    const cachedContent = pageContentCache.current.get(page.id);
-    if (cachedContent !== undefined) {
-      setMarkdown(cachedContent);
-      serverHydrated.current = true;
-      setSaveState("saved");
-      return;
-    }
-
-    setSaveState("loading");
-    setMarkdown("");
-    try {
-      const detail = await getWorkspacePage(page.id);
-      if (pageRequestId.current !== requestId) return;
-      pageContentCache.current.set(detail.id, detail.contents ?? "");
-      setMarkdown(detail.contents ?? "");
-      serverHydrated.current = true;
-      setSaveState("saved");
-    } catch {
-      if (pageRequestId.current !== requestId) return;
-      setSaveState("error");
-      showToast("페이지 내용을 불러오지 못했습니다.");
-    }
-  }, [showToast]);
+    await loadPageContent(page);
+  }, [loadPageContent]);
 
   const addPage = useCallback(async (parentId: string | null = null) => {
     setCreateDialog({ parentId });
@@ -466,7 +415,7 @@ export function WorkspaceGatePage() {
           type: newPageType,
         });
       }
-      pageContentCache.current.set(created.id, created.contents ?? "");
+      cachePageContent(created.id, created.contents);
       setPages((current) => [...current, created]);
       if (createDialog.parentId !== null) {
         setExpandedPageIds((current) => new Set(current).add(createDialog.parentId as string));
@@ -478,7 +427,7 @@ export function WorkspaceGatePage() {
     } finally {
       setIsCreatingPage(false);
     }
-  }, [createDialog, newPageFile, newPageTitle, newPageType, selectPage, showToast]);
+  }, [cachePageContent, createDialog, newPageFile, newPageTitle, newPageType, selectPage, showToast]);
 
   const removePage = useCallback(async (page: WorkspacePageListItem) => {
     const hasChildren = pages.some((candidate) => candidate.parent_id === page.id);
@@ -505,7 +454,7 @@ export function WorkspaceGatePage() {
           }
         }
       }
-      deletedIds.forEach((id) => pageContentCache.current.delete(id));
+      removeCachedContent(deletedIds);
       const remaining = pages.filter((candidate) => !deletedIds.has(candidate.id));
       setPages(remaining);
       if (deletedIds.has(selectedPageId ?? "")) {
@@ -515,12 +464,12 @@ export function WorkspaceGatePage() {
           setSelectedPageId(null);
           setMarkdown("");
         }
-        skipNextServerSave.current = true;
+        preventNextSave();
       }
     } catch {
       showToast("페이지를 삭제하지 못했습니다.");
     }
-  }, [pages, requestConfirmation, selectPage, selectedPageId, showToast]);
+  }, [pages, preventNextSave, removeCachedContent, requestConfirmation, selectPage, selectedPageId, showToast]);
 
   const openTrash = useCallback(async () => {
     setIsSearchOpen(false);
@@ -541,7 +490,7 @@ export function WorkspaceGatePage() {
       if (firstPage) {
         setSelectedTrashedPageId(firstPage.id);
         setSaveState("loading");
-        serverHydrated.current = false;
+        suspendAutosave();
         const detail = await getTrashedWorkspacePage(firstPage.id);
         setMarkdown(detail.contents ?? "");
         setSaveState("saved");
@@ -553,14 +502,14 @@ export function WorkspaceGatePage() {
       setSaveState("error");
       showToast("휴지통을 불러오지 못했습니다.");
     }
-  }, [showToast]);
+  }, [showToast, suspendAutosave]);
 
   const selectTrashedPage = useCallback(async (page: TrashedWorkspacePage) => {
     setOpenTrashMenuId(null);
     setSelectedTrashedPageId(page.id);
     setMobilePane(page.type === "PDF" ? "preview" : "editor");
     setSaveState("loading");
-    serverHydrated.current = false;
+    suspendAutosave();
     try {
       const detail = await getTrashedWorkspacePage(page.id);
       setMarkdown(detail.contents ?? "");
@@ -569,7 +518,7 @@ export function WorkspaceGatePage() {
       setSaveState("error");
       showToast("삭제된 페이지 내용을 불러오지 못했습니다.");
     }
-  }, [showToast]);
+  }, [showToast, suspendAutosave]);
 
   const restorePage = useCallback(async (page: TrashedWorkspacePage) => {
     setOpenTrashMenuId(null);
@@ -643,7 +592,7 @@ export function WorkspaceGatePage() {
     if (!nextTitle || nextTitle === page.title) return;
     try {
       const updated = await updateWorkspacePage(page.id, { title: nextTitle });
-      if (page.id === selectedPageId) skipNextServerSave.current = true;
+      if (page.id === selectedPageId) preventNextSave();
       setPages((current) => current.map((candidate) => (
         candidate.id === updated.id ? updated : candidate
       )));

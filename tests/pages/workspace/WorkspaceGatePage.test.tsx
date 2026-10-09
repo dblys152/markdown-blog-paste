@@ -234,6 +234,8 @@ describe("WorkspaceGatePage", () => {
     renderPage();
 
     expect(screen.getByRole("button", { name: "임시 페이지" }).querySelector(".workspace-page-type-icon.is-markdown")).not.toBeNull();
+    expect((screen.getByRole("textbox", { name: "Markdown 내용" }) as HTMLTextAreaElement).value)
+      .toContain("# 임시 Markdown 페이지");
     expect(screen.getByRole("tab", { name: "페이지" }).getAttribute("aria-selected")).toBe("true");
     await user.click(screen.getByRole("button", { name: "임시 페이지" }));
 
