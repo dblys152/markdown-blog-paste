@@ -8,7 +8,6 @@ import {
   getTrashedWorkspacePage,
   listTrashedWorkspacePages,
   listWorkspacePages,
-  moveWorkspacePage,
   permanentlyDeleteWorkspacePage,
   restoreWorkspacePage,
   searchWorkspacePages,
@@ -18,7 +17,6 @@ import {
   type PageType,
 } from "../../features/workspace/api";
 import {
-  applyPageMove,
   countDirectChildPages,
   resolvePageMoveDestination,
   type DropPlacement,
@@ -32,6 +30,7 @@ import { useMarkdownConversion } from "./useMarkdownConversion";
 import { useWorkspaceDocumentContent } from "./useWorkspaceDocumentContent";
 import { useWorkspacePdfPreview } from "./useWorkspacePdfPreview";
 import { usePersistedExpandedPageIds } from "./usePersistedExpandedPageIds";
+import { useWorkspacePageMove } from "./useWorkspacePageMove";
 
 const SAMPLE_MARKDOWN = `# 임시 Markdown 페이지
 
@@ -218,6 +217,15 @@ export function WorkspaceGatePage() {
   const handleDocumentLoadError = useCallback(() => {
     showToast("페이지 내용을 불러오지 못했습니다.");
   }, [showToast]);
+  const handlePageMoveError = useCallback(() => {
+    showToast("페이지를 이동하지 못했습니다.");
+  }, [showToast]);
+  const movePage = useWorkspacePageMove({
+    pages,
+    setPages,
+    setExpandedPageIds,
+    onError: handlePageMoveError,
+  });
   const {
     content: markdown,
     setContent: setMarkdown,
@@ -663,7 +671,7 @@ export function WorkspaceGatePage() {
     return "inside";
   };
 
-  const handlePageDrop = async (
+  const handlePageDrop = (
     event: DragEvent<HTMLDivElement>,
     targetPage: WorkspacePageListItem,
   ) => {
@@ -677,21 +685,7 @@ export function WorkspaceGatePage() {
     setDraggedPageId(null);
     if (!draggedPageId || !destination) return;
 
-    try {
-      const moved = await moveWorkspacePage(draggedPageId, {
-        parent_id: destination.parentId,
-        sort_order: destination.sortOrder,
-      });
-      setPages((current) => applyPageMove(current, moved.id, {
-        parentId: moved.parent_id,
-        sortOrder: moved.sort_order,
-      }));
-      if (moved.parent_id !== null) {
-        setExpandedPageIds((current) => new Set(current).add(moved.parent_id as string));
-      }
-    } catch {
-      showToast("페이지를 이동하지 못했습니다.");
-    }
+    movePage(draggedPageId, destination);
   };
 
   const renderPageTree = (parentId: string | null, depth = 0): ReactNode => {
@@ -730,7 +724,7 @@ export function WorkspaceGatePage() {
             onDragLeave={(event) => {
               if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDropHint(null);
             }}
-            onDrop={(event) => void handlePageDrop(event, page)}
+            onDrop={(event) => handlePageDrop(event, page)}
           >
             <button
               type="button"

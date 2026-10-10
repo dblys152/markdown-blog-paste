@@ -613,13 +613,14 @@ describe("WorkspaceGatePage", () => {
       { id: "10", owner_id: "1", title: "개발 노트", parent_id: null, sort_order: 0 },
       { id: "20", owner_id: "1", title: "API 설계", parent_id: null, sort_order: 1 },
     ]);
-    moveWorkspacePage.mockResolvedValue({
-      id: "20",
-      title: "API 설계",
-      contents: "",
-      parent_id: "10",
-      sort_order: 0,
-    });
+    const movement = createDeferred<{
+      id: string;
+      title: string;
+      contents: string;
+      parent_id: string;
+      sort_order: number;
+    }>();
+    moveWorkspacePage.mockReturnValueOnce(movement.promise);
     renderPage();
     const source = (await screen.findByRole("button", { name: "API 설계" })).closest(".workspace-page-item");
     const target = screen.getByRole("button", { name: "개발 노트" }).closest(".workspace-page-item");
@@ -640,12 +641,42 @@ describe("WorkspaceGatePage", () => {
     fireEvent.dragOver(target as HTMLElement, { dataTransfer, clientY: 20 });
     fireEvent.drop(target as HTMLElement, { dataTransfer, clientY: 20 });
 
+    expect(screen.getByRole("button", { name: "개발 노트 하위 페이지 접기" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "API 설계" })).not.toBeNull();
     await waitFor(() => {
       expect(moveWorkspacePage).toHaveBeenCalledWith("20", {
         parent_id: "10",
         sort_order: 0,
       });
     });
+    movement.resolve({ id: "20", title: "API 설계", contents: "", parent_id: "10", sort_order: 0 });
+  });
+
+  it("페이지 이동 요청이 실패하면 원래 위치로 되돌린다", async () => {
+    useAuth.mockReturnValue({ status: "authenticated", user: { id: "1", email_verified: true } });
+    listWorkspacePages.mockResolvedValue([
+      { id: "10", owner_id: "1", title: "개발 노트", parent_id: null, sort_order: 0 },
+      { id: "20", owner_id: "1", title: "API 설계", parent_id: null, sort_order: 1 },
+    ]);
+    const movement = createDeferred<never>();
+    moveWorkspacePage.mockReturnValueOnce(movement.promise);
+    renderPage();
+    const source = (await screen.findByRole("button", { name: "API 설계" })).closest(".workspace-page-item") as HTMLElement;
+    const target = screen.getByRole("button", { name: "개발 노트" }).closest(".workspace-page-item") as HTMLElement;
+    vi.spyOn(target, "getBoundingClientRect").mockReturnValue({
+      top: 0, bottom: 40, height: 40, left: 0, right: 200, width: 200, x: 0, y: 0,
+      toJSON: () => ({}),
+    });
+    const dataTransfer = { effectAllowed: "none", dropEffect: "none", setData: vi.fn(), getData: vi.fn() };
+
+    fireEvent.dragStart(source, { dataTransfer });
+    fireEvent.drop(target, { dataTransfer, clientY: 20 });
+    expect(screen.getByRole("button", { name: "개발 노트 하위 페이지 접기" })).not.toBeNull();
+
+    movement.reject(new Error("failed"));
+    await screen.findByText("페이지를 이동하지 못했습니다.");
+    expect(screen.getByRole("button", { name: "API 설계" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "API 설계" }).closest(".workspace-page-item")?.style.paddingLeft).toBe("16px");
   });
 
   it("페이지 메뉴에서 이름을 변경한다", async () => {
