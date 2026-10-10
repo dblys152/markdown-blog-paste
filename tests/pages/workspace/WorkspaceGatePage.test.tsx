@@ -843,6 +843,49 @@ describe("WorkspaceGatePage", () => {
     await user.click(screen.getByRole("button", { name: "취소" }));
   });
 
+  it("페이지 삭제 확인 직후 목록에서 제거하고 다음 페이지를 선택한다", async () => {
+    useAuth.mockReturnValue({ status: "authenticated", user: { id: "1", email_verified: true } });
+    listWorkspacePages.mockResolvedValue([
+      { id: "10", owner_id: "1", title: "삭제할 페이지", parent_id: null, sort_order: 0 },
+      { id: "20", owner_id: "1", title: "다음 페이지", parent_id: null, sort_order: 1 },
+    ]);
+    const deletion = createDeferred<void>();
+    deleteWorkspacePage.mockReturnValueOnce(deletion.promise);
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "삭제할 페이지 메뉴" }));
+    await user.click(screen.getByRole("menuitem", { name: "휴지통" }));
+    await user.click(screen.getByRole("button", { name: "휴지통으로 이동" }));
+
+    expect(screen.queryByRole("button", { name: "삭제할 페이지" })).toBeNull();
+    expect(screen.getByRole("button", { name: "다음 페이지" }).closest(".workspace-page-item")?.classList.contains("is-active")).toBe(true);
+
+    deletion.resolve();
+    await waitFor(() => expect(deleteWorkspacePage).toHaveBeenCalledWith("10"));
+  });
+
+  it("페이지 삭제 요청이 실패하면 낙관적으로 제거한 페이지를 복원한다", async () => {
+    useAuth.mockReturnValue({ status: "authenticated", user: { id: "1", email_verified: true } });
+    listWorkspacePages.mockResolvedValue([
+      { id: "10", owner_id: "1", title: "삭제할 페이지", parent_id: null, sort_order: 0 },
+      { id: "20", owner_id: "1", title: "다음 페이지", parent_id: null, sort_order: 1 },
+    ]);
+    const deletion = createDeferred<void>();
+    deleteWorkspacePage.mockReturnValueOnce(deletion.promise);
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "삭제할 페이지 메뉴" }));
+    await user.click(screen.getByRole("menuitem", { name: "휴지통" }));
+    await user.click(screen.getByRole("button", { name: "휴지통으로 이동" }));
+    expect(screen.queryByRole("button", { name: "삭제할 페이지" })).toBeNull();
+
+    deletion.reject(new Error("failed"));
+    expect(await screen.findByRole("button", { name: "삭제할 페이지" })).not.toBeNull();
+    expect(screen.getByText("페이지를 삭제하지 못했습니다.")).not.toBeNull();
+  });
+
   it("휴지통 최상위 묶음은 최근 삭제 순이고 하위 페이지는 기존 순서를 유지한다", async () => {
     useAuth.mockReturnValue({ status: "authenticated", user: { id: "1", email_verified: true } });
     listWorkspacePages.mockResolvedValue([]);
@@ -868,6 +911,32 @@ describe("WorkspaceGatePage", () => {
     const firstChild = screen.getByRole("button", { name: "첫 번째 하위" });
     const secondChild = screen.getByRole("button", { name: "두 번째 하위" });
     expect(firstChild.compareDocumentPosition(secondChild) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+  });
+
+  it("휴지통에 다시 들어가면 기존 목록을 유지한 채 갱신한다", async () => {
+    useAuth.mockReturnValue({ status: "authenticated", user: { id: "1", email_verified: true } });
+    listWorkspacePages.mockResolvedValue([
+      { id: "1", owner_id: "1", title: "활성 페이지", parent_id: null, sort_order: 0 },
+    ]);
+    const refresh = createDeferred<Awaited<ReturnType<typeof listTrashedWorkspacePages>>>();
+    listTrashedWorkspacePages
+      .mockResolvedValueOnce([
+        { id: "10", parent_id: null, title: "삭제한 페이지", sort_order: 0, deleted_at: "2026-09-01T00:00:00Z", expires_at: "2026-10-01T00:00:00Z" },
+      ])
+      .mockReturnValueOnce(refresh.promise);
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "휴지통" }));
+    expect(await screen.findByRole("button", { name: "삭제한 페이지" })).not.toBeNull();
+    await user.click(screen.getByRole("button", { name: "페이지 목록으로 돌아가기" }));
+    await user.click(screen.getByRole("button", { name: "휴지통" }));
+
+    expect(screen.getByRole("button", { name: "삭제한 페이지" }).closest(".workspace-page-item")?.classList.contains("is-active")).toBe(true);
+    expect(screen.queryByText("휴지통을 불러오는 중…")).toBeNull();
+
+    refresh.resolve([]);
+    expect(await screen.findByText("휴지통이 비어 있습니다.")).not.toBeNull();
   });
 
   it("휴지통 페이지에 마우스를 올리면 상세를 선로딩하고 선택 시 같은 요청을 재사용한다", async () => {

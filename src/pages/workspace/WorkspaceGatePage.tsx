@@ -472,70 +472,44 @@ export function WorkspaceGatePage() {
       tone: "danger",
     });
     if (!confirmed) return;
+
+    const deletedIds = new Set([page.id]);
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const candidate of pages) {
+        if (candidate.parent_id && deletedIds.has(candidate.parent_id) && !deletedIds.has(candidate.id)) {
+          deletedIds.add(candidate.id);
+          changed = true;
+        }
+      }
+    }
+    const deletedPages = pages.filter((candidate) => deletedIds.has(candidate.id));
+    const remaining = pages.filter((candidate) => !deletedIds.has(candidate.id));
+    const selectedPageWasDeleted = deletedIds.has(selectedPageId ?? "");
+
+    setPages(remaining);
+    if (selectedPageWasDeleted) {
+      preventNextSave();
+      const nextPage = remaining[0] ?? null;
+      if (nextPage) void selectPage(nextPage);
+      else {
+        setSelectedPageId(null);
+        setMarkdown("");
+      }
+    }
+
     try {
       await deleteWorkspacePage(page.id);
-      const deletedIds = new Set([page.id]);
-      let changed = true;
-      while (changed) {
-        changed = false;
-        for (const candidate of pages) {
-          if (candidate.parent_id && deletedIds.has(candidate.parent_id) && !deletedIds.has(candidate.id)) {
-            deletedIds.add(candidate.id);
-            changed = true;
-          }
-        }
-      }
       removeCachedContent(deletedIds);
-      const remaining = pages.filter((candidate) => !deletedIds.has(candidate.id));
-      setPages(remaining);
-      if (deletedIds.has(selectedPageId ?? "")) {
-        const nextPage = remaining[0] ?? null;
-        if (nextPage) await selectPage(nextPage);
-        else {
-          setSelectedPageId(null);
-          setMarkdown("");
-        }
-        preventNextSave();
-      }
     } catch {
+      setPages((current) => {
+        const currentIds = new Set(current.map((candidate) => candidate.id));
+        return [...current, ...deletedPages.filter((candidate) => !currentIds.has(candidate.id))];
+      });
       showToast("페이지를 삭제하지 못했습니다.");
     }
   }, [pages, preventNextSave, removeCachedContent, requestConfirmation, selectPage, selectedPageId, showToast]);
-
-  const openTrash = useCallback(async () => {
-    setIsSearchOpen(false);
-    setSearchQuery("");
-    setSearchResults([]);
-    setSidebarView("trash");
-    setOpenTrashMenuId(null);
-    setSelectedTrashedPageId(null);
-    setTrashLoadState("loading");
-    try {
-      const loadedPages = await listTrashedWorkspacePages();
-      setTrashedPages(loadedPages);
-      setTrashLoadState("ready");
-      const loadedPageIds = new Set(loadedPages.map((page) => page.id));
-      const firstPage = loadedPages
-        .filter((page) => page.parent_id === null || !loadedPageIds.has(page.parent_id))
-        .sort(compareTrashRoots)[0];
-      if (firstPage) {
-        const currentRequestId = ++trashContentRequestId.current;
-        setSelectedTrashedPageId(firstPage.id);
-        setSaveState("loading");
-        suspendAutosave();
-        const pageContent = await fetchTrashedPageContent(firstPage);
-        if (trashContentRequestId.current !== currentRequestId) return;
-        setMarkdown(pageContent);
-        setSaveState("saved");
-      } else {
-        setMarkdown("");
-      }
-    } catch {
-      setTrashLoadState("error");
-      setSaveState("error");
-      showToast("휴지통을 불러오지 못했습니다.");
-    }
-  }, [fetchTrashedPageContent, showToast, suspendAutosave]);
 
   const selectTrashedPage = useCallback(async (page: TrashedWorkspacePage) => {
     const currentRequestId = ++trashContentRequestId.current;
@@ -554,6 +528,49 @@ export function WorkspaceGatePage() {
       showToast("삭제된 페이지 내용을 불러오지 못했습니다.");
     }
   }, [fetchTrashedPageContent, showToast, suspendAutosave]);
+
+  const openTrash = useCallback(async () => {
+    const hasCachedPages = trashLoadState === "ready";
+    setIsSearchOpen(false);
+    setSearchQuery("");
+    setSearchResults([]);
+    setSidebarView("trash");
+    setOpenTrashMenuId(null);
+    const cachedPageIds = new Set(trashedPages.map((page) => page.id));
+    const cachedFirstPage = trashedPages
+      .filter((page) => page.parent_id === null || !cachedPageIds.has(page.parent_id))
+      .sort(compareTrashRoots)[0];
+    if (hasCachedPages && cachedFirstPage) void selectTrashedPage(cachedFirstPage);
+    else setSelectedTrashedPageId(null);
+    const selectionRequestIdAtOpen = trashContentRequestId.current;
+    if (!hasCachedPages) setTrashLoadState("loading");
+    try {
+      const loadedPages = await listTrashedWorkspacePages();
+      setTrashedPages(loadedPages);
+      setTrashLoadState("ready");
+      if (trashContentRequestId.current !== selectionRequestIdAtOpen) return;
+      const loadedPageIds = new Set(loadedPages.map((page) => page.id));
+      const firstPage = loadedPages
+        .filter((page) => page.parent_id === null || !loadedPageIds.has(page.parent_id))
+        .sort(compareTrashRoots)[0];
+      if (firstPage) {
+        const currentRequestId = ++trashContentRequestId.current;
+        setSelectedTrashedPageId(firstPage.id);
+        setSaveState("loading");
+        suspendAutosave();
+        const pageContent = await fetchTrashedPageContent(firstPage);
+        if (trashContentRequestId.current !== currentRequestId) return;
+        setMarkdown(pageContent);
+        setSaveState("saved");
+      } else {
+        setMarkdown("");
+      }
+    } catch {
+      setTrashLoadState(hasCachedPages ? "ready" : "error");
+      setSaveState("error");
+      showToast("휴지통을 불러오지 못했습니다.");
+    }
+  }, [fetchTrashedPageContent, selectTrashedPage, showToast, suspendAutosave, trashLoadState, trashedPages]);
 
   const restorePage = useCallback(async (page: TrashedWorkspacePage) => {
     setOpenTrashMenuId(null);
@@ -1088,6 +1105,7 @@ export function WorkspaceGatePage() {
           <span>{sidebarView === "trash" ? "휴지통" : hasSearchQuery ? `검색 결과 ${searchResults.length}` : "페이지"}</span>
           {hasSearchQuery ? null : sidebarView === "trash" ? (
             <button type="button" aria-label="페이지 목록으로 돌아가기" onClick={() => {
+              trashContentRequestId.current += 1;
               setSidebarView("pages");
               setSelectedTrashedPageId(null);
               if (selectedPage) void selectPage(selectedPage);
