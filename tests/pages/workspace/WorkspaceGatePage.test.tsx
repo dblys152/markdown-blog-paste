@@ -221,11 +221,8 @@ describe("WorkspaceGatePage", () => {
 
     await user.click(expandButton);
     expect(screen.getByRole("button", { name: "API 설계" })).not.toBeNull();
-
-    await user.click(screen.getByRole("button", { name: "API 설계 하위 페이지 펼치기" }));
-    expect(screen.getByText("하위 페이지 없음")).not.toBeNull();
-    await user.click(screen.getByRole("button", { name: "API 설계 하위 페이지 접기" }));
-    expect(screen.queryByText("하위 페이지 없음")).toBeNull();
+    expect(screen.queryByRole("button", { name: "API 설계 하위 페이지 펼치기" })).toBeNull();
+    expect(screen.getByRole("button", { name: "API 설계" }).closest(".workspace-page-item")?.querySelector(".workspace-page-icon")).not.toBeNull();
 
     await user.click(screen.getByRole("button", { name: "개발 노트 하위 페이지 접기" }));
     expect(screen.queryByRole("button", { name: "API 설계" })).toBeNull();
@@ -1066,9 +1063,8 @@ describe("WorkspaceGatePage", () => {
     expect(screen.queryByRole("button", { name: "삭제한 하위 페이지" })).toBeNull();
     await user.click(screen.getByRole("button", { name: "삭제한 페이지 하위 페이지 펼치기" }));
     expect(screen.getByRole("button", { name: "삭제한 하위 페이지" })).not.toBeNull();
-    await user.click(screen.getByRole("button", { name: "삭제한 하위 페이지 하위 페이지 펼치기" }));
-    expect(screen.getByText("하위 페이지 없음")).not.toBeNull();
-    await user.click(screen.getByRole("button", { name: "삭제한 하위 페이지 하위 페이지 접기" }));
+    expect(screen.queryByRole("button", { name: "삭제한 하위 페이지 하위 페이지 펼치기" })).toBeNull();
+    expect(screen.getByRole("button", { name: "삭제한 하위 페이지" }).closest(".workspace-page-item")?.querySelector(".workspace-page-icon")).not.toBeNull();
 
     await user.click(screen.getByRole("button", { name: "삭제한 페이지 메뉴" }));
     await user.click(screen.getByRole("menuitem", { name: "영구 삭제" }));

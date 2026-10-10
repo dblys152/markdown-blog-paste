@@ -127,6 +127,41 @@ function PageTypeIcon({ pageType }: { pageType: PageType | undefined }) {
   );
 }
 
+function PageTreeIcon({
+  pageTitle,
+  pageType,
+  hasChildren,
+  isExpanded,
+  onToggle,
+}: {
+  pageTitle: string;
+  pageType: PageType | undefined;
+  hasChildren: boolean;
+  isExpanded: boolean;
+  onToggle: () => void;
+}) {
+  if (!hasChildren) {
+    return <span className="workspace-page-icon"><PageTypeIcon pageType={pageType} /></span>;
+  }
+  return (
+    <button
+      type="button"
+      className={`workspace-page-disclosure ${isExpanded ? "is-expanded" : ""}`}
+      aria-label={`${pageTitle} 하위 페이지 ${isExpanded ? "접기" : "펼치기"}`}
+      aria-expanded={isExpanded}
+      onClick={(event) => {
+        event.stopPropagation();
+        onToggle();
+      }}
+    >
+      <PageTypeIcon pageType={pageType} />
+      <svg className="workspace-page-chevron" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+        <path d="m7 5 5 5-5 5" />
+      </svg>
+    </button>
+  );
+}
+
 export function WorkspaceGatePage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -726,13 +761,12 @@ export function WorkspaceGatePage() {
             }}
             onDrop={(event) => handlePageDrop(event, page)}
           >
-            <button
-              type="button"
-              className={`workspace-page-disclosure ${isExpanded ? "is-expanded" : ""}`}
-              aria-label={`${page.title} 하위 페이지 ${isExpanded ? "접기" : "펼치기"}`}
-              aria-expanded={isExpanded}
-              onClick={(event) => {
-                event.stopPropagation();
+            <PageTreeIcon
+              pageTitle={page.title}
+              pageType={page.type}
+              hasChildren={hasChildren}
+              isExpanded={isExpanded}
+              onToggle={() => {
                 setExpandedPageIds((current) => {
                   const next = new Set(current);
                   if (next.has(page.id)) next.delete(page.id);
@@ -740,12 +774,7 @@ export function WorkspaceGatePage() {
                   return next;
                 });
               }}
-            >
-              <PageTypeIcon pageType={page.type} />
-              <svg className="workspace-page-chevron" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                <path d="m7 5 5 5-5 5" />
-              </svg>
-            </button>
+            />
             {renamingPageId === page.id ? (
               <input
                 className="workspace-page-rename-input"
@@ -809,11 +838,7 @@ export function WorkspaceGatePage() {
               )}
             </div>
           </div>
-          {isExpanded && (
-            hasChildren
-              ? renderPageTree(page.id, depth + 1)
-              : <p className="workspace-page-empty-child" style={{ paddingLeft: `${48 + Math.min(depth, 6) * 16}px` }}>하위 페이지 없음</p>
-          )}
+          {isExpanded && hasChildren && renderPageTree(page.id, depth + 1)}
         </div>
         );
       });
@@ -841,13 +866,12 @@ export function WorkspaceGatePage() {
               onMouseEnter={() => prefetchTrashedPageContent(page)}
               onClick={() => void selectTrashedPage(page)}
             >
-              <button
-                type="button"
-                className={`workspace-page-disclosure ${isExpanded ? "is-expanded" : ""}`}
-                aria-label={`${page.title} 하위 페이지 ${isExpanded ? "접기" : "펼치기"}`}
-                aria-expanded={isExpanded}
-                onClick={(event) => {
-                  event.stopPropagation();
+              <PageTreeIcon
+                pageTitle={page.title}
+                pageType={page.type}
+                hasChildren={hasChildren}
+                isExpanded={isExpanded}
+                onToggle={() => {
                   setExpandedTrashPageIds((current) => {
                     const next = new Set(current);
                     if (next.has(page.id)) next.delete(page.id);
@@ -855,12 +879,7 @@ export function WorkspaceGatePage() {
                     return next;
                   });
                 }}
-              >
-                <PageTypeIcon pageType={page.type} />
-                <svg className="workspace-page-chevron" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                  <path d="m7 5 5 5-5 5" />
-                </svg>
-              </button>
+              />
               <button type="button" className="workspace-page-select">
                 <span>{page.title}</span>
                 {hasChildren && <span className="workspace-page-child-count" aria-hidden="true">{childCount}</span>}
@@ -902,11 +921,7 @@ export function WorkspaceGatePage() {
                 </div>
               )}
             </div>
-            {isExpanded && (
-              hasChildren
-                ? renderTrashTree(page.id, depth + 1)
-                : <p className="workspace-page-empty-child" style={{ paddingLeft: `${48 + Math.min(depth, 6) * 16}px` }}>하위 페이지 없음</p>
-            )}
+            {isExpanded && hasChildren && renderTrashTree(page.id, depth + 1)}
           </div>
         );
       });

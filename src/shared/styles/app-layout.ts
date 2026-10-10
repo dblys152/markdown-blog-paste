@@ -307,7 +307,6 @@ export const APP_LAYOUT_CSS = `
 .workspace-page-disclosure:hover .workspace-page-chevron, .workspace-page-disclosure:focus-visible .workspace-page-chevron { opacity: 1; }
 .workspace-page-disclosure.is-expanded .workspace-page-chevron { transform: rotate(90deg); }
 .workspace-page-item.is-active .workspace-page-icon, .workspace-page-item.is-active .workspace-page-disclosure { color: currentColor; }
-.workspace-page-empty-child { height: 30px; margin: 0 10px; color: #98a2b3; font-size: 12px; line-height: 30px; }
 .workspace-page-select { position: relative; display: flex; min-width: 0; gap: 6px; align-items: center; overflow: visible; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .workspace-page-select:hover, .workspace-page-select:active { border-color: transparent; box-shadow: none; transform: none; }
 .workspace-page-select > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
