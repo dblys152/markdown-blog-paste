@@ -1,5 +1,6 @@
 import type { KeyboardEvent, PointerEvent } from "react";
 import type { PageType } from "../../features/workspace/api";
+import { pageTypeName } from "../../features/workspace/page-type-presentation";
 import { bindMarkdownPreviewNavigation } from "../../features/workspace/markdown-preview-navigation";
 import type { ConversionResult } from "../../shared/markdown/types";
 import { DocumentActions } from "../../shared/ui/DocumentActions";
@@ -32,6 +33,40 @@ interface WorkspaceDocumentViewProps {
   onDividerReset: () => void;
 }
 
+type EditorPaneProps = Pick<
+  WorkspaceDocumentViewProps,
+  | "title"
+  | "content"
+  | "editableTitle"
+  | "saveState"
+  | "isAuthenticated"
+  | "editorReadOnly"
+  | "editorDisabled"
+  | "onTitleChange"
+  | "onContentChange"
+> & {
+  pageType: Exclude<PageType, "PDF">;
+  documentTypeLabel: string;
+};
+
+type PreviewPaneProps = Pick<
+  WorkspaceDocumentViewProps,
+  | "title"
+  | "content"
+  | "result"
+  | "isConverting"
+  | "htmlPreviewDocument"
+  | "editorRatio"
+  | "onMessage"
+  | "onDividerPointerDown"
+  | "onDividerPointerMove"
+  | "onDividerPointerUp"
+  | "onDividerPointerCancel"
+  | "onDividerLostPointerCapture"
+  | "onDividerKeyDown"
+  | "onDividerReset"
+> & { pageType: "MARKDOWN" | "HTML" };
+
 export function WorkspaceDocumentView(props: WorkspaceDocumentViewProps) {
   if (props.pageType === "PDF") {
     return <PdfDocumentView title={props.title} pdfUrl={props.pdfUrl} />;
@@ -54,35 +89,36 @@ function PdfDocumentView({ title, pdfUrl }: { title: string; pdfUrl: string }) {
   );
 }
 
-function TextDocumentView({
+function TextDocumentView(props: WorkspaceDocumentViewProps & { pageType: Exclude<PageType, "PDF"> }) {
+  const documentTypeLabel = pageTypeName(props.pageType);
+
+  if (props.pageType === "MEMO") {
+    return <EditorPane {...props} documentTypeLabel={documentTypeLabel} />;
+  }
+
+  return <>
+    <EditorPane {...props} documentTypeLabel={documentTypeLabel} />
+    <PreviewPane {...props} pageType={props.pageType} />
+  </>;
+}
+
+function EditorPane({
   pageType,
   title,
   content,
-  result,
-  isConverting,
-  htmlPreviewDocument,
   editableTitle,
   saveState,
   isAuthenticated,
   editorReadOnly,
   editorDisabled,
-  editorRatio,
   onTitleChange,
   onContentChange,
-  onMessage,
-  onDividerPointerDown,
-  onDividerPointerMove,
-  onDividerPointerUp,
-  onDividerPointerCancel,
-  onDividerLostPointerCapture,
-  onDividerKeyDown,
-  onDividerReset,
-}: WorkspaceDocumentViewProps & { pageType: Exclude<PageType, "PDF"> }) {
-  const documentTypeLabel = pageType === "HTML" ? "HTML" : "Markdown";
+  documentTypeLabel,
+}: EditorPaneProps) {
   const lineCount = content.split("\n").length;
 
-  return <>
-    <section className="workspace-editor" aria-label={`${documentTypeLabel} 편집기`}>
+  return (
+    <section className={`workspace-editor${pageType === "MEMO" ? " is-memo-editor" : ""}`} aria-label={`${documentTypeLabel} 편집기`}>
       <div className="workspace-editor-heading">
         <div><span aria-hidden="true">✎</span><strong>{documentTypeLabel}</strong></div>
         <div className="workspace-document-state">
@@ -121,7 +157,27 @@ function TextDocumentView({
         <span>줄 1, 열 1</span><span>{documentTypeLabel}</span><span>{content.length.toLocaleString("ko-KR")}자</span>
       </footer>
     </section>
+  );
+}
 
+function PreviewPane({
+  pageType,
+  title,
+  content,
+  result,
+  isConverting,
+  htmlPreviewDocument,
+  editorRatio,
+  onMessage,
+  onDividerPointerDown,
+  onDividerPointerMove,
+  onDividerPointerUp,
+  onDividerPointerCancel,
+  onDividerLostPointerCapture,
+  onDividerKeyDown,
+  onDividerReset,
+}: PreviewPaneProps) {
+  return <>
     <div
       className="workspace-divider"
       role="separator"

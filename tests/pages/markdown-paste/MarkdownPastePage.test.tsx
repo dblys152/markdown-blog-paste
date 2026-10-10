@@ -452,6 +452,7 @@ describe("MarkdownPastePage", () => {
       { id: "10", owner_id: "1", title: "프로젝트", parent_id: null, sort_order: 0, type: "MARKDOWN" },
       { id: "20", owner_id: "1", title: "API 설계", parent_id: "10", sort_order: 0, type: "MARKDOWN" },
       { id: "30", owner_id: "1", title: "참고 사이트", parent_id: null, sort_order: 1, type: "HTML" },
+      { id: "40", owner_id: "1", title: "회의 메모", parent_id: null, sort_order: 2, type: "MEMO" },
     ]);
     const user = userEvent.setup();
     renderPage();
@@ -464,6 +465,10 @@ describe("MarkdownPastePage", () => {
     expect(childOption.getAttribute("style")).toContain("--save-target-indent: 18px");
     expect(childOption.querySelector("small")?.textContent).toBe("프로젝트 › API 설계");
     expect(within(dialog).getByRole("option", { name: /참고 사이트/ }).hasAttribute("disabled")).toBe(true);
+    const memoOption = within(dialog).getByRole("option", { name: /회의 메모/ });
+    expect(memoOption.hasAttribute("disabled")).toBe(true);
+    expect(memoOption.querySelector(".workspace-save-picker-type.is-memo svg")).not.toBeNull();
+    expect(memoOption.querySelector("text")).toBeNull();
 
     await user.type(within(dialog).getByRole("searchbox", { name: "저장 대상 페이지 검색" }), "API");
     expect(within(dialog).getByRole("option", { name: /API 설계/ })).not.toBeNull();

@@ -1,5 +1,6 @@
 import { type CSSProperties, useMemo, useState } from "react";
-import type { PageType, WorkspacePageListItem } from "../../features/workspace/api";
+import type { WorkspacePageListItem } from "../../features/workspace/api";
+import { PageTypeIcon } from "../../features/workspace/page-type-presentation";
 
 interface WorkspaceSaveTargetPickerProps {
   pages: WorkspacePageListItem[];
@@ -36,22 +37,6 @@ function buildPageOptions(pages: WorkspacePageListItem[]): PageOption[] {
   };
   visit(null, 0, []);
   return options;
-}
-
-function pageTypeLabel(type: PageType | undefined): string {
-  if (type === "HTML") return "HTML";
-  if (type === "PDF") return "PDF";
-  return "MD";
-}
-
-function PageTypeIcon({ type }: { type: PageType | undefined }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M6 3.5h8l4 4v13H6z" />
-      <path d="M14 3.5v4h4" />
-      <text x="12" y="16">{pageTypeLabel(type)}</text>
-    </svg>
-  );
 }
 
 export function WorkspaceSaveTargetPicker({ pages, value, onChange }: WorkspaceSaveTargetPickerProps) {
@@ -106,7 +91,7 @@ export function WorkspaceSaveTargetPicker({ pages, value, onChange }: WorkspaceS
                   onClick={() => onChange(page.id)}
                 >
                   <span className={`workspace-save-picker-type is-${(page.type ?? "MARKDOWN").toLowerCase()}`}>
-                    <PageTypeIcon type={page.type} />
+                    <PageTypeIcon pageType={page.type} className="workspace-save-picker-type-icon" />
                   </span>
                   <span><strong>{page.title}</strong><small>{path}</small></span>
                   {isSelected && <span className="workspace-save-picker-check" aria-hidden="true">✓</span>}

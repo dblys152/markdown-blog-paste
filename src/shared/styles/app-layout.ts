@@ -300,6 +300,7 @@ export const APP_LAYOUT_CSS = `
 .workspace-page-type-icon, .workspace-page-chevron { position: absolute; width: 17px; height: 17px; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.45; }
 .workspace-page-type-icon.is-html { color: #c35a21; }
 .workspace-page-type-icon.is-pdf { color: #c2414b; }
+.workspace-page-type-icon.is-memo { color: #b7791f; }
 .workspace-page-type-icon.is-markdown { color: #52657a; }
 .workspace-page-type-text { fill: currentColor; stroke: none; text-anchor: middle; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 5.2px; font-weight: 800; letter-spacing: -.15px; }
 .workspace-page-type-text.is-markdown { font-size: 6px; letter-spacing: 0; }
@@ -341,6 +342,7 @@ export const APP_LAYOUT_CSS = `
 .workspace-editor,
 .workspace-preview { display: grid; min-width: 0; min-height: 0; grid-template-rows: 52px minmax(0,1fr) 36px; background: #fff; }
 .workspace-editor { border-right: 1px solid #e0e4eb; }
+.workspace-editor.is-memo-editor { grid-column: 2 / -1; border-right: 0; }
 .workspace-editor-heading { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 12px; padding: 0 18px; overflow: hidden; border-bottom: 1px solid #dfe3eb; color: #303849; }
 .workspace-editor-heading > div:first-child { display: flex; flex: 0 0 auto; align-items: center; gap: 10px; }
 .workspace-editor-heading > div:first-child span { font-size: 17px; }
@@ -482,6 +484,7 @@ export const APP_LAYOUT_CSS = `
 .workspace-save-picker-type text { fill: currentColor; stroke: none; text-anchor: middle; font: 800 5px ui-sans-serif, system-ui, sans-serif; }
 .workspace-save-picker-type.is-html { color: #c35a21; }
 .workspace-save-picker-type.is-pdf { color: #c2414b; }
+.workspace-save-picker-type.is-memo { color: #b7791f; }
 .workspace-save-picker-check { display: grid; width: 20px; height: 20px; place-items: center; border-radius: 50%; background: #3f5bea; color: #fff; font-size: 11px; }
 .save-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 22px; }
 .save-dialog-actions button { min-height: 36px; padding: 0 14px; border: 1px solid #d8dde6; border-radius: 7px; background: #fff; color: #344054; font-family: inherit; font-size: 12px; font-weight: 750; cursor: pointer; }
@@ -489,9 +492,9 @@ export const APP_LAYOUT_CSS = `
 .save-dialog-actions button:disabled { cursor: not-allowed; opacity: .55; }
 
 .page-create-dialog { display: grid; width: min(100%, 560px); gap: 20px; padding: 26px; border-radius: 12px; background: #fff; box-shadow: 0 24px 70px rgba(15,23,42,.25); }
-.page-type-cards { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; margin: 0; padding: 0; border: 0; }
+.page-type-cards { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 8px; margin: 0; padding: 0; border: 0; }
 .page-type-cards legend { grid-column: 1 / -1; margin-bottom: 8px; color: #374151; font-size: 13px; font-weight: 800; }
-.page-type-cards label { display: grid; min-height: 86px; align-content: center; gap: 5px; padding: 14px; border: 1px solid #dfe3eb; border-radius: 9px; color: #344054; cursor: pointer; }
+.page-type-cards label { display: grid; min-width: 0; min-height: 82px; align-content: center; gap: 4px; padding: 10px; border: 1px solid #dfe3eb; border-radius: 9px; color: #344054; cursor: pointer; }
 .page-type-cards label.is-selected { border-color: #526fe8; background: #f4f6ff; color: #2949df; box-shadow: 0 0 0 2px rgba(82,111,232,.1); }
 .page-type-cards input { position: absolute; width: 1px; height: 1px; opacity: 0; }
 .page-type-cards strong { font-size: 13px; }
@@ -526,6 +529,7 @@ export const APP_LAYOUT_CSS = `
     border-bottom: 1px solid #dfe3eb;
     background: #f7f8fa;
   }
+  .workspace-mobile-tabs.is-memo { grid-template-columns: repeat(2, 1fr); }
   .workspace-mobile-tabs button {
     border: 0;
     border-radius: 6px;
@@ -552,6 +556,7 @@ export const APP_LAYOUT_CSS = `
   .workspace-guest-card { margin-bottom: 14px; }
   .workspace-editor,
   .workspace-preview { height: auto; min-height: 0; }
+  .workspace-editor.is-memo-editor { grid-column: 1; }
   .workspace-editor-heading,
   .workspace-preview-heading { padding-inline: 12px; }
   .workspace-document-state { gap: 4px; }

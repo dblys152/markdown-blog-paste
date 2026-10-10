@@ -269,7 +269,8 @@ describe("WorkspaceGatePage", () => {
     listWorkspacePages.mockResolvedValue([
       { id: "10", owner_id: "1", title: "Markdown 문서", parent_id: null, sort_order: 0, type: "MARKDOWN" },
       { id: "20", owner_id: "1", title: "HTML 문서", parent_id: null, sort_order: 1, type: "HTML" },
-      { id: "30", owner_id: "1", title: "PDF 문서", parent_id: null, sort_order: 2, type: "PDF" },
+      { id: "25", owner_id: "1", title: "회의 메모", parent_id: null, sort_order: 2, type: "MEMO" },
+      { id: "30", owner_id: "1", title: "PDF 문서", parent_id: null, sort_order: 3, type: "PDF" },
     ]);
     getWorkspacePage.mockImplementation(async (pageId: string) => ({
       id: pageId,
@@ -284,6 +285,7 @@ describe("WorkspaceGatePage", () => {
 
     expect(await screen.findByRole("img", { name: "Markdown 문서" })).not.toBeNull();
     expect(screen.getByRole("img", { name: "HTML 문서" })).not.toBeNull();
+    expect(screen.getByRole("img", { name: "메모 문서" })).not.toBeNull();
     expect(screen.getByRole("img", { name: "PDF 문서" })).not.toBeNull();
 
     await user.click(screen.getByRole("button", { name: "HTML 문서" }));
@@ -294,6 +296,38 @@ describe("WorkspaceGatePage", () => {
     expect(preview.getAttribute("sandbox")).toBe("");
     expect(preview.getAttribute("referrerpolicy")).toBe("no-referrer");
     await waitFor(() => expect(preview.srcdoc).toContain("https://example.com/photo.jpg"));
+  });
+
+  it("메모 페이지는 Markdown 변환과 미리보기 없이 전체 너비 편집기로 표시한다", async () => {
+    useAuth.mockReturnValue({ status: "authenticated", user: { id: "1", email_verified: true } });
+    listWorkspacePages.mockResolvedValue([
+      { id: "10", owner_id: "1", title: "Markdown 문서", parent_id: null, sort_order: 0, type: "MARKDOWN" },
+      { id: "20", owner_id: "1", title: "회의 메모", parent_id: null, sort_order: 1, type: "MEMO" },
+    ]);
+    getWorkspacePage.mockImplementation(async (pageId: string) => ({
+      id: pageId,
+      owner_id: "1",
+      title: pageId === "20" ? "회의 메모" : "Markdown 문서",
+      type: pageId === "20" ? "MEMO" : "MARKDOWN",
+      contents: pageId === "20" ? "안건 확인\n담당자 지정" : "# Markdown",
+      parent_id: null,
+      sort_order: pageId === "20" ? 1 : 0,
+    }));
+    const user = userEvent.setup();
+    renderPage();
+
+    await screen.findByDisplayValue("# Markdown");
+    convertMarkdown.mockClear();
+    await user.click(screen.getByRole("button", { name: "회의 메모" }));
+
+    const editor = await screen.findByRole("region", { name: "메모 편집기" });
+    expect(editor.classList.contains("is-memo-editor")).toBe(true);
+    expect(screen.getByRole("textbox", { name: "메모 내용" })).toHaveProperty("value", "안건 확인\n담당자 지정");
+    expect(screen.queryByRole("region", { name: "미리보기" })).toBeNull();
+    expect(screen.queryByRole("separator", { name: "에디터와 미리보기 너비 조절" })).toBeNull();
+    expect(screen.queryByRole("tab", { name: "미리보기" })).toBeNull();
+    expect(screen.getByRole("tab", { name: "메모" }).getAttribute("aria-selected")).toBe("true");
+    expect(convertMarkdown.mock.calls.some(([content]) => content === "안건 확인\n담당자 지정")).toBe(false);
   });
 
   it("HTML 페이지에서는 Markdown 변환을 실행하지 않는다", async () => {
@@ -583,6 +617,36 @@ describe("WorkspaceGatePage", () => {
       parent_id: null,
       type: "HTML",
     }));
+  });
+
+  it("미리보기 없는 메모 페이지를 만든다", async () => {
+    useAuth.mockReturnValue({ status: "authenticated", user: { id: "1", email_verified: true } });
+    createWorkspacePage.mockResolvedValue({
+      id: "25",
+      owner_id: "1",
+      title: "회의 메모",
+      type: "MEMO",
+      contents: "",
+      parent_id: null,
+      sort_order: 0,
+    });
+    const user = userEvent.setup();
+    renderPage();
+    await waitFor(() => expect(listWorkspacePages).toHaveBeenCalled());
+
+    await user.click(screen.getByRole("button", { name: "새 페이지 추가" }));
+    await user.click(screen.getByRole("radio", { name: /메모/ }));
+    await user.type(screen.getByRole("textbox", { name: "제목" }), "회의 메모");
+    expect(screen.queryByLabelText(/파일/)).toBeNull();
+    await user.click(screen.getByRole("button", { name: "추가" }));
+
+    await waitFor(() => expect(createWorkspacePage).toHaveBeenCalledWith({
+      title: "회의 메모",
+      content: "",
+      parent_id: null,
+      type: "MEMO",
+    }));
+    expect(await screen.findByRole("region", { name: "메모 편집기" })).not.toBeNull();
   });
 
   it("PDF 파일을 multipart 생성 API로 전달한다", async () => {
@@ -1119,6 +1183,41 @@ describe("WorkspaceGatePage", () => {
     deletion.reject(new Error("delete failed"));
     await waitFor(() => expect(screen.getByText("페이지를 영구 삭제하지 못했습니다.")).not.toBeNull());
     expect(screen.getByRole("button", { name: "삭제한 페이지" })).not.toBeNull();
+  });
+
+  it("휴지통의 메모 페이지를 미리보기 없이 읽기 전용으로 표시한다", async () => {
+    useAuth.mockReturnValue({ status: "authenticated", user: { id: "1", email_verified: true } });
+    listWorkspacePages.mockResolvedValue([]);
+    listTrashedWorkspacePages.mockResolvedValue([
+      {
+        id: "10",
+        parent_id: null,
+        title: "삭제한 메모",
+        sort_order: 0,
+        type: "MEMO",
+        deleted_at: "2026-08-01T00:00:00Z",
+        expires_at: "2026-08-31T00:00:00Z",
+      },
+    ]);
+    getTrashedWorkspacePage.mockResolvedValue({
+      id: "10",
+      owner_id: "1",
+      title: "삭제한 메모",
+      type: "MEMO",
+      contents: "삭제 전 메모",
+      parent_id: null,
+      sort_order: 0,
+    });
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "휴지통" }));
+
+    const editor = await screen.findByRole("textbox", { name: "메모 내용" });
+    expect((editor as HTMLTextAreaElement).value).toBe("삭제 전 메모");
+    expect((editor as HTMLTextAreaElement).readOnly).toBe(true);
+    expect(screen.queryByRole("tab", { name: "미리보기" })).toBeNull();
+    expect(screen.queryByRole("separator", { name: "에디터와 미리보기 너비 조절" })).toBeNull();
   });
 
   it("복원 요청이 실패하면 낙관적으로 이동한 페이지를 휴지통으로 되돌린다", async () => {

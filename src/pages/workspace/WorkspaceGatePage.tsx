@@ -17,6 +17,12 @@ import {
   type PageType,
 } from "../../features/workspace/api";
 import {
+  PAGE_TYPE_OPTIONS,
+  PageTypeIcon,
+  pageTypeDescription,
+  pageTypeName,
+} from "../../features/workspace/page-type-presentation";
+import {
   countDirectChildPages,
   resolvePageMoveDestination,
   type DropPlacement,
@@ -102,31 +108,6 @@ function comparePageOrder(left: TrashedWorkspacePage, right: TrashedWorkspacePag
   return left.id.localeCompare(right.id);
 }
 
-function pageTypeLabel(pageType: PageType | undefined): string {
-  if (pageType === "HTML") return "HTML 문서";
-  if (pageType === "PDF") return "PDF 문서";
-  return "Markdown 문서";
-}
-
-function PageTypeIcon({ pageType }: { pageType: PageType | undefined }) {
-  const resolvedType = pageType ?? "MARKDOWN";
-  return (
-    <svg
-      className={`workspace-page-type-icon is-${resolvedType.toLowerCase()}`}
-      viewBox="0 0 20 20"
-      fill="none"
-      role="img"
-      aria-label={pageTypeLabel(resolvedType)}
-    >
-      <path d="M3.5 2.5h9l4 4v11h-13z" />
-      <path d="M12.5 2.5v4h4" />
-      {resolvedType === "HTML" && <path d="m8 9-2.5 2 2.5 2M12 9l2.5 2-2.5 2" />}
-      {resolvedType === "PDF" && <text className="workspace-page-type-text is-pdf" x="10" y="13.5">PDF</text>}
-      {resolvedType === "MARKDOWN" && <text className="workspace-page-type-text is-markdown" x="10" y="13.5">MD</text>}
-    </svg>
-  );
-}
-
 function PageTreeIcon({
   pageTitle,
   pageType,
@@ -141,7 +122,7 @@ function PageTreeIcon({
   onToggle: () => void;
 }) {
   if (!hasChildren) {
-    return <span className="workspace-page-icon"><PageTypeIcon pageType={pageType} /></span>;
+    return <span className="workspace-page-icon"><PageTypeIcon pageType={pageType} className="workspace-page-type-icon" accessible /></span>;
   }
   return (
     <button
@@ -154,7 +135,7 @@ function PageTreeIcon({
         onToggle();
       }}
     >
-      <PageTypeIcon pageType={pageType} />
+      <PageTypeIcon pageType={pageType} className="workspace-page-type-icon" accessible />
       <svg className="workspace-page-chevron" viewBox="0 0 20 20" fill="none" aria-hidden="true">
         <path d="m7 5 5 5-5 5" />
       </svg>
@@ -1102,12 +1083,14 @@ export function WorkspaceGatePage() {
 
   return (
     <main ref={workspaceRef} className={`workspace-shell mobile-pane-${mobilePane} ${isResizing ? "is-resizing" : ""}`} style={workspaceStyle}>
-      <div className="workspace-mobile-tabs" role="tablist" aria-label="기록장 화면">
+      <div className={`workspace-mobile-tabs${selectedPageType === "MEMO" ? " is-memo" : ""}`} role="tablist" aria-label="기록장 화면">
         <button type="button" role="tab" aria-selected={mobilePane === "pages"} onClick={() => setMobilePane("pages")}>페이지</button>
         <button type="button" role="tab" aria-selected={mobilePane === "editor"} onClick={() => setMobilePane("editor")}>
-          {selectedPageType === "HTML" ? "HTML" : selectedPageType === "PDF" ? "PDF" : "Markdown"}
+          {pageTypeName(selectedPageType)}
         </button>
-        <button type="button" role="tab" aria-selected={mobilePane === "preview"} onClick={() => setMobilePane("preview")}>미리보기</button>
+        {selectedPageType !== "MEMO" && (
+          <button type="button" role="tab" aria-selected={mobilePane === "preview"} onClick={() => setMobilePane("preview")}>미리보기</button>
+        )}
       </div>
       <aside className="workspace-sidebar" aria-label="기록장 페이지">
         <div className={`workspace-sidebar-title ${isSearchOpen ? "is-searching" : ""}`}>
@@ -1202,7 +1185,7 @@ export function WorkspaceGatePage() {
                 onMouseEnter={() => prefetchPageContent(page)}
                 onClick={() => void selectPage(page)}
               >
-                <span className="workspace-page-icon"><PageTypeIcon pageType={page.type} /></span>
+                <span className="workspace-page-icon"><PageTypeIcon pageType={page.type} className="workspace-page-type-icon" accessible /></span>
                 <span><strong>{page.title}</strong><small>{getPagePath(page)}</small></span>
               </button>
             ))}
@@ -1225,7 +1208,7 @@ export function WorkspaceGatePage() {
           </div>
         ) : (
           <button className="workspace-page-item is-active" type="button" aria-label={title} onClick={() => setMobilePane("editor")}>
-            <span className="workspace-page-icon"><PageTypeIcon pageType="MARKDOWN" /></span>
+            <span className="workspace-page-icon"><PageTypeIcon pageType="MARKDOWN" className="workspace-page-type-icon" accessible /></span>
             <span>{title}</span>
           </button>
         )}
@@ -1292,14 +1275,14 @@ export function WorkspaceGatePage() {
             </div>
             <fieldset className="page-type-cards">
               <legend>페이지 타입</legend>
-              {(["MARKDOWN", "HTML", "PDF"] as PageType[]).map((type) => (
+              {PAGE_TYPE_OPTIONS.map((type) => (
                 <label key={type} className={newPageType === type ? "is-selected" : ""}>
                   <input type="radio" name="page-type" value={type} checked={newPageType === type} onChange={() => {
                     setNewPageType(type);
                     setNewPageFile(null);
                   }} />
-                  <strong>{type === "MARKDOWN" ? "Markdown" : type}</strong>
-                  <small>{type === "PDF" ? "보관 및 열람" : "작성 및 미리보기"}</small>
+                  <strong>{pageTypeName(type)}</strong>
+                  <small>{pageTypeDescription(type)}</small>
                 </label>
               ))}
             </fieldset>
@@ -1309,14 +1292,16 @@ export function WorkspaceGatePage() {
                 setNewPageTitleEdited(true);
               }} />
             </label>
-            <label className="page-create-field">{newPageType === "PDF" ? "PDF 파일 *" : "파일 가져오기 (선택)"}
-              <input type="file" accept={newPageType === "MARKDOWN" ? ".md,text/markdown,text/plain" : newPageType === "HTML" ? ".html,.htm,text/html" : ".pdf,application/pdf"} onChange={(event) => {
-                const file = event.target.files?.[0] ?? null;
-                setNewPageFile(file);
-                if (file && !newPageTitleEdited) setNewPageTitle(file.name.replace(/\.[^.]+$/, ""));
-              }} />
-              <small>{newPageType === "PDF" ? "최대 20MB" : "최대 5MB"}</small>
-            </label>
+            {newPageType !== "MEMO" && (
+              <label className="page-create-field">{newPageType === "PDF" ? "PDF 파일 *" : "파일 가져오기 (선택)"}
+                <input type="file" accept={newPageType === "MARKDOWN" ? ".md,text/markdown,text/plain" : newPageType === "HTML" ? ".html,.htm,text/html" : ".pdf,application/pdf"} onChange={(event) => {
+                  const file = event.target.files?.[0] ?? null;
+                  setNewPageFile(file);
+                  if (file && !newPageTitleEdited) setNewPageTitle(file.name.replace(/\.[^.]+$/, ""));
+                }} />
+                <small>{newPageType === "PDF" ? "최대 20MB" : "최대 5MB"}</small>
+              </label>
+            )}
             <div className="save-dialog-actions">
               <button type="button" onClick={() => setCreateDialog(null)}>취소</button>
               <button type="submit" className="is-primary" disabled={isCreatingPage || !newPageTitle.trim() || (newPageType === "PDF" && !newPageFile)}>추가</button>

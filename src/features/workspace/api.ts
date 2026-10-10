@@ -9,7 +9,7 @@ export type WorkspacePageListItem = {
   type?: PageType;
 };
 
-export type PageType = "MARKDOWN" | "HTML" | "PDF";
+export type PageType = "MARKDOWN" | "HTML" | "MEMO" | "PDF";
 
 export type WorkspacePage = WorkspacePageListItem & {
   contents: string | null;
