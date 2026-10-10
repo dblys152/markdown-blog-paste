@@ -14,6 +14,7 @@ from md2blog.modules.workspace.domain.page import (
     Page,
     PageContent,
 )
+from md2blog.modules.workspace.domain.page_types import PageType
 from md2blog.shared.domain.tsid import TSID
 
 NOW = datetime(2026, 1, 1, tzinfo=UTC)
@@ -92,6 +93,23 @@ def test_page_create_assigns_the_same_creation_and_update_time() -> None:
 
     assert page.created_at == NOW
     assert page.updated_at == NOW
+
+
+def test_memo_page_keeps_plain_text_content() -> None:
+    page = Page.create(
+        CreatePageCommand(
+            owner_id=TSID(1),
+            title="회의 메모",
+            content="안건 확인\n담당자 지정",
+            parent_id=None,
+            sort_order=0,
+            page_type=PageType.MEMO,
+        ),
+        created_at=NOW,
+    )
+
+    assert page.page_type is PageType.MEMO
+    assert page.content == PageContent(page_id=page.id, content="안건 확인\n담당자 지정")
 
 
 def test_page_change_preserves_creation_time_and_updates_modified_time() -> None:

@@ -19,7 +19,10 @@ class PageModel(TSIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "pages"
     __table_args__ = (
         Index("ix_pages_owner_parent_sort_order", "owner_id", "parent_id", "sort_order"),
-        CheckConstraint("page_type IN ('MARKDOWN', 'HTML', 'PDF')", name="ck_pages_page_type"),
+        CheckConstraint(
+            "page_type IN ('MARKDOWN', 'HTML', 'MEMO', 'PDF')",
+            name="ck_pages_page_type",
+        ),
     )
 
     owner_id: Mapped[int] = mapped_column(

@@ -128,6 +128,58 @@ async def test_create_page_uses_authenticated_user() -> None:
     use_case.execute.assert_awaited_once_with(command)
 
 
+async def test_create_memo_page_preserves_page_type_and_plain_text() -> None:
+    page = PageDetail(
+        id=TSID(2),
+        owner_id=TSID(1),
+        parent_id=None,
+        title="회의 메모",
+        contents="안건 확인\n담당자 지정",
+        sort_order=0,
+        page_type=PageType.MEMO,
+    )
+    use_case = AsyncMock()
+    use_case.execute.return_value = page
+    command = CreatePageCommand(
+        owner_id=TSID(1),
+        title="회의 메모",
+        content="안건 확인\n담당자 지정",
+        parent_id=None,
+        sort_order=0,
+        page_type=PageType.MEMO,
+    )
+    command_factory = AsyncMock()
+    command_factory.create.return_value = command
+    app = create_app()
+    app.dependency_overrides[get_current_user] = authenticated_user
+    app.dependency_overrides[get_create_page] = lambda: use_case
+    app.dependency_overrides[get_create_page_command_factory] = lambda: command_factory
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        response = await client.post(
+            "/workspace/pages",
+            json={
+                "title": "회의 메모",
+                "content": "안건 확인\n담당자 지정",
+                "type": "MEMO",
+            },
+        )
+
+    assert response.status_code == 201
+    assert response.json()["type"] == "MEMO"
+    assert response.json()["contents"] == "안건 확인\n담당자 지정"
+    command_factory.create.assert_awaited_once_with(
+        owner_id=TSID(1),
+        title="회의 메모",
+        content="안건 확인\n담당자 지정",
+        parent_id=None,
+        page_type=PageType.MEMO,
+    )
+    use_case.execute.assert_awaited_once_with(command)
+
+
 async def test_list_pages_returns_flat_ordered_collection() -> None:
     use_case = AsyncMock()
     use_case.execute.return_value = [
