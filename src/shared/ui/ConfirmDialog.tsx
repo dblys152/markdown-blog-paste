@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 
 export type ConfirmDialogOptions = {
   title: string;
   message: string;
+  details?: ReactNode;
   confirmLabel?: string;
   cancelLabel?: string;
   tone?: "default" | "danger";
@@ -52,6 +53,7 @@ export function useConfirmDialog() {
         <div className="confirm-dialog-content">
           <h2 id="confirm-dialog-title">{options.title}</h2>
           <p id="confirm-dialog-message">{options.message}</p>
+          {options.details}
         </div>
         <div className="confirm-dialog-actions">
           <button type="button" onClick={() => close(false)} autoFocus>

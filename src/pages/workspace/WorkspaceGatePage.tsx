@@ -1163,7 +1163,17 @@ export function WorkspaceGatePage() {
                 event.preventDefault();
                 void requestConfirmation({
                   title: "로그인이 필요합니다",
-                  message: "페이지를 추가하려면 로그인이 필요합니다.\n로그인 화면으로 이동하시겠습니까?",
+                  message: "페이지를 추가하고 기기 간에 동기화하려면 로그인이 필요합니다.",
+                  details: (
+                    <div className="workspace-login-page-types" aria-label="로그인 후 생성 가능한 페이지 유형">
+                      {PAGE_TYPE_OPTIONS.map((pageType) => (
+                        <span key={pageType}>
+                          <PageTypeIcon pageType={pageType} className="workspace-login-page-type-icon" />
+                          <strong>{pageTypeName(pageType)}</strong>
+                        </span>
+                      ))}
+                    </div>
+                  ),
                   confirmLabel: "로그인",
                 }).then((confirmed) => {
                   if (confirmed) navigate("/login");

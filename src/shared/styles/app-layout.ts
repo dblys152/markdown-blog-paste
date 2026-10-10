@@ -104,6 +104,15 @@ export const APP_LAYOUT_CSS = `
 .confirm-dialog.is-danger .confirm-dialog-icon { background: #fee2e2; color: #dc2626; }
 .confirm-dialog-content h2 { margin: 1px 0 0; color: #111827; font-size: 16px; letter-spacing: -.02em; }
 .confirm-dialog-content p { margin: 6px 0 0; color: #667085; font-size: 12px; line-height: 1.55; white-space: pre-line; }
+.confirm-dialog:has(.workspace-login-page-types) .confirm-dialog-content { padding-right: 12px; }
+.workspace-login-page-types { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-top: 14px; }
+.workspace-login-page-types > span { display: grid; min-width: 0; min-height: 58px; place-items: center; align-content: center; gap: 5px; padding: 7px 3px; border: 1px solid #e1e5ec; border-radius: 7px; background: #fafbfc; color: #475467; }
+.workspace-login-page-types strong { overflow: hidden; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.workspace-login-page-type-icon { width: 20px; height: 20px; color: #52657a; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.45; }
+.workspace-login-page-type-icon.is-html { color: #c35a21; }
+.workspace-login-page-type-icon.is-pdf { color: #c2414b; }
+.workspace-login-page-type-icon.is-memo { color: #b7791f; }
+.confirm-dialog:has(.workspace-login-page-types) .confirm-dialog-actions { padding-right: 12px; }
 .confirm-dialog-actions { display: flex; grid-column: 1 / -1; justify-content: flex-end; gap: 7px; }
 .confirm-dialog-actions button { min-height: 36px; padding: 0 12px; border: 1px solid #d6dbe5; border-radius: 7px; background: #fff; color: #475467; font: inherit; font-size: 11px; font-weight: 800; cursor: pointer; }
 .confirm-dialog-actions button.is-primary { border-color: #3f5bea; background: #3f5bea; color: #fff; }

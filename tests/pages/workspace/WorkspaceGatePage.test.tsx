@@ -516,7 +516,13 @@ describe("WorkspaceGatePage", () => {
     await user.click(screen.getByRole("link", { name: "새 페이지 추가" }));
 
     expect(screen.getByRole("alertdialog")).not.toBeNull();
-    expect(screen.getByText(/로그인 화면으로 이동하시겠습니까/)).not.toBeNull();
+    expect(screen.getByText("페이지를 추가하고 기기 간에 동기화하려면 로그인이 필요합니다.")).not.toBeNull();
+    const pageTypes = screen.getByLabelText("로그인 후 생성 가능한 페이지 유형");
+    expect(pageTypes.textContent).toContain("Markdown");
+    expect(pageTypes.textContent).toContain("메모");
+    expect(pageTypes.textContent).toContain("HTML");
+    expect(pageTypes.textContent).toContain("PDF");
+    expect(screen.getByRole("button", { name: "로그인" })).not.toBeNull();
     await user.click(screen.getByRole("button", { name: "취소" }));
     expect(screen.getByRole("textbox", { name: "Markdown 내용" })).not.toBeNull();
   });
