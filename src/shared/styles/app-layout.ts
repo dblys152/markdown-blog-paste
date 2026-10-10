@@ -214,6 +214,7 @@ export const APP_LAYOUT_CSS = `
 .verification-actions .route-primary-link { margin-top: 0; justify-content: center; }
 .auth-footer { margin: 22px 0 0; color: #6b7280; font-size: 13px; text-align: center; }
 .auth-footer a { color: #2949df; font-weight: 800; }
+.auth-copyright { display: block; margin-top: 20px; color: #98a2b3; font-size: 10px; line-height: 1.5; text-align: center; }
 .auth-centered-link { justify-content: center; }
 .account-google-section { margin-top: 20px; padding: 16px; border: 1px solid #e4e7ec; border-radius: 9px; }
 .account-google-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }

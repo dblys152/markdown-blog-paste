@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { confirmPasswordReset } from "../../features/auth/api";
 import { ApiError } from "../../shared/api/http";
+import { AuthCopyright } from "./AuthCopyright";
 
 export function ResetPasswordPage() {
   const [searchParams] = useSearchParams();
@@ -65,6 +66,7 @@ export function ResetPasswordPage() {
             </form>
           </>
         )}
+        <AuthCopyright />
       </section>
     </main>
   );

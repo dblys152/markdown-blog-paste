@@ -3,6 +3,7 @@ import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../features/auth/AuthProvider";
 import { GoogleIdentityButton } from "../../features/auth/GoogleIdentityButton";
 import { ApiError } from "../../shared/api/http";
+import { AuthCopyright } from "./AuthCopyright";
 
 type GoogleStep =
   | { kind: "signup"; credential: string; email: string }
@@ -141,6 +142,7 @@ export function LoginPage() {
         <p className="auth-footer">
           아직 계정이 없나요? <Link to="/signup">회원가입</Link>
         </p>
+        <AuthCopyright />
       </section>
     </main>
   );

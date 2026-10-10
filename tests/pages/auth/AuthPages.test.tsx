@@ -58,6 +58,12 @@ describe("인증 화면", () => {
     vi.clearAllMocks();
   });
 
+  it.each(["login", "signup"] as const)("%s 화면 하단에 카피라이트를 표시한다", (page) => {
+    renderPage(page);
+
+    expect(screen.getByText("© 2026 MD2Blog. All rights reserved.")).not.toBeNull();
+  });
+
   it("로그인 정보를 전송하고 기록장으로 이동한다", async () => {
     const user = userEvent.setup();
     renderPage("login");

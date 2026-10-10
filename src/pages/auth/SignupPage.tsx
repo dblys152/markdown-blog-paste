@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "../../features/auth/AuthProvider";
 import { ApiError } from "../../shared/api/http";
+import { AuthCopyright } from "./AuthCopyright";
 
 export function SignupPage() {
   const { status, user, signup } = useAuth();
@@ -60,6 +61,7 @@ export function SignupPage() {
         <p className="auth-footer">
           이미 계정이 있나요? <Link to="/login">로그인</Link>
         </p>
+        <AuthCopyright />
       </section>
     </main>
   );

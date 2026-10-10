@@ -19,6 +19,16 @@ describe("비밀번호 재설정 화면", () => {
     vi.clearAllMocks();
   });
 
+  it("계정 복구 화면 하단에 카피라이트를 표시한다", () => {
+    render(
+      <MemoryRouter>
+        <ForgotPasswordPage />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText("© 2026 MD2Blog. All rights reserved.")).not.toBeNull();
+  });
+
   it("이메일을 전송하고 계정 존재 여부를 드러내지 않는 안내를 표시한다", async () => {
     const user = userEvent.setup();
     render(

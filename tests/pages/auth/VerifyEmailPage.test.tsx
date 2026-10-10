@@ -48,6 +48,12 @@ describe("이메일 인증 화면", () => {
     auth.state.user.email_verified = false;
   });
 
+  it("이메일 인증 화면 하단에 카피라이트를 표시한다", () => {
+    renderPage();
+
+    expect(screen.getByText("© 2026 MD2Blog. All rights reserved.")).not.toBeNull();
+  });
+
   it("인증 메일 재발송을 요청한다", async () => {
     const user = userEvent.setup();
     renderPage();

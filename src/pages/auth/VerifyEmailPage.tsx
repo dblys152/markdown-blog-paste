@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, Navigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../features/auth/AuthProvider";
 import { ApiError } from "../../shared/api/http";
+import { AuthCopyright } from "./AuthCopyright";
 
 type VerificationState = "waiting" | "confirming" | "verified" | "error";
 
@@ -98,6 +99,7 @@ export function VerifyEmailPage() {
             </button>
           ) : null}
         </div>
+        <AuthCopyright />
       </section>
     </main>
   );

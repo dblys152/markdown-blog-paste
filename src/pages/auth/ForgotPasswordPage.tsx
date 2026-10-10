@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { requestPasswordReset } from "../../features/auth/api";
 import { ApiError } from "../../shared/api/http";
+import { AuthCopyright } from "./AuthCopyright";
 
 export function ForgotPasswordPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -50,6 +51,7 @@ export function ForgotPasswordPage() {
             <p className="auth-footer"><Link to="/login">로그인으로 돌아가기</Link></p>
           </>
         )}
+        <AuthCopyright />
       </section>
     </main>
   );
