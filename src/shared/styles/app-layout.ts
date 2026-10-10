@@ -529,7 +529,7 @@ export const APP_LAYOUT_CSS = `
     border-bottom: 1px solid #dfe3eb;
     background: #f7f8fa;
   }
-  .workspace-mobile-tabs.is-memo { grid-template-columns: repeat(2, 1fr); }
+  .workspace-mobile-tabs.is-two-pane { grid-template-columns: repeat(2, 1fr); }
   .workspace-mobile-tabs button {
     border: 0;
     border-radius: 6px;
@@ -557,6 +557,7 @@ export const APP_LAYOUT_CSS = `
   .workspace-editor,
   .workspace-preview { height: auto; min-height: 0; }
   .workspace-editor.is-memo-editor { grid-column: 1; }
+  .workspace-pdf-viewer { grid-column: 1; }
   .workspace-editor-heading,
   .workspace-preview-heading { padding-inline: 12px; }
   .workspace-document-state { gap: 4px; }

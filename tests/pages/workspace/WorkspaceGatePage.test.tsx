@@ -437,6 +437,12 @@ describe("WorkspaceGatePage", () => {
     const view = renderPage();
 
     const pdfPreview = await screen.findByTitle<HTMLIFrameElement>("PDF 원본 PDF");
+    const mobileTabs = screen.getByRole("tablist", { name: "기록장 화면" });
+    expect(mobileTabs.classList.contains("is-two-pane")).toBe(true);
+    expect(screen.getByRole("tab", { name: "페이지" })).not.toBeNull();
+    await user.click(screen.getByRole("tab", { name: "PDF" }));
+    expect(screen.getByRole("tab", { name: "PDF" }).getAttribute("aria-selected")).toBe("true");
+    expect(screen.queryByRole("tab", { name: "미리보기" })).toBeNull();
     expect(getWorkspacePdfBlob).toHaveBeenCalledWith("/workspace/pages/30/pdf/content");
     expect(createObjectURL).toHaveBeenCalledWith(pdfBlob);
     expect(pdfPreview.src).toBe("blob:https://md2blog.test/pdf-original");

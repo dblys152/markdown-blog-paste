@@ -1083,13 +1083,17 @@ export function WorkspaceGatePage() {
 
   return (
     <main ref={workspaceRef} className={`workspace-shell mobile-pane-${mobilePane} ${isResizing ? "is-resizing" : ""}`} style={workspaceStyle}>
-      <div className={`workspace-mobile-tabs${selectedPageType === "MEMO" ? " is-memo" : ""}`} role="tablist" aria-label="기록장 화면">
+      <div className={`workspace-mobile-tabs${selectedPageType === "MEMO" || selectedPageType === "PDF" ? " is-two-pane" : ""}`} role="tablist" aria-label="기록장 화면">
         <button type="button" role="tab" aria-selected={mobilePane === "pages"} onClick={() => setMobilePane("pages")}>페이지</button>
-        <button type="button" role="tab" aria-selected={mobilePane === "editor"} onClick={() => setMobilePane("editor")}>
-          {pageTypeName(selectedPageType)}
-        </button>
+        {selectedPageType !== "PDF" && (
+          <button type="button" role="tab" aria-selected={mobilePane === "editor"} onClick={() => setMobilePane("editor")}>
+            {pageTypeName(selectedPageType)}
+          </button>
+        )}
         {selectedPageType !== "MEMO" && (
-          <button type="button" role="tab" aria-selected={mobilePane === "preview"} onClick={() => setMobilePane("preview")}>미리보기</button>
+          <button type="button" role="tab" aria-selected={mobilePane === "preview"} onClick={() => setMobilePane("preview")}>
+            {selectedPageType === "PDF" ? "PDF" : "미리보기"}
+          </button>
         )}
       </div>
       <aside className="workspace-sidebar" aria-label="기록장 페이지">
