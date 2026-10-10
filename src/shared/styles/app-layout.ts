@@ -87,7 +87,7 @@ export const APP_LAYOUT_CSS = `
 .app-login-link:hover { border-color: #2949df; background: #2949df; }
 .app-login-link:focus-visible { outline: 0; box-shadow: 0 0 0 3px rgba(63, 91, 234, .2); }
 .app-account-menu { position: relative; }
-.app-account-menu-trigger { display: flex; height: 38px; min-width: 0; align-items: center; gap: 7px; padding: 0 11px; border: 1px solid #d6dbe5; border-radius: 7px; background: #fff; color: #475467; font: inherit; cursor: pointer; }
+.app-account-menu-trigger { display: flex; height: 38px; min-width: 0; align-items: center; gap: 7px; padding: 0 11px 0 7px; border: 1px solid #d6dbe5; border-radius: 7px; background: #fff; color: #475467; font: inherit; cursor: pointer; }
 .app-account-menu-trigger:hover { border-color: #aeb7c6; background: #f8fafc; }
 .app-account-avatar { width: 26px; height: 26px; flex: 0 0 auto; border: 1px solid #dbe3ff; border-radius: 50%; background: #f2f5ff; object-fit: cover; }
 .app-user-name { max-width: 140px; overflow: hidden; color: #374151; font-size: 13px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
@@ -586,7 +586,7 @@ export const APP_LAYOUT_CSS = `
   .app-top-nav a { padding-inline: 7px; font-size: 12px; }
   .app-login-link { height: 34px; padding: 0 10px; font-size: 11px; }
   .app-user-name { max-width: 74px; font-size: 11px; }
-  .app-account-menu-trigger { height: 34px; padding-inline: 8px; }
+  .app-account-menu-trigger { height: 34px; padding: 0 8px 0 5px; }
   .app-account-avatar { width: 24px; height: 24px; }
   .account-deletion-dialog, .account-management-dialog { padding: 22px; }
   .route-page { padding: 20px; }

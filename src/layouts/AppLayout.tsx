@@ -200,7 +200,7 @@ export function AppLayout() {
                 aria-expanded={isAccountMenuOpen}
                 onClick={() => setIsAccountMenuOpen((open) => !open)}
               >
-                <img className="app-account-avatar" src="/madi-avatar.png" alt="" />
+                <img className="app-account-avatar" src="/fox-face-v5.png" alt="" />
                 <span className="app-user-name">{user.display_name}</span>
               </button>
               {isAccountMenuOpen && (
