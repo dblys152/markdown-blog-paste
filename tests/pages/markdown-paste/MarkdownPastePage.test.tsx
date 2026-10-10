@@ -310,9 +310,29 @@ describe("MarkdownPastePage", () => {
     await user.click(screen.getByRole("button", { name: "기록장에 저장" }));
 
     expect(saveGuestDraft).not.toHaveBeenCalled();
-    expect(await screen.findByRole("dialog", { name: "기록장에 저장" })).not.toBeNull();
+    expect((await screen.findByRole("dialog", { name: "기록장에 저장" })).classList.contains("has-workspace-picker")).toBe(false);
     expect((screen.getByRole("radio", { name: "임시 페이지를 현재 내용으로 교체" }) as HTMLInputElement).checked).toBe(true);
     expect(screen.getByText("기존 임시 페이지 내용이 현재 내용으로 교체됩니다.")).not.toBeNull();
+  });
+
+  it("비회원 임시 페이지를 불러오기 전에는 저장하지 못한다", async () => {
+    let resolveDraft!: (draft: null) => void;
+    loadGuestDraft.mockReturnValue(new Promise((resolve) => {
+      resolveDraft = resolve;
+    }));
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByTitle("변환 결과");
+
+    await user.click(screen.getByRole("button", { name: "기록장에 저장" }));
+
+    const dialog = screen.getByRole("dialog", { name: "기록장에 저장" });
+    expect(within(dialog).getByRole("status").textContent).toBe("임시 페이지 정보를 불러오는 중…");
+    expect((within(dialog).getByRole("button", { name: "임시 페이지에 저장" }) as HTMLButtonElement).disabled).toBe(true);
+
+    resolveDraft(null);
+    await within(dialog).findByRole("radio", { name: "임시 페이지를 현재 내용으로 교체" });
+    expect((within(dialog).getByRole("button", { name: "임시 페이지에 저장" }) as HTMLButtonElement).disabled).toBe(false);
   });
 
   it("내용 추가를 선택하면 기존 본문 뒤에 현재 Markdown을 이어 저장한다", async () => {
@@ -364,11 +384,14 @@ describe("MarkdownPastePage", () => {
     await user.click(screen.getByRole("button", { name: "기록장에 저장" }));
 
     const dialog = await screen.findByRole("dialog", { name: "기록장에 저장" });
+    expect(dialog.classList.contains("has-workspace-picker")).toBe(true);
+    expect(within(dialog).getByRole("button", { name: "닫기" })).not.toBeNull();
     expect(within(dialog).queryByText("임시 페이지를 현재 내용으로 교체")).toBeNull();
-    expect(within(dialog).getByRole("option", { name: "새 페이지로 저장" })).not.toBeNull();
-    expect(within(dialog).getByRole("option", { name: "개발 노트" })).not.toBeNull();
+    expect(within(dialog).getByRole("listbox", { name: "저장 대상" })).not.toBeNull();
+    expect(within(dialog).getByRole("option", { name: /새 Markdown 페이지 만들기/ })).not.toBeNull();
+    expect(within(dialog).getByRole("option", { name: /개발 노트/ })).not.toBeNull();
 
-    await user.click(within(dialog).getByRole("button", { name: "기록장에 저장" }));
+    await user.click(within(dialog).getByRole("button", { name: "저장" }));
 
     await waitFor(() => {
       expect(createWorkspacePage).toHaveBeenCalledWith({
@@ -378,5 +401,80 @@ describe("MarkdownPastePage", () => {
       });
     });
     expect(saveGuestDraft).not.toHaveBeenCalled();
+  });
+
+  it("로그인 사용자의 저장 창을 즉시 열고 페이지 목록을 내부에서 불러온다", async () => {
+    useAuth.mockReturnValue({ status: "authenticated", user: { id: "1", email_verified: true } });
+    let resolvePages!: (pages: WorkspacePageListItem[]) => void;
+    listWorkspacePages.mockReturnValue(new Promise((resolve) => {
+      resolvePages = resolve;
+    }));
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByTitle("변환 결과");
+
+    await user.click(screen.getByRole("button", { name: "기록장에 저장" }));
+
+    const dialog = screen.getByRole("dialog", { name: "기록장에 저장" });
+    expect(within(dialog).getByRole("status").textContent).toBe("페이지 목록을 불러오는 중…");
+    expect((within(dialog).getByRole("button", { name: "저장" }) as HTMLButtonElement).disabled).toBe(true);
+
+    resolvePages([{ id: "10", owner_id: "1", title: "개발 노트", parent_id: null, sort_order: 0 }]);
+    expect(await within(dialog).findByRole("option", { name: /개발 노트/ })).not.toBeNull();
+    expect((within(dialog).getByRole("button", { name: "저장" }) as HTMLButtonElement).disabled).toBe(false);
+
+    await user.click(within(dialog).getByRole("button", { name: "취소" }));
+    await user.click(screen.getByRole("button", { name: "기록장에 저장" }));
+    expect(within(screen.getByRole("dialog", { name: "기록장에 저장" })).getByRole("option", { name: /개발 노트/ })).not.toBeNull();
+    expect(listWorkspacePages).toHaveBeenCalledTimes(1);
+  });
+
+  it("페이지 목록 조회 실패를 저장 창 안에서 재시도한다", async () => {
+    useAuth.mockReturnValue({ status: "authenticated", user: { id: "1", email_verified: true } });
+    listWorkspacePages
+      .mockRejectedValueOnce(new Error("failed"))
+      .mockResolvedValueOnce([{ id: "10", owner_id: "1", title: "개발 노트", parent_id: null, sort_order: 0 }]);
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByTitle("변환 결과");
+
+    await user.click(screen.getByRole("button", { name: "기록장에 저장" }));
+    const dialog = screen.getByRole("dialog", { name: "기록장에 저장" });
+    await user.click(await within(dialog).findByRole("button", { name: "다시 시도" }));
+
+    expect(await within(dialog).findByRole("option", { name: /개발 노트/ })).not.toBeNull();
+    expect(listWorkspacePages).toHaveBeenCalledTimes(2);
+  });
+
+  it("기록장 저장 대상을 계층과 전체 경로로 표시하고 검색한다", async () => {
+    useAuth.mockReturnValue({ status: "authenticated", user: { id: "1", email_verified: true } });
+    listWorkspacePages.mockResolvedValue([
+      { id: "10", owner_id: "1", title: "프로젝트", parent_id: null, sort_order: 0, type: "MARKDOWN" },
+      { id: "20", owner_id: "1", title: "API 설계", parent_id: "10", sort_order: 0, type: "MARKDOWN" },
+      { id: "30", owner_id: "1", title: "참고 사이트", parent_id: null, sort_order: 1, type: "HTML" },
+    ]);
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByTitle("변환 결과");
+
+    await user.click(screen.getByRole("button", { name: "기록장에 저장" }));
+    const dialog = await screen.findByRole("dialog", { name: "기록장에 저장" });
+
+    const childOption = within(dialog).getByRole("option", { name: /API 설계/ });
+    expect(childOption.getAttribute("style")).toContain("--save-target-indent: 18px");
+    expect(childOption.querySelector("small")?.textContent).toBe("프로젝트 › API 설계");
+    expect(within(dialog).getByRole("option", { name: /참고 사이트/ }).hasAttribute("disabled")).toBe(true);
+
+    await user.type(within(dialog).getByRole("searchbox", { name: "저장 대상 페이지 검색" }), "API");
+    expect(within(dialog).getByRole("option", { name: /API 설계/ })).not.toBeNull();
+    expect(within(dialog).getAllByRole("option").some((option) => (
+      option.querySelector("strong")?.textContent === "프로젝트"
+    ))).toBe(false);
+
+    await user.click(within(dialog).getByRole("option", { name: /API 설계/ }));
+    expect((within(dialog).getByRole("searchbox", { name: "저장 대상 페이지 검색" }) as HTMLInputElement).value).toBe("API");
+    expect(within(dialog).getAllByRole("option").some((option) => (
+      option.querySelector("strong")?.textContent === "프로젝트"
+    ))).toBe(false);
   });
 });

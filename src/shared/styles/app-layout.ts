@@ -433,12 +433,17 @@ export const APP_LAYOUT_CSS = `
 }
 .save-dialog {
   width: min(100%, 520px);
+  max-height: calc(100dvh - 40px);
   padding: 26px;
   border: 1px solid #e0e4eb;
   border-radius: 12px;
   background: #fff;
   box-shadow: 0 24px 64px rgba(15, 23, 42, .22);
 }
+.save-dialog.has-workspace-picker { width: min(100%, 680px); }
+.save-dialog-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 22px; }
+.save-dialog-heading > button { display: grid; width: 32px; height: 32px; flex: 0 0 auto; padding: 0; place-items: center; border: 0; border-radius: 7px; background: transparent; color: #667085; font-size: 25px; line-height: 1; cursor: pointer; }
+.save-dialog-heading > button:hover { background: #f1f3f7; color: #344054; }
 .save-dialog h2 { margin: 0; color: #172033; font-size: 21px; letter-spacing: -.02em; }
 .save-dialog > p { margin: 10px 0 20px; color: #667085; font-size: 13px; line-height: 1.6; }
 .save-dialog fieldset { display: grid; gap: 10px; margin: 0; padding: 0; border: 0; }
@@ -450,6 +455,32 @@ export const APP_LAYOUT_CSS = `
 .save-dialog .save-dialog-select-label:hover { background: transparent; }
 .save-dialog-select { width: 100%; height: 40px; margin-bottom: 16px; padding: 0 11px; border: 1px solid #d8dde6; border-radius: 7px; background: #fff; color: #344054; font-family: inherit; font-size: 13px; }
 .save-dialog-select:focus { border-color: #637df2; outline: 2px solid #e5e9ff; }
+.workspace-save-picker { min-height: 0; margin-bottom: 16px; }
+.workspace-save-picker-panel { padding: 8px; border: 1px solid #dce1ea; border-radius: 9px; background: #fff; }
+.workspace-save-picker-status { display: grid; min-height: 120px; margin-bottom: 16px; place-items: center; border: 1px solid #dce1ea; border-radius: 9px; color: #667085; font-size: 13px; }
+.workspace-save-picker-status.is-error { align-content: center; gap: 10px; color: #9f341f; }
+.workspace-save-picker-status button { min-height: 32px; padding: 0 12px; border: 1px solid #d8dde6; border-radius: 7px; background: #fff; color: #344054; font-family: inherit; font-size: 12px; font-weight: 750; cursor: pointer; }
+.workspace-save-picker-search { display: grid !important; min-height: 38px !important; grid-template-columns: 20px minmax(0,1fr); gap: 6px !important; padding: 0 10px !important; border: 1px solid #dfe3eb !important; border-radius: 7px !important; color: #7b8494 !important; cursor: text !important; }
+.workspace-save-picker-search input { width: 100%; min-width: 0; height: 36px; border: 0; outline: 0; background: transparent; color: #344054; font: inherit; }
+.workspace-save-picker-options { max-height: min(340px, 48vh); margin-top: 7px; overflow-y: auto; overscroll-behavior: contain; }
+.workspace-save-picker-options > button { position: relative; display: grid; width: 100%; min-height: 50px; grid-template-columns: 28px minmax(0,1fr) 22px; align-items: center; gap: 8px; padding: 6px 9px 6px calc(9px + var(--save-target-indent, 0px)); border: 0; border-radius: 7px; background: transparent; color: #344054; font-family: inherit; text-align: left; cursor: pointer; }
+.workspace-save-picker-options > button.has-depth::before { position: absolute; top: 0; bottom: 0; left: calc(15px + var(--save-target-indent)); border-left: 1px solid #d5dbea; content: ""; transform: translateX(-18px); }
+.workspace-save-picker-options > button.has-depth::after { position: absolute; top: 25px; left: calc(15px + var(--save-target-indent)); width: 11px; border-top: 1px solid #d5dbea; content: ""; transform: translateX(-18px); }
+.workspace-save-picker-options > button:hover { background: #f3f5fa; }
+.workspace-save-picker-options > button.is-selected { background: #edf2ff; color: #2949df; }
+.workspace-save-picker-options > button:disabled { cursor: not-allowed; opacity: .5; }
+.workspace-save-picker-options > button > span:nth-child(2) { display: grid; min-width: 0; gap: 2px; }
+.workspace-save-picker-options strong, .workspace-save-picker-options small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.workspace-save-picker-options strong { font-size: 12px; }
+.workspace-save-picker-options small { color: #7a8495; font-size: 10px; font-weight: 500; }
+.workspace-save-picker-options > p { margin: 14px 10px; color: #8a94a4; font-size: 12px; text-align: center; }
+.workspace-save-picker-new-icon, .workspace-save-picker-type { display: grid; width: 24px; height: 24px; place-items: center; border: 1px solid #cfd5e0; border-radius: 6px; color: #52657a; font: 800 8px ui-sans-serif, system-ui, sans-serif; }
+.workspace-save-picker-new-icon { border-radius: 50%; color: #2949df; font-size: 17px; font-weight: 500; }
+.workspace-save-picker-type svg { width: 19px; height: 19px; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.4; }
+.workspace-save-picker-type text { fill: currentColor; stroke: none; text-anchor: middle; font: 800 5px ui-sans-serif, system-ui, sans-serif; }
+.workspace-save-picker-type.is-html { color: #c35a21; }
+.workspace-save-picker-type.is-pdf { color: #c2414b; }
+.workspace-save-picker-check { display: grid; width: 20px; height: 20px; place-items: center; border-radius: 50%; background: #3f5bea; color: #fff; font-size: 11px; }
 .save-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 22px; }
 .save-dialog-actions button { min-height: 36px; padding: 0 14px; border: 1px solid #d8dde6; border-radius: 7px; background: #fff; color: #344054; font-family: inherit; font-size: 12px; font-weight: 750; cursor: pointer; }
 .save-dialog-actions button.is-primary { border-color: #3f5bea; background: #3f5bea; color: #fff; }
@@ -546,5 +577,12 @@ export const APP_LAYOUT_CSS = `
   .page-create-dialog { padding: 22px; }
   .page-type-cards { grid-template-columns: 1fr; }
   .page-type-cards label { min-height: 64px; }
+  .save-dialog-backdrop { padding: 12px; }
+  .save-dialog { padding: 22px; }
+  .save-dialog.has-workspace-picker { display: flex; width: 100%; height: calc(100dvh - 24px); max-height: none; flex-direction: column; overflow-y: auto; }
+  .save-dialog.has-workspace-picker .workspace-save-picker { display: flex; min-height: 0; flex: 1 1 auto; flex-direction: column; }
+  .save-dialog.has-workspace-picker .workspace-save-picker-panel { display: flex; min-height: 0; flex: 1 1 auto; flex-direction: column; }
+  .save-dialog.has-workspace-picker .workspace-save-picker-options { max-height: none; flex: 1 1 auto; }
+  .save-dialog.has-workspace-picker .save-dialog-actions { position: sticky; z-index: 2; bottom: -22px; margin: auto -22px -22px; padding: 14px 22px 22px; border-top: 1px solid #e4e7ed; background: #fff; }
 }
 `;

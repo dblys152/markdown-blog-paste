@@ -1,13 +1,6 @@
 import { type ChangeEvent, type DragEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../features/auth/AuthProvider";
-import {
-  createWorkspacePage,
-  getWorkspacePage,
-  listWorkspacePages,
-  updateWorkspacePage,
-  type WorkspacePageListItem,
-} from "../../features/workspace/api";
 import { copyMermaidPng } from "../../shared/export/clipboard";
 import { convertMarkdown } from "../../shared/markdown/converter-core";
 import type {
@@ -19,10 +12,11 @@ import type {
 import { measureAsync } from "../../shared/performance/measureAsync";
 import { DocumentActions } from "../../shared/ui/DocumentActions";
 import { fileIcon } from "../../shared/ui/icons";
-import { loadGuestDraft, saveGuestDraft, type GuestDraft } from "../workspace/guest-draft-store";
 import { SAMPLE_MARKDOWN } from "./sample";
 import { buildPreviewHtml } from "./preview";
 import { loadQuickConversionDraft, saveQuickConversionDraft } from "./quick-conversion-draft-store";
+import { SaveToWorkspaceDialog } from "./SaveToWorkspaceDialog";
+import { useSaveToWorkspaceDialog } from "./useSaveToWorkspaceDialog";
 
 const MODE_OPTIONS: ModeOption[] = [
   { id: "basic", title: "표준 변환", description: "일반적인 문서에 적합한 기본 스타일로 변환" },
@@ -52,7 +46,6 @@ function createSampleFile(): UploadedMarkdownFile {
 export function MarkdownPastePage() {
   const navigate = useNavigate();
   const { status: authStatus } = useAuth();
-  const isAuthenticated = authStatus === "authenticated";
   const [initialDraft] = useState(loadQuickConversionDraft);
   const [markdownText, setMarkdownText] = useState(initialDraft?.markdownText ?? SAMPLE_MARKDOWN);
   const [currentFile, setCurrentFile] = useState<UploadedMarkdownFile>(initialDraft?.currentFile ?? createSampleFile);
@@ -66,12 +59,6 @@ export function MarkdownPastePage() {
   const [toast, setToast] = useState("");
   const [activeTab, setActiveTab] = useState<"preview" | "source">("preview");
   const [mobileSection, setMobileSection] = useState<"settings" | "result">("settings");
-  const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
-  const [saveMode, setSaveMode] = useState<"replace" | "append">("replace");
-  const [existingGuestDraft, setExistingGuestDraft] = useState<GuestDraft | null>(null);
-  const [workspacePages, setWorkspacePages] = useState<WorkspacePageListItem[]>([]);
-  const [workspaceSaveTarget, setWorkspaceSaveTarget] = useState("new");
-  const [isSaving, setIsSaving] = useState(false);
   const previewFrameRef = useRef<HTMLIFrameElement>(null);
   const toastTimerRef = useRef<number | undefined>(undefined);
 
@@ -82,6 +69,18 @@ export function MarkdownPastePage() {
     setToast(message);
     toastTimerRef.current = window.setTimeout(() => setToast(""), 2600);
   }, []);
+
+  const handleSaveCompleted = useCallback((pageId?: string) => {
+    navigate("/workspace", pageId ? { state: { selectedPageId: pageId } } : undefined);
+  }, [navigate]);
+
+  const saveDialog = useSaveToWorkspaceDialog({
+    authStatus,
+    markdown: markdownText,
+    title: outputTitle,
+    onMessage: showToast,
+    onSaved: handleSaveCompleted,
+  });
 
   useEffect(() => {
     return () => window.clearTimeout(toastTimerRef.current);
@@ -198,83 +197,6 @@ export function MarkdownPastePage() {
     showToast("빠른 변환 작업을 초기화했습니다.");
   };
 
-  useEffect(() => {
-    if (!isSaveDialogOpen) return;
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !isSaving) setIsSaveDialogOpen(false);
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isSaveDialogOpen, isSaving]);
-
-  const openSaveDialog = async () => {
-    if (authStatus === "loading") {
-      showToast("로그인 상태를 확인하고 있습니다. 잠시 후 다시 시도해 주세요.");
-      return;
-    }
-    try {
-      setSaveMode("replace");
-      if (isAuthenticated) {
-        const pages = await listWorkspacePages();
-        setWorkspacePages(pages.filter((page) => (page.type ?? "MARKDOWN") === "MARKDOWN"));
-        setWorkspaceSaveTarget("new");
-      } else {
-        setExistingGuestDraft(await loadGuestDraft());
-      }
-      setIsSaveDialogOpen(true);
-    } catch {
-      showToast("기록장 정보를 불러올 수 없습니다.");
-    }
-  };
-
-  const confirmSaveToWorkspace = async () => {
-    setIsSaving(true);
-    try {
-      if (isAuthenticated) {
-        let savedPageId: string;
-        if (workspaceSaveTarget === "new") {
-          const createdPage = await createWorkspacePage({
-            title: outputTitle,
-            content: markdownText,
-            parent_id: null,
-          });
-          savedPageId = createdPage.id;
-        } else {
-          const targetPage = workspacePages.find((page) => page.id === workspaceSaveTarget);
-          if (!targetPage) throw new Error("저장 대상을 찾을 수 없습니다.");
-          const existingMarkdown = saveMode === "append"
-            ? ((await getWorkspacePage(targetPage.id)).contents ?? "").trimEnd()
-            : "";
-          const nextMarkdown = saveMode === "append" && existingMarkdown
-            ? `${existingMarkdown}\n\n${markdownText}`
-            : markdownText;
-          await updateWorkspacePage(targetPage.id, { content: nextMarkdown });
-          savedPageId = targetPage.id;
-        }
-        setIsSaveDialogOpen(false);
-        navigate("/workspace", { state: { selectedPageId: savedPageId } });
-        return;
-      }
-
-      const shouldAppend = saveMode === "append";
-      const existingMarkdown = existingGuestDraft?.markdown.trimEnd() ?? "";
-      const nextMarkdown = shouldAppend && existingMarkdown
-        ? `${existingMarkdown}\n\n${markdownText}`
-        : markdownText;
-      await saveGuestDraft({
-        title: "임시 페이지",
-        markdown: nextMarkdown,
-        updatedAt: Date.now(),
-      });
-      setIsSaveDialogOpen(false);
-      navigate("/workspace");
-    } catch {
-      showToast("기록장에 저장할 수 없습니다.");
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
   return (
     <>
       <main className="converter-page">
@@ -377,7 +299,7 @@ export function MarkdownPastePage() {
                   <button type="button" role="tab" aria-selected={activeTab === "preview"} onClick={() => setActiveTab("preview")}>미리보기</button>
                   <button type="button" role="tab" aria-selected={activeTab === "source"} onClick={() => setActiveTab("source")}>원본 Markdown</button>
                 </div>
-                <DocumentActions result={isConverting ? null : result} markdown={markdownText} title={outputTitle} onMessage={showToast} onSave={openSaveDialog} />
+                <DocumentActions result={isConverting ? null : result} markdown={markdownText} title={outputTitle} onMessage={showToast} onSave={saveDialog.open} />
               </div>
               <div className="preview-wrap">
                 {activeTab === "source" ? (
@@ -390,52 +312,7 @@ export function MarkdownPastePage() {
           </div>
         </div>
       </main>
-      {isSaveDialogOpen && (
-        <div
-          className="save-dialog-backdrop"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget && !isSaving) setIsSaveDialogOpen(false);
-          }}
-        >
-          <section className="save-dialog" role="dialog" aria-modal="true" aria-labelledby="save-dialog-title">
-            <h2 id="save-dialog-title">기록장에 저장</h2>
-            {isAuthenticated ? (
-              <>
-                <p>새 페이지를 만들거나 기존 페이지에 저장할 수 있습니다.</p>
-                <label className="save-dialog-select-label" htmlFor="workspace-save-target">저장 대상</label>
-                <select
-                  id="workspace-save-target"
-                  className="save-dialog-select"
-                  value={workspaceSaveTarget}
-                  onChange={(event) => setWorkspaceSaveTarget(event.target.value)}
-                >
-                  <option value="new">새 페이지로 저장</option>
-                  {workspacePages.map((page) => <option key={page.id} value={page.id}>{page.title}</option>)}
-                </select>
-              </>
-            ) : <p>비회원은 임시 페이지 한 개만 사용할 수 있습니다.</p>}
-            {(!isAuthenticated || workspaceSaveTarget !== "new") && <fieldset>
-              <label>
-                <input type="radio" name="save-mode" checked={saveMode === "replace"} onChange={() => setSaveMode("replace")} />
-                <span>{isAuthenticated ? "선택한 페이지를 현재 내용으로 교체" : "임시 페이지를 현재 내용으로 교체"}</span>
-              </label>
-              {!isAuthenticated && saveMode === "replace" && existingGuestDraft?.markdown.trim() && (
-                <small>기존 임시 페이지 내용이 현재 내용으로 교체됩니다.</small>
-              )}
-              <label>
-                <input type="radio" name="save-mode" checked={saveMode === "append"} onChange={() => setSaveMode("append")} />
-                <span>{isAuthenticated ? "선택한 페이지에 내용 추가" : "임시 페이지에 내용 추가"}</span>
-              </label>
-            </fieldset>}
-            <div className="save-dialog-actions">
-              <button type="button" onClick={() => setIsSaveDialogOpen(false)} disabled={isSaving}>취소</button>
-              <button type="button" className="is-primary" onClick={() => void confirmSaveToWorkspace()} disabled={isSaving}>
-                {isSaving ? "저장 중…" : (isAuthenticated ? "기록장에 저장" : "임시 페이지에 저장")}
-              </button>
-            </div>
-          </section>
-        </div>
-      )}
+      <SaveToWorkspaceDialog controller={saveDialog} />
       {toast && <div className="toast">{toast}</div>}
     </>
   );
