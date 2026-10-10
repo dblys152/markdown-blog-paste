@@ -2,6 +2,7 @@ import type { KeyboardEvent, PointerEvent } from "react";
 import type { PageType } from "../../features/workspace/api";
 import { pageTypeName } from "../../features/workspace/page-type-presentation";
 import { bindMarkdownPreviewNavigation } from "../../features/workspace/markdown-preview-navigation";
+import { downloadHtml } from "../../shared/export/html-export";
 import type { ConversionResult } from "../../shared/markdown/types";
 import { DocumentActions } from "../../shared/ui/DocumentActions";
 
@@ -206,6 +207,16 @@ function PreviewPane({
             title={title}
             onMessage={onMessage}
           />
+        )}
+        {pageType === "HTML" && (
+          <div className="document-actions">
+            <button type="button" onClick={() => {
+              downloadHtml(content, title);
+              onMessage("HTML 파일 다운로드를 시작했습니다.");
+            }}>
+              <span aria-hidden="true">⇩</span><span>HTML 내보내기</span>
+            </button>
+          </div>
         )}
       </div>
       {pageType === "HTML" && (

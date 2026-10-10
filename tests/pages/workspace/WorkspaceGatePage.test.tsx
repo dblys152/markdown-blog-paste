@@ -22,6 +22,7 @@ const {
   restoreWorkspacePage,
   searchWorkspacePages,
   permanentlyDeleteWorkspacePage,
+  downloadHtml,
 } = vi.hoisted(() => ({
   convertMarkdown: vi.fn(),
   loadGuestDraft: vi.fn(),
@@ -41,11 +42,13 @@ const {
   restoreWorkspacePage: vi.fn(),
   searchWorkspacePages: vi.fn(),
   permanentlyDeleteWorkspacePage: vi.fn(),
+  downloadHtml: vi.fn(),
 }));
 
 vi.mock("../../../src/shared/markdown/converter-core", () => ({ convertMarkdown }));
 vi.mock("../../../src/pages/workspace/guest-draft-store", () => ({ loadGuestDraft, saveGuestDraft }));
 vi.mock("../../../src/features/auth/AuthProvider", () => ({ useAuth }));
+vi.mock("../../../src/shared/export/html-export", () => ({ downloadHtml }));
 vi.mock("../../../src/features/workspace/api", () => ({
   listWorkspacePages,
   getWorkspacePage,
@@ -264,7 +267,7 @@ describe("WorkspaceGatePage", () => {
     expect(screen.getByRole("tab", { name: "Markdown" }).getAttribute("aria-selected")).toBe("true");
   });
 
-  it("페이지 유형별 아이콘을 표시하고 HTML 페이지는 격리된 미리보기와 외부 이미지 안내를 제공한다", async () => {
+  it("페이지 유형별 아이콘을 표시하고 HTML 페이지는 격리된 미리보기와 원본 내보내기를 제공한다", async () => {
     useAuth.mockReturnValue({ status: "authenticated", user: { id: "1", email_verified: true } });
     listWorkspacePages.mockResolvedValue([
       { id: "10", owner_id: "1", title: "Markdown 문서", parent_id: null, sort_order: 0, type: "MARKDOWN" },
@@ -296,6 +299,10 @@ describe("WorkspaceGatePage", () => {
     expect(preview.getAttribute("sandbox")).toBe("");
     expect(preview.getAttribute("referrerpolicy")).toBe("no-referrer");
     await waitFor(() => expect(preview.srcdoc).toContain("https://example.com/photo.jpg"));
+
+    await user.click(screen.getByRole("button", { name: "HTML 내보내기" }));
+    expect(downloadHtml).toHaveBeenCalledWith('<img src="https://example.com/photo.jpg">', "HTML 문서");
+    expect(screen.getByText("HTML 파일 다운로드를 시작했습니다.")).not.toBeNull();
   });
 
   it("메모 페이지는 Markdown 변환과 미리보기 없이 전체 너비 편집기로 표시한다", async () => {
