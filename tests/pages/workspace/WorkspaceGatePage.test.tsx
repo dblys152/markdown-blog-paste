@@ -215,6 +215,8 @@ describe("WorkspaceGatePage", () => {
     renderPage();
 
     const expandButton = await screen.findByRole("button", { name: "개발 노트 하위 페이지 펼치기" });
+    expect(screen.getByRole("button", { name: "개발 노트" }).querySelector(".workspace-page-child-count")?.textContent).toBe("1");
+    expect(screen.getByRole("button", { name: "개발 노트" }).getAttribute("aria-label")).toBeNull();
     expect(screen.queryByRole("button", { name: "API 설계" })).toBeNull();
 
     await user.click(expandButton);
@@ -226,6 +228,29 @@ describe("WorkspaceGatePage", () => {
     expect(screen.queryByText("하위 페이지 없음")).toBeNull();
 
     await user.click(screen.getByRole("button", { name: "개발 노트 하위 페이지 접기" }));
+    expect(screen.queryByRole("button", { name: "API 설계" })).toBeNull();
+  });
+
+  it("페이지 펼침 상태를 사용자별로 저장하고 다시 진입할 때 복원한다", async () => {
+    useAuth.mockReturnValue({ status: "authenticated", user: { id: "user-1", email_verified: true } });
+    listWorkspacePages.mockResolvedValue([
+      { id: "10", owner_id: "user-1", title: "개발 노트", parent_id: null, sort_order: 0 },
+      { id: "20", owner_id: "user-1", title: "API 설계", parent_id: "10", sort_order: 0 },
+    ]);
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "개발 노트 하위 페이지 펼치기" }));
+    expect(screen.getByRole("button", { name: "API 설계" })).not.toBeNull();
+
+    cleanup();
+    renderPage();
+    expect(await screen.findByRole("button", { name: "API 설계" })).not.toBeNull();
+
+    cleanup();
+    useAuth.mockReturnValue({ status: "authenticated", user: { id: "user-2", email_verified: true } });
+    renderPage();
+    await screen.findByRole("button", { name: "개발 노트 하위 페이지 펼치기" });
     expect(screen.queryByRole("button", { name: "API 설계" })).toBeNull();
   });
 
@@ -836,6 +861,8 @@ describe("WorkspaceGatePage", () => {
     const recentPage = screen.getByRole("button", { name: "최근 삭제" });
     const olderPage = screen.getByRole("button", { name: "이전에 삭제" });
     expect(recentPage.compareDocumentPosition(olderPage) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+    expect(recentPage.querySelector(".workspace-page-child-count")?.textContent).toBe("2");
+    expect(olderPage.querySelector(".workspace-page-child-count")).toBeNull();
 
     await user.click(screen.getByRole("button", { name: "최근 삭제 하위 페이지 펼치기" }));
     const firstChild = screen.getByRole("button", { name: "첫 번째 하위" });

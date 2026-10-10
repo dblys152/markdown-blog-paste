@@ -19,6 +19,7 @@ import {
 } from "../../features/workspace/api";
 import {
   applyPageMove,
+  countDirectChildPages,
   resolvePageMoveDestination,
   type DropPlacement,
 } from "../../features/workspace/page-tree";
@@ -30,6 +31,7 @@ import { useHtmlPreviewDocument } from "./useHtmlPreviewDocument";
 import { useMarkdownConversion } from "./useMarkdownConversion";
 import { useWorkspaceDocumentContent } from "./useWorkspaceDocumentContent";
 import { useWorkspacePdfPreview } from "./useWorkspacePdfPreview";
+import { usePersistedExpandedPageIds } from "./usePersistedExpandedPageIds";
 
 const SAMPLE_MARKDOWN = `# 임시 Markdown 페이지
 
@@ -150,8 +152,8 @@ export function WorkspaceGatePage() {
   const hasSearchQuery = searchQuery.trim().length > 0;
   const [trashLoadState, setTrashLoadState] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
-  const [expandedPageIds, setExpandedPageIds] = useState<Set<string>>(() => new Set());
-  const [expandedTrashPageIds, setExpandedTrashPageIds] = useState<Set<string>>(() => new Set());
+  const [expandedPageIds, setExpandedPageIds] = usePersistedExpandedPageIds(authUser?.id, "pages");
+  const [expandedTrashPageIds, setExpandedTrashPageIds] = usePersistedExpandedPageIds(authUser?.id, "trash");
   const [draggedPageId, setDraggedPageId] = useState<string | null>(null);
   const [dropHint, setDropHint] = useState<{ pageId: string; placement: DropPlacement } | null>(null);
   const [openPageMenuId, setOpenPageMenuId] = useState<string | null>(null);
@@ -183,9 +185,7 @@ export function WorkspaceGatePage() {
   const selectedPage = pages.find((page) => page.id === selectedPageId) ?? null;
   const selectedTrashedPage = trashedPages.find((page) => page.id === selectedTrashedPageId) ?? null;
   const pageById = useMemo(() => new Map(pages.map((page) => [page.id, page])), [pages]);
-  const childPageIds = useMemo(() => new Set(
-    pages.flatMap((page) => page.parent_id === null ? [] : [page.parent_id]),
-  ), [pages]);
+  const childPageCounts = useMemo(() => countDirectChildPages(pages), [pages]);
   const getPagePath = useCallback((page: WorkspacePageListItem) => {
     const path = [page.title];
     const visitedIds = new Set([page.id]);
@@ -682,7 +682,8 @@ export function WorkspaceGatePage() {
       .filter((page) => page.parent_id === parentId)
       .sort((left, right) => left.sort_order - right.sort_order)
       .map((page) => {
-        const hasChildren = childPageIds.has(page.id);
+        const childCount = childPageCounts.get(page.id) ?? 0;
+        const hasChildren = childCount > 0;
         const isExpanded = expandedPageIds.has(page.id);
         return (
           <div key={page.id} className="workspace-page-node">
@@ -754,6 +755,7 @@ export function WorkspaceGatePage() {
               className="workspace-page-select"
               >
                 <span>{page.title}</span>
+                {hasChildren && <span className="workspace-page-child-count" aria-hidden="true">{childCount}</span>}
               </button>
             )}
             <div
@@ -807,9 +809,7 @@ export function WorkspaceGatePage() {
   };
 
   const trashedPageIds = useMemo(() => new Set(trashedPages.map((page) => page.id)), [trashedPages]);
-  const trashChildPageIds = useMemo(() => new Set(
-    trashedPages.flatMap((page) => page.parent_id === null ? [] : [page.parent_id]),
-  ), [trashedPages]);
+  const trashChildPageCounts = useMemo(() => countDirectChildPages(trashedPages), [trashedPages]);
   const renderTrashTree = (parentId: string | null, depth = 0): ReactNode => {
     return trashedPages
       .filter((page) => {
@@ -819,7 +819,8 @@ export function WorkspaceGatePage() {
       .sort(parentId === null ? compareTrashRoots : comparePageOrder)
       .map((page) => {
         const isRoot = page.parent_id === null || !trashedPageIds.has(page.parent_id);
-        const hasChildren = trashChildPageIds.has(page.id);
+        const childCount = trashChildPageCounts.get(page.id) ?? 0;
+        const hasChildren = childCount > 0;
         const isExpanded = expandedTrashPageIds.has(page.id);
         return (
           <div className="workspace-page-node" key={page.id}>
@@ -851,6 +852,7 @@ export function WorkspaceGatePage() {
               </button>
               <button type="button" className="workspace-page-select">
                 <span>{page.title}</span>
+                {hasChildren && <span className="workspace-page-child-count" aria-hidden="true">{childCount}</span>}
               </button>
               {isRoot && (
                 <div
@@ -901,7 +903,7 @@ export function WorkspaceGatePage() {
 
   const pageTree = useMemo(() => renderPageTree(null), [
     addPage,
-    childPageIds,
+    childPageCounts,
     draggedPageId,
     dropHint,
     expandedPageIds,
@@ -923,7 +925,7 @@ export function WorkspaceGatePage() {
     restorePage,
     selectTrashedPage,
     selectedTrashedPageId,
-    trashChildPageIds,
+    trashChildPageCounts,
     trashedPageIds,
     trashedPages,
   ]);

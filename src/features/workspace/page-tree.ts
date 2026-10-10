@@ -7,6 +7,14 @@ export type PageMoveDestination = {
   sortOrder: number;
 };
 
+export function countDirectChildPages<T extends { parent_id: string | null }>(pages: T[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  pages.forEach((page) => {
+    if (page.parent_id !== null) counts.set(page.parent_id, (counts.get(page.parent_id) ?? 0) + 1);
+  });
+  return counts;
+}
+
 function sortedSiblings(pages: WorkspacePageListItem[], parentId: string | null, excludedId: string) {
   return pages
     .filter((page) => page.parent_id === parentId && page.id !== excludedId)

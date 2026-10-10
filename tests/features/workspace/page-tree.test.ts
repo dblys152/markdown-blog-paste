@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { WorkspacePage } from "../../../src/features/workspace/api";
 import {
   applyPageMove,
+  countDirectChildPages,
   resolvePageMoveDestination,
 } from "../../../src/features/workspace/page-tree";
 
@@ -12,6 +13,18 @@ const pages: WorkspacePage[] = [
 ];
 
 describe("page tree move", () => {
+  it("페이지별 직접 하위 페이지 수를 계산한다", () => {
+    const counts = countDirectChildPages([
+      ...pages,
+      { id: "4", owner_id: "9", title: "D", contents: "", parent_id: "1", sort_order: 1 },
+      { id: "5", owner_id: "9", title: "E", contents: "", parent_id: "3", sort_order: 0 },
+    ]);
+
+    expect(counts.get("1")).toBe(2);
+    expect(counts.get("3")).toBe(1);
+    expect(counts.has("2")).toBe(false);
+  });
+
   it("항목 가운데 드롭은 마지막 하위 위치를 계산한다", () => {
     expect(resolvePageMoveDestination(pages, "2", "1", "inside")).toEqual({
       parentId: "1",
