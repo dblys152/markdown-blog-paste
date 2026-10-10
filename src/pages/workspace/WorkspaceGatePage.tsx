@@ -627,27 +627,52 @@ export function WorkspaceGatePage() {
       confirmLabel: "복원",
     });
     if (!confirmed) return;
-    try {
-      await restoreWorkspacePage(page.id);
-    } catch {
-      showToast("페이지를 복원하지 못했습니다.");
-      return;
-    }
-    try {
-      const [refreshedPages, refreshedTrash] = await Promise.all([
-        listWorkspacePages(),
-        listTrashedWorkspacePages(),
-      ]);
-      setPages(refreshedPages);
-      setTrashedPages(refreshedTrash);
-      trashContentCache.current.clear();
+    const ownerId = authUser?.id;
+    if (!ownerId) return;
+
+    const restoredIds = collectTrashSubtreeIds(trashedPages, page.id);
+    const restoredTrashPages = trashedPages.filter((candidate) => restoredIds.has(candidate.id));
+    const remainingTrashPages = trashedPages.filter((candidate) => !restoredIds.has(candidate.id));
+    const restoredPages = restoredTrashPages.map<WorkspacePageListItem>((candidate) => ({
+      id: candidate.id,
+      owner_id: ownerId,
+      title: candidate.title,
+      parent_id: candidate.parent_id,
+      sort_order: candidate.sort_order,
+      type: candidate.type,
+    }));
+    const restoredPageIds = new Set(restoredPages.map((candidate) => candidate.id));
+    const previousSelectedTrashedPageId = selectedTrashedPageId;
+    const previousMarkdown = markdown;
+
+    trashContentRequestId.current += 1;
+    setTrashedPages(remainingTrashPages);
+    setPages((current) => [
+      ...current.filter((candidate) => !restoredPageIds.has(candidate.id)),
+      ...restoredPages,
+    ]);
+    if (selectedTrashedPageId !== null && restoredIds.has(selectedTrashedPageId)) {
       setSelectedTrashedPageId(null);
       setMarkdown("");
+    }
+
+    try {
+      await restoreWorkspacePage(page.id);
+      restoredIds.forEach((pageId) => trashContentCache.current.delete(pageId));
       showToast("페이지를 복원했습니다.");
     } catch {
-      showToast("페이지는 복원했지만 목록을 새로고침하지 못했습니다.");
+      setTrashedPages((current) => {
+        const currentIds = new Set(current.map((candidate) => candidate.id));
+        return [...current, ...restoredTrashPages.filter((candidate) => !currentIds.has(candidate.id))];
+      });
+      setPages((current) => current.filter((candidate) => !restoredPageIds.has(candidate.id)));
+      if (previousSelectedTrashedPageId !== null && restoredIds.has(previousSelectedTrashedPageId)) {
+        setSelectedTrashedPageId(previousSelectedTrashedPageId);
+        setMarkdown(previousMarkdown);
+      }
+      showToast("페이지를 복원하지 못했습니다.");
     }
-  }, [requestConfirmation, showToast, trashedPages]);
+  }, [authUser?.id, markdown, requestConfirmation, selectedTrashedPageId, showToast, trashedPages]);
 
   const permanentlyDeletePage = useCallback(async (page: TrashedWorkspacePage) => {
     setOpenTrashMenuId(null);
@@ -662,20 +687,34 @@ export function WorkspaceGatePage() {
       tone: "danger",
     });
     if (!confirmed) return;
+    const deletedIds = collectTrashSubtreeIds(trashedPages, page.id);
+    const deletedPages = trashedPages.filter((candidate) => deletedIds.has(candidate.id));
+    const previousSelectedTrashedPageId = selectedTrashedPageId;
+    const previousMarkdown = markdown;
+
+    trashContentRequestId.current += 1;
+    setTrashedPages((current) => current.filter((candidate) => !deletedIds.has(candidate.id)));
+    if (selectedTrashedPageId !== null && deletedIds.has(selectedTrashedPageId)) {
+      setSelectedTrashedPageId(null);
+      setMarkdown("");
+    }
+
     try {
       await permanentlyDeleteWorkspacePage(page.id);
-      const deletedIds = collectTrashSubtreeIds(trashedPages, page.id);
       deletedIds.forEach((pageId) => trashContentCache.current.delete(pageId));
-      setTrashedPages((current) => current.filter((candidate) => !deletedIds.has(candidate.id)));
-      if (selectedTrashedPageId !== null && deletedIds.has(selectedTrashedPageId)) {
-        setSelectedTrashedPageId(null);
-        setMarkdown("");
-      }
       showToast("페이지를 영구 삭제했습니다.");
     } catch {
+      setTrashedPages((current) => {
+        const currentIds = new Set(current.map((candidate) => candidate.id));
+        return [...current, ...deletedPages.filter((candidate) => !currentIds.has(candidate.id))];
+      });
+      if (previousSelectedTrashedPageId !== null && deletedIds.has(previousSelectedTrashedPageId)) {
+        setSelectedTrashedPageId(previousSelectedTrashedPageId);
+        setMarkdown(previousMarkdown);
+      }
       showToast("페이지를 영구 삭제하지 못했습니다.");
     }
-  }, [requestConfirmation, selectedTrashedPageId, showToast, trashedPages]);
+  }, [markdown, requestConfirmation, selectedTrashedPageId, showToast, trashedPages]);
 
   const beginRenamePage = (page: WorkspacePageListItem) => {
     setOpenPageMenuId(null);

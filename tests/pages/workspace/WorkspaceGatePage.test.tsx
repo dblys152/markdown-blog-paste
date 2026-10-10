@@ -1021,12 +1021,7 @@ describe("WorkspaceGatePage", () => {
 
   it("휴지통에서 삭제한 페이지를 조회하고 복원한다", async () => {
     useAuth.mockReturnValue({ status: "authenticated", user: { id: "1", email_verified: true } });
-    listWorkspacePages
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([
-        { id: "10", owner_id: "1", parent_id: null, title: "삭제한 페이지", sort_order: 0, type: "MARKDOWN" },
-        { id: "20", owner_id: "1", parent_id: "10", title: "삭제한 하위 페이지", sort_order: 0, type: "PDF" },
-      ]);
+    listWorkspacePages.mockResolvedValueOnce([]);
     listTrashedWorkspacePages.mockResolvedValueOnce([
       {
         id: "10",
@@ -1046,7 +1041,9 @@ describe("WorkspaceGatePage", () => {
         deleted_at: "2026-08-01T00:00:00Z",
         expires_at: "2026-08-31T00:00:00Z",
       },
-    ]).mockResolvedValueOnce([]);
+    ]);
+    const restoration = createDeferred<void>();
+    restoreWorkspacePage.mockReturnValueOnce(restoration.promise);
     const user = userEvent.setup();
     renderPage();
 
@@ -1076,19 +1073,81 @@ describe("WorkspaceGatePage", () => {
     await user.click(screen.getByRole("menuitem", { name: "복원" }));
     expect(screen.getByText("'삭제한 페이지' 페이지와 모든 하위 페이지를 복원할까요?")).not.toBeNull();
     await user.click(screen.getByRole("button", { name: "복원" }));
-    await waitFor(() => {
-      expect(restoreWorkspacePage).toHaveBeenCalledWith("10");
-      expect(listWorkspacePages).toHaveBeenCalledTimes(2);
-      expect(listTrashedWorkspacePages).toHaveBeenCalledTimes(2);
-    });
+    expect(restoreWorkspacePage).toHaveBeenCalledWith("10");
     expect(screen.queryByText("삭제한 페이지")).toBeNull();
     expect(screen.getByRole("region", { name: "휴지통 목록" })).toBeTruthy();
+    expect(listWorkspacePages).toHaveBeenCalledTimes(1);
+    expect(listTrashedWorkspacePages).toHaveBeenCalledTimes(1);
 
     await user.click(screen.getByRole("button", { name: "페이지 목록으로 돌아가기" }));
-    expect(await screen.findByText("삭제한 페이지")).toBeTruthy();
+    expect(screen.getByText("삭제한 페이지")).toBeTruthy();
     expect(screen.getByRole("img", { name: "Markdown 문서" })).not.toBeNull();
     await user.click(screen.getByRole("button", { name: "삭제한 페이지 하위 페이지 펼치기" }));
     expect(screen.getByRole("img", { name: "PDF 문서" })).not.toBeNull();
+    restoration.resolve(undefined);
+    await waitFor(() => expect(screen.getByText("페이지를 복원했습니다.")).not.toBeNull());
+  });
+
+  it("영구 삭제를 즉시 반영하고 요청 실패 시 페이지를 복구한다", async () => {
+    useAuth.mockReturnValue({ status: "authenticated", user: { id: "1", email_verified: true } });
+    listWorkspacePages.mockResolvedValue([]);
+    listTrashedWorkspacePages.mockResolvedValue([
+      {
+        id: "10",
+        parent_id: null,
+        title: "삭제한 페이지",
+        sort_order: 0,
+        type: "MARKDOWN",
+        deleted_at: "2026-08-01T00:00:00Z",
+        expires_at: "2026-08-31T00:00:00Z",
+      },
+    ]);
+    const deletion = createDeferred<void>();
+    permanentlyDeleteWorkspacePage.mockReturnValueOnce(deletion.promise);
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "휴지통" }));
+    await screen.findByRole("button", { name: "삭제한 페이지" });
+    await user.click(screen.getByRole("button", { name: "삭제한 페이지 메뉴" }));
+    await user.click(screen.getByRole("menuitem", { name: "영구 삭제" }));
+    await user.click(screen.getByRole("button", { name: "영구 삭제" }));
+
+    expect(permanentlyDeleteWorkspacePage).toHaveBeenCalledWith("10");
+    expect(screen.queryByRole("button", { name: "삭제한 페이지" })).toBeNull();
+
+    deletion.reject(new Error("delete failed"));
+    await waitFor(() => expect(screen.getByText("페이지를 영구 삭제하지 못했습니다.")).not.toBeNull());
+    expect(screen.getByRole("button", { name: "삭제한 페이지" })).not.toBeNull();
+  });
+
+  it("복원 요청이 실패하면 낙관적으로 이동한 페이지를 휴지통으로 되돌린다", async () => {
+    useAuth.mockReturnValue({ status: "authenticated", user: { id: "1", email_verified: true } });
+    listWorkspacePages.mockResolvedValue([]);
+    listTrashedWorkspacePages.mockResolvedValue([
+      {
+        id: "10",
+        parent_id: null,
+        title: "복원할 페이지",
+        sort_order: 0,
+        type: "MARKDOWN",
+        deleted_at: "2026-08-01T00:00:00Z",
+        expires_at: "2026-08-31T00:00:00Z",
+      },
+    ]);
+    restoreWorkspacePage.mockRejectedValueOnce(new Error("restore failed"));
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "휴지통" }));
+    await user.click(await screen.findByRole("button", { name: "복원할 페이지 메뉴" }));
+    await user.click(screen.getByRole("menuitem", { name: "복원" }));
+    await user.click(screen.getByRole("button", { name: "복원" }));
+
+    await waitFor(() => expect(screen.getByText("페이지를 복원하지 못했습니다.")).not.toBeNull());
+    expect(screen.getByRole("button", { name: "복원할 페이지" })).not.toBeNull();
+    await user.click(screen.getByRole("button", { name: "페이지 목록으로 돌아가기" }));
+    expect(screen.queryByRole("button", { name: "복원할 페이지" })).toBeNull();
   });
 
   it("페이지 검색 API 결과에 계층 경로를 표시하고 페이지를 선택한다", async () => {
