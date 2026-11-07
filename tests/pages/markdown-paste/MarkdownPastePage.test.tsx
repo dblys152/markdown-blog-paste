@@ -8,7 +8,7 @@ const {
   copyPreviewHtml,
   downloadHtml,
   downloadMarkdown,
-  downloadPdf,
+  openPdfPrintDialog,
   loadGuestDraft,
   saveGuestDraft,
   useAuth,
@@ -22,7 +22,7 @@ const {
   copyPreviewHtml: vi.fn(),
   downloadHtml: vi.fn(),
   downloadMarkdown: vi.fn(),
-  downloadPdf: vi.fn(),
+  openPdfPrintDialog: vi.fn(),
   loadGuestDraft: vi.fn(),
   saveGuestDraft: vi.fn(),
   useAuth: vi.fn(),
@@ -41,7 +41,7 @@ vi.mock("../../../src/shared/export/clipboard", () => ({
 }));
 vi.mock("../../../src/shared/export/html-export", () => ({ downloadHtml }));
 vi.mock("../../../src/shared/export/markdown-export", () => ({ downloadMarkdown }));
-vi.mock("../../../src/shared/export/pdf-export", () => ({ downloadPdf }));
+vi.mock("../../../src/shared/export/pdf-export", () => ({ openPdfPrintDialog }));
 vi.mock("../../../src/pages/workspace/guest-draft-store", () => ({ loadGuestDraft, saveGuestDraft }));
 vi.mock("../../../src/features/auth/AuthProvider", () => ({ useAuth }));
 vi.mock("../../../src/features/workspace/api", () => ({
@@ -73,7 +73,7 @@ describe("MarkdownPastePage", () => {
     clearQuickConversionDraft();
     convertMarkdown.mockResolvedValue(conversionResult);
     copyPreviewHtml.mockResolvedValue("html");
-    downloadPdf.mockResolvedValue(undefined);
+    openPdfPrintDialog.mockResolvedValue(undefined);
     loadGuestDraft.mockResolvedValue(null);
     saveGuestDraft.mockResolvedValue(undefined);
     useAuth.mockReturnValue({ status: "guest", user: null });
@@ -182,11 +182,11 @@ describe("MarkdownPastePage", () => {
     await screen.findByTitle("변환 결과");
 
     await user.click(screen.getByRole("button", { name: /내보내기/ }));
-    await user.click(screen.getByRole("menuitem", { name: /PDF 다운로드/ }));
+    await user.click(screen.getByRole("menuitem", { name: /PDF로 저장/ }));
 
     await waitFor(() => {
-      expect(downloadPdf).toHaveBeenCalledWith(conversionResult.bodyHtml, "sample-post");
-      expect(screen.getByText("PDF 파일 다운로드를 시작했습니다.")).not.toBeNull();
+      expect(openPdfPrintDialog).toHaveBeenCalledWith(conversionResult.bodyHtml, "sample-post");
+      expect(screen.getByText("인쇄 창에서 PDF로 저장할 수 있습니다.")).not.toBeNull();
     });
   });
 

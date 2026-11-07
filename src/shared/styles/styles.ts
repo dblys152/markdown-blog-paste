@@ -24,9 +24,7 @@ body {
   min-width: 0;
 }
 
-${createContentRootCss(".document-content")}
-
-${createContentCss(".document-content")}
+${createScopedContentCss(".document-content")}
 
 .document-content h1,
 .document-content h2,
@@ -140,13 +138,81 @@ ${createContentCss(".document-content")}
     display: none;
   }
 }
+
+${createBrowserPrintCss()}
 `.trim();
 
-export function createScopedContentCss(scope: string): string {
+export type ContentStyleMode = "screen" | "print";
+
+export function createScopedContentCss(scope: string, mode: ContentStyleMode = "screen"): string {
   return `
 ${createContentRootCss(scope)}
 
 ${createContentCss(scope)}
+
+${mode === "print" ? createPrintContentCss(scope) : ""}
+`.trim();
+}
+
+export function createBrowserPrintCss(): string {
+  return `
+@page {
+  size: A4 portrait;
+  margin: 14mm;
+}
+
+@media print {
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+    background: #fff;
+  }
+
+  .document-layout {
+    max-width: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .floating-section-nav {
+    display: none;
+  }
+
+${indentCss(createScopedContentCss(".document-content", "print"), 2)}
+
+  .document-content h1,
+  .document-content h2,
+  .document-content h3 {
+    line-height: 1.4 !important;
+  }
+
+  .document-content h1 {
+    margin: 0 0 12pt !important;
+    font-size: 18pt !important;
+  }
+
+  .document-content h2 {
+    margin: 18pt 0 8pt !important;
+    font-size: 13pt !important;
+  }
+
+  .document-content h3 {
+    margin: 14pt 0 6pt !important;
+    font-size: 11pt !important;
+  }
+
+  .document-content table {
+    margin: 10pt 0 !important;
+    font-size: 8.5pt !important;
+  }
+
+  .document-content th,
+  .document-content td {
+    padding: 4pt 5pt !important;
+    line-height: 1.4 !important;
+  }
+}
 `.trim();
 }
 
@@ -173,11 +239,7 @@ ${layoutRules.join("\n")}
 }
 
 function createContentCss(scope = ""): string {
-  const selector = (value: string) =>
-    value
-      .split(",")
-      .map((part) => `${scope ? `${scope} ` : ""}${part.trim()}`)
-      .join(",\n");
+  const selector = (value: string) => scopeSelectors(scope, value);
 
   return `
 ${selector("h1")} {
@@ -282,12 +344,16 @@ ${selector("code")} {
   font-family: Consolas, Monaco, "Courier New", monospace;
 }
 
-${selector("p code, li code")} {
+${selector("p code, li code, td code, th code")} {
   background: #f3f4f6;
   color: #d6336c;
   padding: 2px 5px;
   border-radius: 4px;
   font-size: 0.9em;
+  line-height: inherit;
+  overflow-wrap: anywhere;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
 }
 
 ${selector("table")} {
@@ -324,6 +390,90 @@ ${selector("img")} {
   max-width: 100%;
 }
 `.trim();
+}
+
+function createPrintContentCss(scope: string): string {
+  const selector = (value: string) => scopeSelectors(scope, value);
+
+  return `
+${scope} {
+  color: #20242b;
+  font-size: 10pt;
+  line-height: 1.55;
+  print-color-adjust: exact;
+  -webkit-print-color-adjust: exact;
+}
+
+${selector("h1")} {
+  margin: 0 0 12pt;
+  font-size: 18pt;
+}
+
+${selector("h2")} {
+  margin: 18pt 0 8pt;
+  font-size: 13pt;
+}
+
+${selector("h3")} {
+  margin: 14pt 0 6pt;
+  font-size: 11pt;
+}
+
+${selector("h1, h2, h3")} {
+  break-after: avoid-page;
+  page-break-after: avoid;
+}
+
+${selector("p, ul, ol")} {
+  margin-block: 8pt;
+}
+
+${selector("p, li")} {
+  orphans: 3;
+  widows: 3;
+}
+
+${selector("table")} {
+  margin: 10pt 0;
+  font-size: 8.5pt;
+}
+
+${selector("thead")} {
+  display: table-header-group;
+}
+
+${selector("tr, pre, blockquote, img")} {
+  break-inside: avoid-page;
+  page-break-inside: avoid;
+}
+
+${selector("th, td")} {
+  padding: 4pt 5pt;
+  line-height: 1.4;
+}
+
+${selector("pre, pre code")} {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+${selector("a")} {
+  color: inherit;
+  text-decoration: underline;
+}
+`.trim();
+}
+
+function scopeSelectors(scope: string, selectors: string): string {
+  return selectors
+    .split(",")
+    .map((selector) => `${scope ? `${scope} ` : ""}${selector.trim()}`)
+    .join(",\n");
+}
+
+function indentCss(css: string, spaces: number): string {
+  const indentation = " ".repeat(spaces);
+  return css.split("\n").map((line) => line ? `${indentation}${line}` : line).join("\n");
 }
 
 export const APP_CSS = `

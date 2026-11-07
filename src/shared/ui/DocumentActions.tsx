@@ -3,7 +3,7 @@ import type { ConversionResult } from "../markdown/types";
 import { copyPreviewHtml } from "../export/clipboard";
 import { downloadHtml } from "../export/html-export";
 import { downloadMarkdown } from "../export/markdown-export";
-import { downloadPdf } from "../export/pdf-export";
+import { openPdfPrintDialog } from "../export/pdf-export";
 
 interface DocumentActionsProps {
   result: ConversionResult | null;
@@ -51,11 +51,11 @@ export function DocumentActions({ result, markdown, title, onMessage, onSave }: 
     if (!result) return;
     try {
       setIsExportOpen(false);
-      onMessage("PDF 파일을 생성하고 있습니다.");
-      await downloadPdf(result.bodyHtml, title);
-      onMessage("PDF 파일 다운로드를 시작했습니다.");
+      onMessage("PDF 저장을 위한 인쇄 창을 준비하고 있습니다.");
+      await openPdfPrintDialog(result.bodyHtml, title);
+      onMessage("인쇄 창에서 PDF로 저장할 수 있습니다.");
     } catch {
-      onMessage("PDF 파일을 만들 수 없습니다.");
+      onMessage("PDF 인쇄 창을 열 수 없습니다.");
     }
   };
 
@@ -76,7 +76,7 @@ export function DocumentActions({ result, markdown, title, onMessage, onSave }: 
               downloadHtml(result.fullHtml, title);
               onMessage("HTML 파일 다운로드를 시작했습니다.");
             }}><span aria-hidden="true">&lt;/&gt;</span><span><strong>HTML 다운로드</strong><small>브라우저에서 열 수 있는 문서</small></span></button>
-            <button type="button" role="menuitem" onClick={() => void handlePdf()}><span aria-hidden="true">▤</span><span><strong>PDF 다운로드</strong><small>공유하기 좋은 문서 파일</small></span></button>
+            <button type="button" role="menuitem" onClick={() => void handlePdf()}><span aria-hidden="true">▤</span><span><strong>PDF로 저장</strong><small>브라우저 인쇄 창에서 저장</small></span></button>
             <button type="button" role="menuitem" onClick={() => {
               setIsExportOpen(false);
               downloadMarkdown(markdown, title);
